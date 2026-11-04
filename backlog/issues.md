@@ -28,8 +28,8 @@
 | ID | Status | Evidence / blocker |
 |---|---|---|
 | H01 | Done — source review only | `config/board_pins.json` (`verified: false`), `docs/hardware.md` conflict matrix, `tools/board_pins.py` gate. Physical PCB revision not observed. |
-| P01 | Done — container build only | `firmware/` ESP-IDF v5.5.6 skeleton, `dependencies.lock`, size report in `firmware/README.md`. Never flashed. |
-| H02 | **BLOCKED** | Needs a physical MaTouch Lite board: confirm module variant (flash/PSRAM mode), PCB revision, display rotation, backlight polarity, NS2009 address/axes, 5-point calibration. No board was connected to the build machine. |
+| P01 | Done — container build; flashed during H02 | `firmware/` ESP-IDF v5.5.6 skeleton, `dependencies.lock`, size report in `firmware/README.md`. Boots on the H02 board (N16R8: 16 MB flash, 8 MB octal PSRAM). |
+| H02 | **In progress** — display + touch working on one board | `board_io` ST7789 (27 MHz, BGR, inverted, landscape) and NS2009 at 0x48. The owner played Color Pop with correct picture and touch. Boot log and memory figures are in `firmware/README.md`. Still open: measured 5-point calibration, backlight level, PCB revision, photos, touch latency. |
 | H03 | **BLOCKED** | Needs physical mic + MAX98357A + speaker. H01 found only GPIO4–7 accessible (J1/J2) and 3V3-only headers: a shared-clock full-duplex I2S layout uses all four, leaving no amp-enable GPIO. Requires a hardware decision (hard-wired SD_MODE, sacrificing SD/another bus, or an I/O expander) plus current/thermal measurement of the LD1117. |
 | P02, P03, V01 → all later tickets | Blocked by H02/H03 per dependency table | — |
 

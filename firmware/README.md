@@ -1,8 +1,8 @@
 # Little Arcade firmware (ESP-IDF)
 
-**Status: P01 build skeleton. Compiles; has not been flashed or run on a physical board.**
-The app boots (expected), logs build/board/memory facts and idles. It does not drive any GPIO:
-display/touch bring-up waits on H02 and audio on H03 (see `docs/hardware.md`).
+**Status: H02 display + touch bring-up flashed and run on one MaTouch Lite board (N16R8 module).**
+`app_main` starts the ST7789 display, the NS2009 touch controller and an LVGL UI task. It does not drive
+audio yet; that waits on H03 (see `docs/hardware.md`).
 
 ## Pinned toolchain and dependencies (P01 spike)
 
@@ -30,7 +30,8 @@ display/touch bring-up waits on H02 and audio on H03 (see `docs/hardware.md`).
 - `components/board/`: generated `board_pins.hpp`.
   - `kPinsVerified` mirrors `config/board_pins.json`.
   - TBD pins are `-1`, and drivers must refuse to start on them.
-- `main/`: the `app_main` skeleton. It does not yet link core, speech, audio or games. That wiring is I01, and is blocked on H02/H03.
+- `components/board/`: also `board_io` (ST7789 over SPI, NS2009 over I2C) and `touch_calibration.hpp` (raw-to-screen mapping, host-tested).
+- `main/`: `app_main` and the LVGL UI task (display flush, touch indev, perf log). Speech and audio are not linked yet; the full wiring is I01.
 - `host_test/`: host CTest suite. Host only; it proves nothing about the device.
 - `partitions.csv`: provisional 16 MB layout with a 4 MB factory app, 6 MB `model` and about 5.9 MB `assets`.
 
@@ -58,8 +59,43 @@ ctest --test-dir build-host -C Debug --output-on-failure
 ```
 
 To build a single game in isolation, pass `-DLA_ONLY_GAME=<folder>`, e.g. `-DLA_ONLY_GAME=color_pop`.
-Flashing (`idf.py -p PORT flash monitor`) is untested. Do not flash until H02 confirms the module's
-flash/PSRAM variant; `CONFIG_SPIRAM_MODE_OCT` assumes an N16R8 module.
+Flash with esptool from `firmware/build` (the board used for H02 enumerates as a USB serial port, e.g. `COM15`):
+
+```
+python -m esptool --chip esp32s3 -p COM15 -b 921600 --before default_reset --after hard_reset write_flash \
+  --flash_mode dio --flash_size 16MB --flash_freq 80m 0x0 bootloader/bootloader.bin \
+  0x8000 partition_table/partition-table.bin 0x10000 little_arcade.bin 0x410000 srmodels/srmodels.bin
+```
+
+`CONFIG_SPIRAM_MODE_OCT` assumes an N16R8 module; the H02 board reported 16 MB flash and 8 MB octal PSRAM.
+
+## H02 device evidence (one physical board)
+
+Image: `little_arcade.bin` 605,065 B, built with `tools/idf_wslc_build.ps1`. It had zero warnings and 17/17 host tests passed.
+It was flashed over USB at 921600 baud and all esptool hashes were verified. The boot log showed:
+
+- `esp_psram: Found 8MB PSRAM device` and `flash=16777216 bytes`.
+- `ST7789 up: SPI 27000000 Hz, BGR, inverted, swap=1 mirror=1,0`.
+- `NS2009 probe at 0x48: ESP_OK`.
+- Memory at UI ready:
+  - Internal heap free 243,511 B, minimum 178,780 B, largest block 131,072 B.
+  - PSRAM free 8,385,768 B.
+  - `lv_mem` max_used 13.9 KB.
+  - UI task stack 11.7 KB free.
+- Color Pop gameplay over 10 s:
+  - 134 redraws and 4 rounds.
+  - Render plus flush averaged 17.3 ms (max 42.1 ms), with about 4.9 K px per redraw.
+
+The owner played Color Pop on the board and reported the picture correct and touch accurate.
+
+Still not verified:
+
+- A measured 5-point touch calibration. The current values are x 200–3850, y 400–3920, Z > 150.
+- Backlight level.
+- The PCB revision.
+- Touch-to-pixel latency.
+
+**Rollback:** reflash a previous `little_arcade.bin` at 0x10000, or restore the full factory dump with `write_flash 0x0 <backup>.bin`.
 
 ## P01 build evidence (container build only — not run on hardware)
 
