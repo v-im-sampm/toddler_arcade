@@ -35,10 +35,12 @@ la_host_test(voice_policy_test voice_policy_test.cpp)
 la_host_test(volume_test volume_test.cpp)
 
 # Each game owns components/games/<name>/ and registers its own library + tests.
+# -DLA_ONLY_GAME=<name> builds a single game (used for isolated parallel work).
+set(LA_ONLY_GAME "" CACHE STRING "Build only this game folder (empty = all)")
 file(GLOB LA_GAME_DIRS LIST_DIRECTORIES true ${LA_COMPONENTS}/games/*)
 foreach(dir ${LA_GAME_DIRS})
-  if(EXISTS ${dir}/CMakeLists.txt)
-    get_filename_component(game ${dir} NAME)
+  get_filename_component(game ${dir} NAME)
+  if(EXISTS ${dir}/CMakeLists.txt AND (LA_ONLY_GAME STREQUAL "" OR LA_ONLY_GAME STREQUAL game))
     add_subdirectory(${dir} games/${game})
   endif()
 endforeach()
