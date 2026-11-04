@@ -1,7 +1,6 @@
-// Little Arcade firmware: H02 display/touch bring-up running Color Pop.
+// Little Arcade firmware: launcher + Color Pop + Hatch-a-Pet on the H02 display/touch.
 // Single UI task owns LVGL (docs/architecture.md). No audio yet (H03 blocked):
-// cues are logged. Touch events are logged raw + mapped so orientation and
-// calibration can be checked on the bench.
+// cues are logged. Touch presses are logged raw + mapped for calibration checks.
 #include <cinttypes>
 
 #include "esp_app_desc.h"
@@ -15,18 +14,14 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "little_arcade/arcade.hpp"
 #include "little_arcade/board_io.hpp"
 #include "little_arcade/board_pins.hpp"
-#include "little_arcade/games/color_pop.hpp"
-#include "little_arcade/games/color_pop_view.hpp"
 #include "little_arcade/intent.hpp"
-#include "little_arcade/scene_manager.hpp"
-#include "little_arcade/ui/chrome_view.hpp"
 #include "lvgl.h"
 
 namespace {
 using namespace little_arcade;
-using namespace little_arcade::color_pop;
 
 constexpr const char* kTag = "little_arcade";
 constexpr uint32_t kStatsPeriodMs = 10000;
@@ -73,22 +68,18 @@ class LogFeedback final : public IFeedback {
   }
 };
 
-struct Scene {
-  Rng rng{1};
-  LogFeedback feedback;
-  GameContext ctx{rng, feedback};
-  ColorPopGame game;
-  ColorPopView view;
-  ui::ChromeView chrome;
-
-  void restart() {
-    if (game.active()) game.exit();
-    rng.reseed(esp_random() | 1u);
-    game.enter(ctx);
+const char* layer_name(Arcade::Layer l) {
+  switch (l) {
+    case Arcade::Layer::MENU: return "menu";
+    case Arcade::Layer::COLOR_POP: return "color_pop";
+    case Arcade::Layer::HATCH_A_PET: return "hatch_a_pet";
+    case Arcade::Layer::NONE: break;
   }
-};
+  return "none";
+}
 
-Scene g_scene;
+LogFeedback g_feedback;
+Arcade* g_arcade = nullptr;
 esp_lcd_panel_handle_t g_panel = nullptr;
 uint64_t g_frame_pixels = 0;
 bool g_was_pressed = false;
@@ -104,38 +95,25 @@ void flush(lv_display_t*, const lv_area_t* area, uint8_t* px_map) {
   esp_lcd_panel_draw_bitmap(g_panel, area->x1, area->y1, area->x2 + 1, area->y2 + 1, px_map);
 }
 
-void read_touch(lv_indev_t*, lv_indev_data_t* data) {
+// Polled from the UI loop; each press edge becomes one Arcade touch (the
+// SceneManager debounces). LVGL has no input device, so no widget ever
+// swallows a press. Raw + mapped points are logged for calibration checks.
+void poll_touch(uint32_t now) {
   board::TouchSample s{};
-  const esp_err_t err = board::touch_read(&s);
-  if (err != ESP_OK || !s.pressed) {
-    data->state = LV_INDEV_STATE_RELEASED;
+  if (board::touch_read(&s) != ESP_OK || !s.pressed) {
     g_was_pressed = false;
     return;
   }
-  const board::ScreenPoint p = board::ns2009_to_screen(s.raw_x, s.raw_y);
-  data->point.x = p.x;
-  data->point.y = p.y;
-  data->state = LV_INDEV_STATE_PRESSED;
-  if (!g_was_pressed) {
-    ESP_LOGI("touch", "down raw=(%u,%u) z=%u -> screen=(%d,%d)", s.raw_x, s.raw_y, s.raw_z, p.x, p.y);
-  }
+  if (g_was_pressed) return;
   g_was_pressed = true;
-}
-
-void on_press(lv_event_t*) {
-  lv_point_t p;
-  lv_indev_get_point(lv_indev_active(), &p);
-  const auto x = static_cast<int16_t>(p.x), y = static_cast<int16_t>(p.y);
-  if (kHomeButton.contains(x, y)) {
-    ESP_LOGI(kTag, "[nav] Home -> restart Color Pop (launcher not built yet)");
-    g_scene.restart();
-  } else if (kMicButton.contains(x, y)) {
+  const board::ScreenPoint p = board::ns2009_to_screen(s.raw_x, s.raw_y);
+  ESP_LOGI("touch", "down raw=(%u,%u) z=%u -> screen=(%d,%d)", s.raw_x, s.raw_y, s.raw_z, p.x, p.y);
+  if (kMicButton.contains(p.x, p.y)) {
     ESP_LOGI(kTag, "[nav] Mic pressed (voice needs H03/V01)");
-  } else {
-    g_scene.game.handle(make_touch_event(x, y, tick_ms()));
+    return;
   }
+  g_arcade->touch(p.x, p.y, now);
 }
-
 lv_display_t* start_display() {
   lv_display_t* disp = lv_display_create(kScreenWidth, kScreenHeight);
   board::DisplayConfig cfg;
@@ -163,35 +141,36 @@ void ui_task(void*) {
   start_display();
 
   const esp_err_t touch_err = board::touch_init();
-  if (touch_err == ESP_OK) {
-    lv_indev_t* indev = lv_indev_create();
-    lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
-    lv_indev_set_read_cb(indev, read_touch);
-  } else {
-    ESP_LOGE(kTag, "touch init failed (%s); display only", esp_err_to_name(touch_err));
-  }
+  if (touch_err != ESP_OK) ESP_LOGE(kTag, "touch init failed (%s); display only", esp_err_to_name(touch_err));
 
-  lv_obj_t* screen = lv_screen_active();
-  lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
-  g_scene.view.create(screen);
-  g_scene.chrome.create(screen);
-  lv_obj_add_event_cb(screen, on_press, LV_EVENT_PRESSED, nullptr);
-  g_scene.restart();
+  static Arcade arcade(g_feedback, esp_random() | 1u);
+  g_arcade = &arcade;
+  const int64_t create_t0 = esp_timer_get_time();
+  arcade.create(lv_screen_active());
+  ESP_LOGI(kTag, "arcade created in %lld ms", (esp_timer_get_time() - create_t0) / 1000);
 
   // First full frame before the backlight comes on: no flash of garbage.
-  g_scene.view.sync(g_scene.game, tick_ms());
+  arcade.tick(tick_ms());
   lv_refr_now(nullptr);
   board::backlight_set(true);
   log_memory("ui_ready");
 
-  uint32_t last = tick_ms(), stats_start = last, frames = 0;
-  int64_t render_us_sum = 0, render_us_max = 0;
+  uint32_t stats_start = tick_ms(), frames = 0;
+  int64_t render_us_sum = 0, render_us_max = 0, tick_us_max = 0;
   uint64_t pixels_sum = 0;
+  Arcade::Layer last_layer = arcade.layer();
   for (;;) {
     const uint32_t now = tick_ms();
-    g_scene.game.update(now - last);
-    last = now;
-    g_scene.view.sync(g_scene.game, now);
+    if (touch_err == ESP_OK) poll_touch(now);
+    const int64_t t_tick = esp_timer_get_time();
+    arcade.tick(now);  // game logic + view sync (+ lazy Hatch-a-Pet art rasters)
+    const int64_t tick_us = esp_timer_get_time() - t_tick;
+    tick_us_max = tick_us > tick_us_max ? tick_us : tick_us_max;
+    if (arcade.layer() != last_layer) {
+      last_layer = arcade.layer();
+      ESP_LOGI(kTag, "[nav] layer=%s", layer_name(last_layer));
+      log_memory("layer");
+    }
     g_frame_pixels = 0;
     const int64_t t0 = esp_timer_get_time();
     const uint32_t idle_ms = lv_timer_handler();
@@ -205,23 +184,26 @@ void ui_task(void*) {
     if (now - stats_start >= kStatsPeriodMs) {
       lv_mem_monitor_t mem;
       lv_mem_monitor(&mem);
+      const hatch_a_pet::HatchAPetView& hv = arcade.hatch_a_pet_view();
       ESP_LOGI("perf",
-               "[device] %u redraws/10s, render avg=%lld us max=%lld us, px avg=%llu, rounds=%u, lv_mem max_used=%u, "
+               "[device] layer=%s %u redraws/10s, render avg=%lld us max=%lld us, tick max=%lld us, px avg=%llu, "
+               "pop rounds=%u, hatches=%u, art rasters=%u max=%u ms total=%u ms, lv_mem max_used=%u, "
                "ui stack free=%u",
-               static_cast<unsigned>(frames), frames ? render_us_sum / frames : 0LL, render_us_max,
-               frames ? pixels_sum / frames : 0ULL, static_cast<unsigned>(g_scene.game.rounds_completed()),
-               static_cast<unsigned>(mem.max_used),
-               static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+               layer_name(arcade.layer()), static_cast<unsigned>(frames), frames ? render_us_sum / frames : 0LL,
+               render_us_max, tick_us_max, frames ? pixels_sum / frames : 0ULL,
+               static_cast<unsigned>(arcade.color_pop().rounds_completed()),
+               static_cast<unsigned>(arcade.hatch_a_pet().hatch_count()), static_cast<unsigned>(hv.rasters()),
+               static_cast<unsigned>(hv.max_raster_ms()), static_cast<unsigned>(hv.total_raster_ms()),
+               static_cast<unsigned>(mem.max_used), static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
       log_memory("ui");
       stats_start = now;
       frames = 0;
-      render_us_sum = render_us_max = 0;
+      render_us_sum = render_us_max = tick_us_max = 0;
       pixels_sum = 0;
     }
     vTaskDelay(pdMS_TO_TICKS(idle_ms < 5 ? 5 : (idle_ms > 20 ? 20 : idle_ms)));
   }
 }
-
 extern "C" void app_main(void) {
   log_memory("boot");
   log_board();
