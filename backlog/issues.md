@@ -24,5 +24,14 @@
 | Q01 | QA | I01 | Device validation, 2h soak, memory/latency report |
 | R01 | integration | Q01 | Versioned release firmware, wiring guide, known limitations |
 
+## Status (2026-11-04)
+| ID | Status | Evidence / blocker |
+|---|---|---|
+| H01 | Done — source review only | `config/board_pins.json` (`verified: false`), `docs/hardware.md` conflict matrix, `tools/board_pins.py` gate. Physical PCB revision not observed. |
+| P01 | Done — container build only | `firmware/` ESP-IDF v5.5.6 skeleton, `dependencies.lock`, size report in `firmware/README.md`. Never flashed. |
+| H02 | **BLOCKED** | Needs a physical MaTouch Lite board: confirm module variant (flash/PSRAM mode), PCB revision, display rotation, backlight polarity, NS2009 address/axes, 5-point calibration. No board was connected to the build machine. |
+| H03 | **BLOCKED** | Needs physical mic + MAX98357A + speaker. H01 found only GPIO4–7 accessible (J1/J2) and 3V3-only headers: a shared-clock full-duplex I2S layout uses all four, leaving no amp-enable GPIO. Requires a hardware decision (hard-wired SD_MODE, sacrificing SD/another bus, or an I/O expander) plus current/thermal measurement of the LD1117. |
+| P02, P03, V01 → all later tickets | Blocked by H02/H03 per dependency table | — |
+
 ## Each issue must include
 Exact file ownership, acceptance criteria from the matching spec, target branch, tests to run, expected artifacts and measurement evidence. Do not claim done without physical board testing when hardware is involved.
