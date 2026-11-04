@@ -1,0 +1,246 @@
+<!doctype html>
+<!--
+  Color Pop visual mockup (reference for engine ports).
+  Geometry mirrors firmware/components/games/color_pop/include/little_arcade/games/color_pop.hpp
+  and the SceneManager chrome rects. Drawn only with rects/circles/lines so the
+  Moybyte and Pinyol ports can reproduce it with primitive draw calls.
+  Not a hardware artefact: desktop browser only.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Color Pop mockup</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #222; color: #eee; margin: 16px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p { margin: 4px 0 12px; font-size: 13px; color: #bbb; max-width: 1000px; }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; }
+  figure { margin: 0; }
+  figcaption { font-size: 12px; color: #ccc; margin-top: 4px; }
+  canvas { image-rendering: pixelated; border: 2px solid #555; background: #000; }
+  .live canvas { cursor: pointer; }
+  label { font-size: 12px; color: #ccc; margin-right: 12px; }
+</style>
+</head>
+<body>
+<h1>Color Pop: 320×240 landscape mockup</h1>
+<p>The static frames show each scene state. The live panel at the bottom is clickable and follows the
+same rules as <code>ColorPopGame</code>: 2→4 bubbles, gentle wiggle on a wrong tap, any input skips
+the intro, input is ignored during the celebration, and tapping the badge repeats the prompt (AGAIN).
+Each colour also has a pattern (♥ red, ~ blue, leaf green, ★ yellow), so the game never relies on colour alone.</p>
+
+<div class="row" id="frames"></div>
+
+<h1 style="margin-top:20px">Live (click to play)</h1>
+<div class="live">
+  <label><input type="checkbox" id="grid"> show hit rects</label>
+  <div><canvas id="live" width="320" height="240"></canvas></div>
+  <figcaption id="status"></figcaption>
+</div>
+
+<script>
+const W = 320, H = 240, SCALE = 2;
+const PAL = {
+  sky: '#BFE8FF', skyDark: '#9FD4F5', ground: '#A8E6A1', chrome: '#FFFFFF', chromeEdge: '#5B6B8C',
+  ink: '#33415C', white: '#FFFFFF', shadow: 'rgba(40,60,90,0.25)',
+  RED: '#E84A4A', BLUE: '#3A7BE0', GREEN: '#3FB24A', YELLOW: '#F7C631',
+};
+const COLORS = ['RED', 'BLUE', 'GREEN', 'YELLOW'];
+const PATTERN = { RED: 'heart', BLUE: 'wave', GREEN: 'leaf', YELLOW: 'star' };
+// From color_pop.hpp / SceneManager.
+const HOME = [0, 0, 56, 56], MIC = [264, 0, 56, 56], BADGE = [132, 4, 56, 56];
+const SLOTS = [[16,72,72,72],[124,72,72,72],[232,72,72,72],[16,160,72,72],[124,160,72,72],[232,160,72,72]];
+const INTRO_MS = 1200, CELEBRATE_MS = 1500, WIGGLE_MS = 400, HINT_MS = 1500;
+
+function circle(g, x, y, r, fill, stroke, lw) {
+  g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2);
+  if (fill) { g.fillStyle = fill; g.fill(); }
+  if (stroke) { g.lineWidth = lw || 2; g.strokeStyle = stroke; g.stroke(); }
+}
+
+function drawPattern(g, kind, cx, cy, s, col) {
+  g.fillStyle = col; g.strokeStyle = col; g.lineWidth = 3; g.lineCap = 'round';
+  if (kind === 'heart') {
+    circle(g, cx - s * 0.25, cy - s * 0.1, s * 0.27, col);
+    circle(g, cx + s * 0.25, cy - s * 0.1, s * 0.27, col);
+    g.beginPath(); g.moveTo(cx - s * 0.5, cy); g.lineTo(cx + s * 0.5, cy); g.lineTo(cx, cy + s * 0.55); g.closePath(); g.fill();
+  } else if (kind === 'wave') {
+    for (const dy of [-s * 0.22, s * 0.22]) {
+      g.beginPath();
+      for (let i = 0; i <= 16; i++) {
+        const x = cx - s * 0.5 + (s * i) / 16, y = cy + dy + Math.sin((i / 16) * Math.PI * 2) * s * 0.15;
+        i ? g.lineTo(x, y) : g.moveTo(x, y);
+      }
+      g.stroke();
+    }
+  } else if (kind === 'leaf') {
+    g.beginPath(); g.ellipse(cx, cy, s * 0.5, s * 0.28, -Math.PI / 4, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = PAL.GREEN; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(cx - s * 0.32, cy + s * 0.32); g.lineTo(cx + s * 0.32, cy - s * 0.32); g.stroke();
+  } else if (kind === 'star') {
+    g.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 ? s * 0.24 : s * 0.55, a = -Math.PI / 2 + (i * Math.PI) / 5;
+      const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+      i ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    g.closePath(); g.fill();
+  }
+}
+
+function drawBubble(g, color, rect, opts = {}) {
+  const [x, y, w, h] = rect;
+  const dx = opts.wiggleT ? Math.sin(opts.wiggleT * Math.PI * 6) * 5 * opts.wiggleT : 0;
+  const cx = x + w / 2 + dx, cy = y + h / 2, r = w / 2 - 2;
+  if (opts.glow) circle(g, cx, cy, r + 5 + Math.sin(opts.glow) * 2, null, PAL.white, 4);
+  circle(g, cx + 3, cy + 4, r, PAL.shadow);
+  circle(g, cx, cy, r, PAL[color], PAL.ink, 2);
+  circle(g, cx - r * 0.6, cy - r * 0.45, r * 0.11, PAL.white);
+  drawPattern(g, PATTERN[color], cx, cy + 2, r * 0.85, PAL.white);
+}
+
+function drawSparkles(g, rect, t) {
+  const [x, y, w, h] = rect, cx = x + w / 2, cy = y + h / 2;
+  const cols = [PAL.RED, PAL.BLUE, PAL.GREEN, PAL.YELLOW, PAL.white];
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2, d = 10 + t * 50, s = 5 * (1 - t) + 1;
+    const px = cx + Math.cos(a) * d, py = cy + Math.sin(a) * d;
+    g.fillStyle = cols[i % cols.length];
+    g.fillRect(px - s / 2, py - s / 2, s, s);
+  }
+  circle(g, cx, cy, 10 + t * 30, null, `rgba(255,255,255,${1 - t})`, 3);
+}
+
+function drawChrome(g, target, hintT, intro) {
+  // Background.
+  g.fillStyle = PAL.sky; g.fillRect(0, 0, W, H);
+  g.fillStyle = PAL.skyDark; g.fillRect(0, 0, W, 62);
+  g.fillStyle = PAL.ground; g.fillRect(0, 230, W, 10);
+  // Home (house glyph).
+  const [hx, hy] = HOME;
+  g.fillStyle = PAL.chrome; g.strokeStyle = PAL.chromeEdge; g.lineWidth = 2;
+  g.beginPath(); g.roundRect(hx + 4, hy + 4, 48, 48, 10); g.fill(); g.stroke();
+  g.fillStyle = PAL.ink;
+  g.beginPath(); g.moveTo(hx + 14, hy + 30); g.lineTo(hx + 28, hy + 15); g.lineTo(hx + 42, hy + 30); g.closePath(); g.fill();
+  g.fillRect(hx + 18, hy + 29, 20, 14);
+  g.fillStyle = PAL.chrome; g.fillRect(hx + 25, hy + 34, 6, 9);
+  // Mic (capsule glyph).
+  const [mx, my] = MIC;
+  g.fillStyle = PAL.chrome; g.beginPath(); g.roundRect(mx + 4, my + 4, 48, 48, 10); g.fill(); g.stroke();
+  g.fillStyle = PAL.ink; g.beginPath(); g.roundRect(mx + 22, my + 12, 12, 22, 6); g.fill();
+  g.lineWidth = 3; g.strokeStyle = PAL.ink;
+  g.beginPath(); g.arc(mx + 28, my + 26, 11, 0, Math.PI); g.stroke();
+  g.fillRect(mx + 26, my + 37, 4, 7); g.fillRect(mx + 20, my + 43, 16, 3);
+  // Target badge: requested colour + pattern; works with audio off.
+  const [bx, by, bw, bh] = BADGE, bcx = bx + bw / 2, bcy = by + bh / 2;
+  const pulse = hintT ? 3 + Math.sin(hintT * Math.PI * 6) * 2 : 0;
+  circle(g, bcx, bcy, bw / 2 + pulse, PAL.white, PAL.ink, 2);
+  if (!intro) {
+    circle(g, bcx, bcy, bw / 2 - 6, PAL[target]);
+    drawPattern(g, PATTERN[target], bcx, bcy + 1, 22, PAL.white);
+  } else {
+    // Intro: a friendly "?" bubble pulses before the first prompt.
+    g.fillStyle = PAL.ink; g.font = 'bold 30px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('?', bcx, bcy + 2);
+  }
+  // Small speaker hint arcs next to the badge to mean "listen".
+  g.strokeStyle = PAL.ink; g.lineWidth = 2;
+  for (const r of [6, 11]) { g.beginPath(); g.arc(bx + bw + 6, bcy, r, -0.7, 0.7); g.stroke(); }
+}
+
+function drawHitRects(g, bubbles) {
+  g.strokeStyle = 'rgba(255,0,255,0.8)'; g.lineWidth = 1; g.setLineDash([3, 2]);
+  for (const r of [HOME, MIC, BADGE, ...bubbles.map(b => b.rect)]) g.strokeRect(r[0] + 0.5, r[1] + 0.5, r[2] - 1, r[3] - 1);
+  g.strokeStyle = 'rgba(255,0,255,0.4)'; g.beginPath(); g.moveTo(0, 64.5); g.lineTo(W, 64.5); g.stroke();
+  g.setLineDash([]);
+}
+
+function render(g, s, now) {
+  g.save(); g.clearRect(0, 0, W, H);
+  const hintT = s.hintMs > 0 ? 1 - s.hintMs / HINT_MS : 0;
+  drawChrome(g, s.target, hintT, s.phase === 'INTRO');
+  s.bubbles.forEach((b, i) => {
+    if (b.popped) return;
+    const wig = i === s.wiggle && s.wiggleMs > 0 ? s.wiggleMs / WIGGLE_MS : 0;
+    const glow = s.hintMs > 0 && b.color === s.target && s.phase === 'PLAY' ? now / 120 : 0;
+    drawBubble(g, b.color, b.rect, { wiggleT: wig, glow });
+  });
+  if (s.phase === 'CELEBRATE') {
+    const b = s.bubbles.find(b => b.popped);
+    if (b) drawSparkles(g, b.rect, Math.min(1, s.phaseMs / (CELEBRATE_MS * 0.7)));
+  }
+  if (s.showRects) drawHitRects(g, s.bubbles);
+  g.restore();
+}
+
+function makeCanvas(parent, caption) {
+  const fig = document.createElement('figure'), c = document.createElement('canvas');
+  c.width = W; c.height = H; c.style.width = W * SCALE + 'px'; c.style.height = H * SCALE + 'px';
+  const cap = document.createElement('figcaption'); cap.textContent = caption;
+  fig.append(c, cap); parent.append(fig);
+  return c.getContext('2d');
+}
+
+// ---- Static storyboard frames ----
+const frames = document.getElementById('frames');
+const mk = (n, colors, target, extra = {}) => ({
+  phase: 'PLAY', target, hintMs: 0, wiggle: -1, wiggleMs: 0, phaseMs: 0, showRects: false,
+  bubbles: colors.map((c, i) => ({ color: c, rect: SLOTS[n[i]], popped: false })), ...extra,
+});
+const board = [
+  ['1. INTRO (1.2 s, any tap skips)', mk([1, 3], ['RED', 'BLUE'], 'RED', { phase: 'INTRO' }), 0],
+  ['2. PLAY: round 1, two bubbles, prompt "Red!"', mk([1, 3], ['RED', 'BLUE'], 'RED'), 0],
+  ['3. PLAY: four bubbles (round 3+)', mk([0, 2, 4, 5], ['YELLOW', 'GREEN', 'BLUE', 'RED'], 'GREEN'), 0],
+  ['4. Wrong tap: gentle wiggle + hint glow + badge pulse', mk([0, 2, 4], ['BLUE', 'GREEN', 'YELLOW'], 'GREEN', { wiggle: 0, wiggleMs: 250, hintMs: 900 }), 500],
+  ['5. CELEBRATE: pop with sparkles (input ignored)', (() => { const s = mk([0, 2, 4], ['BLUE', 'GREEN', 'YELLOW'], 'GREEN', { phase: 'CELEBRATE', phaseMs: 400 }); s.bubbles[1].popped = true; return s; })(), 0],
+  ['6. Hit rects: Home/Mic 56², badge 56², bubbles 72², play area y≥64', mk([0, 1, 2, 3], ['RED', 'BLUE', 'GREEN', 'YELLOW'], 'BLUE', { showRects: true }), 0],
+];
+for (const [cap, s, t] of board) render(makeCanvas(frames, cap), s, t);
+
+// ---- Live interactive panel (mirrors ColorPopGame rules) ----
+const liveCanvas = document.getElementById('live'), lg = liveCanvas.getContext('2d');
+liveCanvas.style.width = W * 3 + 'px'; liveCanvas.style.height = H * 3 + 'px';
+const statusEl = document.getElementById('status');
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const S = { phase: 'INTRO', phaseMs: 0, rounds: 0, bubbles: [], target: 'RED', prev: null, hintMs: 0, wiggle: -1, wiggleMs: 0, showRects: false };
+function newRound() {
+  const n = 2 + Math.min(S.rounds, 2), cols = shuffle([...COLORS]), slots = shuffle([0, 1, 2, 3, 4, 5]);
+  S.bubbles = cols.slice(0, n).map((c, i) => ({ color: c, rect: SLOTS[slots[i]], popped: false }));
+  let pick = Math.floor(Math.random() * n);
+  if (S.prev && S.bubbles[pick].color === S.prev) pick = (pick + 1) % n;
+  S.target = S.prev = S.bubbles[pick].color; S.hintMs = 0; S.wiggleMs = 0; S.wiggle = -1;
+}
+function startPlay() { S.phase = 'PLAY'; S.phaseMs = 0; say(`"${S.target[0] + S.target.slice(1).toLowerCase()}!"`); }
+let lastSay = '';
+function say(t) { lastSay = t; }
+const inRect = (r, x, y) => x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3];
+liveCanvas.addEventListener('pointerdown', e => {
+  const b = liveCanvas.getBoundingClientRect();
+  const x = Math.floor((e.clientX - b.left) * W / b.width), y = Math.floor((e.clientY - b.top) * H / b.height);
+  if (inRect(HOME, x, y)) { say('Home (handled by SceneManager)'); return; }
+  if (inRect(MIC, x, y)) { say('Mic (handled by SceneManager)'); return; }
+  if (S.phase === 'CELEBRATE') return;
+  if (S.phase === 'INTRO') { startPlay(); return; }
+  const hit = S.bubbles.findIndex(bb => !bb.popped && inRect(bb.rect, x, y));
+  if (hit >= 0) {
+    if (S.bubbles[hit].color === S.target) {
+      S.bubbles[hit].popped = true; S.rounds++; S.phase = 'CELEBRATE'; S.phaseMs = 0; S.hintMs = 0; say('POP! ✨ (success + celebrate cues)');
+    } else { S.wiggle = hit; S.wiggleMs = WIGGLE_MS; S.hintMs = HINT_MS; say(`(soft boop) "${S.target.toLowerCase()}!"`); }
+  } else if (inRect(BADGE, x, y)) { S.hintMs = HINT_MS; say(`AGAIN: "${S.target.toLowerCase()}!"`); }
+});
+document.getElementById('grid').addEventListener('change', e => S.showRects = e.target.checked);
+newRound();
+let last = performance.now();
+function tick(now) {
+  const dt = Math.min(100, now - last); last = now;
+  S.hintMs = Math.max(0, S.hintMs - dt); S.wiggleMs = Math.max(0, S.wiggleMs - dt); S.phaseMs += dt;
+  if (S.phase === 'INTRO' && S.phaseMs >= INTRO_MS) startPlay();
+  else if (S.phase === 'CELEBRATE' && S.phaseMs >= CELEBRATE_MS) { newRound(); startPlay(); }
+  render(lg, S, now);
+  statusEl.textContent = `phase=${S.phase}  rounds=${S.rounds}  bubbles=${S.bubbles.length}  target=${S.target}  audio: ${lastSay}`;
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
