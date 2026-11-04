@@ -1,8 +1,10 @@
 # Desktop simulator (LVGL + SDL2)
 
-Runs the real `ColorPopGame` logic and `ColorPopView` LVGL view on a desktop PC.
-It is for visual iteration and render-cost comparison only. **Results from this
-simulator are host-desktop measurements, not hardware validation** (AGENTS.md rule 8).
+Runs the full `Arcade` shell (`firmware/components/arcade`) on a desktop PC: the
+`SceneManager` launcher, Home, Color Pop and Hatch-a-Pet, with the real game logic
+and the real LVGL views shared with the device firmware. It is for visual
+iteration and render-cost comparison only. **Results from this simulator are
+host-desktop measurements, not hardware validation** (AGENTS.md rule 8).
 
 Pinned dependencies (fetched by CMake, verified by SHA256, not vendored):
 
@@ -30,33 +32,43 @@ build-sim\Release\little_arcade_sim.exe [--zoom 3] [--seed N]
 
 | Input | Meaning |
 |---|---|
-| Mouse click | touch |
+| Mouse click | touch (launcher tiles, Home, game areas) |
 | `R` `B` `G` `Y` | voice intent RED / BLUE / GREEN / YELLOW |
 | `A` / `H` | voice intent AGAIN / HELP |
-| Home button | restart the scene (SceneManager is not simulated) |
+| `J` / `N` / `X` | voice intent YES / NO / NEXT |
+| `Backspace` | voice intent BACK (to the launcher) |
+| `C` / `E` | voice intent COLORS / EGGS (launch from the menu) |
 | Mic button | logs only; push-to-talk is simulated by the keys above |
 | `Esc` | quit |
 
-Audio cues are printed to the console (`[audio] PROMPT "green!"`) instead of being played.
+Audio cues are printed to the console (`[audio] PROMPT 0`) instead of being played.
 
 ## Headless benchmark
 
 ```powershell
-build-sim\Release\little_arcade_sim.exe --bench --seconds 60 --seed 1234 [--frame-ms 33] [--shots DIR]
+build-sim\Release\little_arcade_sim.exe --bench --game color_pop|hatch_a_pet --seconds 60 --seed 1234 [--frame-ms 33] [--shots DIR]
 ```
 
-The benchmark uses a deterministic simulated clock and a scripted player. In each
-round the player taps a wrong bubble, sometimes taps the badge (AGAIN), and then
-answers by touch or by voice. LVGL renders into two partial RGB565 buffers
-(320×24 lines each, as planned for the device). The flush callback copies them
-into a frame, which `--shots` saves as BMPs.
+The benchmark uses a deterministic simulated clock. It starts on the launcher,
+taps the game's tile at 600 ms, and then a scripted player plays through the
+`SceneManager`:
+
+- **Color Pop**: each round taps a wrong bubble, sometimes taps the badge
+  (AGAIN), then answers by touch or by voice.
+- **Hatch-a-Pet**: taps the egg (badge replay on alternate eggs, one crack by
+  voice YES), pets the creature twice, presses NO, then YES by touch or voice.
+
+LVGL renders into two partial RGB565 buffers (320×24 lines each, as on the
+device). The flush callback copies them into a frame, which `--shots` saves as
+BMPs named `<game>_NN_<moment>.bmp`, including `00_menu`.
 
 The report covers:
 
 - render time per frame that actually redrew (avg, p50, p95, max);
-- logic and view-sync time;
+- logic and view-sync time (includes Hatch-a-Pet art rasterisation);
 - redrawn pixels per frame;
 - LVGL heap high-water mark.
 
 It also prints a `JSON {...}` line, which the engine comparison under
-`experiments/engine_compare/` is intended to reuse. Exit code 0 means at least one round completed.
+`experiments/engine_compare/` is intended to reuse. Exit code 0 means at least
+one round (Color Pop) or one hatch (Hatch-a-Pet) completed.

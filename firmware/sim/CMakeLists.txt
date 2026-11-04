@@ -40,15 +40,18 @@ set(LA_COMPONENTS ${CMAKE_CURRENT_LIST_DIR}/../components)
 add_subdirectory(${LA_COMPONENTS}/core core)
 add_subdirectory(${LA_COMPONENTS}/ui ui)
 add_subdirectory(${LA_COMPONENTS}/games/color_pop games/color_pop)
+add_subdirectory(${LA_COMPONENTS}/games/hatch_a_pet games/hatch_a_pet)
+add_subdirectory(${LA_COMPONENTS}/arcade arcade)
 
 add_executable(little_arcade_sim main.cpp)
-target_link_libraries(little_arcade_sim PRIVATE little_arcade_game_color_pop_view)
+target_link_libraries(little_arcade_sim PRIVATE little_arcade_arcade)
 if(MSVC)
   target_compile_definitions(little_arcade_sim PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
 foreach(t little_arcade_core little_arcade_ui little_arcade_game_color_pop
-          little_arcade_game_color_pop_view little_arcade_sim)
+          little_arcade_game_color_pop_view little_arcade_game_hatch_a_pet
+          little_arcade_game_hatch_a_pet_view little_arcade_arcade little_arcade_sim)
   if(MSVC)
     target_compile_options(${t} PRIVATE /W4 /WX /permissive-)
   else()

@@ -1,11 +1,15 @@
-// Little Arcade desktop simulator: Color Pop (ColorPopGame + ColorPopView).
+// Little Arcade desktop simulator: the full Arcade shell (launcher + Home +
+// Color Pop + Hatch-a-Pet) with the real game logic and real LVGL views.
 //
 // Interactive:  little_arcade_sim [--zoom N] [--seed N]
-//   Mouse = touch. Keys = voice intents: R B G Y (colours), A (AGAIN), H (HELP).
-//   Home restarts the scene (SceneManager is not simulated); Esc quits.
-// Benchmark:    little_arcade_sim --bench [--seconds N] [--seed N] [--frame-ms N] [--shots DIR]
-//   Headless, deterministic simulated clock and scripted player. Renders RGB565
-//   into partial buffers like the device and reports render cost per frame.
+//   Mouse = touch (Home and the launcher work like the device).
+//   Keys = voice intents: R B G Y colours, A AGAIN, H HELP, J YES, N NO,
+//   X NEXT, Backspace BACK, C COLORS, E EGGS. Esc quits.
+// Benchmark:    little_arcade_sim --bench [--game color_pop|hatch_a_pet]
+//                 [--seconds N] [--seed N] [--frame-ms N] [--shots DIR]
+//   Headless, deterministic simulated clock. Starts on the launcher, taps the
+//   game's tile, then a scripted player plays through the SceneManager.
+//   Renders RGB565 into partial buffers like the device.
 //
 // Desktop only: numbers describe this PC, not the ESP32-S3 (AGENTS.md rule 8).
 #include <SDL2/SDL.h>
@@ -19,19 +23,16 @@
 #include <string>
 #include <vector>
 
-#include "little_arcade/games/color_pop.hpp"
-#include "little_arcade/games/color_pop_view.hpp"
-#include "little_arcade/scene_manager.hpp"
-#include "little_arcade/ui/chrome_view.hpp"
+#include "little_arcade/arcade.hpp"
 #include "lvgl.h"
 
 using namespace little_arcade;
-using namespace little_arcade::color_pop;
 
 namespace {
 
 struct Options {
   bool bench = false;
+  GameId game = GameId::COLOR_POP;
   uint32_t seconds = 60;
   uint32_t seed = 0;
   uint32_t frame_ms = LV_DEF_REFR_PERIOD;
@@ -53,26 +54,6 @@ const char* cue_name(Cue c) {
   return "?";
 }
 
-const char* color_name(Color c) {
-  switch (c) {
-    case Color::RED: return "red";
-    case Color::BLUE: return "blue";
-    case Color::GREEN: return "green";
-    case Color::YELLOW: return "yellow";
-  }
-  return "?";
-}
-
-Intent color_intent(Color c) {
-  switch (c) {
-    case Color::RED: return Intent::RED;
-    case Color::BLUE: return Intent::BLUE;
-    case Color::GREEN: return Intent::GREEN;
-    case Color::YELLOW: return Intent::YELLOW;
-  }
-  return Intent::UNKNOWN;
-}
-
 // Stands in for the audio layer: prints cues instead of playing sounds.
 class ConsoleFeedback final : public IFeedback {
  public:
@@ -80,72 +61,58 @@ class ConsoleFeedback final : public IFeedback {
   uint32_t count = 0;
   void play(Cue cue, uint8_t variant) override {
     ++count;
-    if (quiet) return;
-    if (cue == Cue::PROMPT) {
-      std::printf("[audio] PROMPT \"%s!\"\n", color_name(static_cast<Color>(variant)));
-    } else {
-      std::printf("[audio] %s\n", cue_name(cue));
-    }
-  }
-};
-
-struct Scene {
-  Rng rng{1};
-  ConsoleFeedback feedback;
-  GameContext ctx{rng, feedback};
-  ColorPopGame game;
-  ColorPopView view;
-  ui::ChromeView chrome;
-  uint32_t seed = 1;
-
-  void build(lv_obj_t* screen) {
-    lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
-    view.create(screen);
-    chrome.create(screen);
-  }
-  void restart() {
-    if (game.active()) game.exit();
-    rng.reseed(seed);
-    game.enter(ctx);
+    if (!quiet) std::printf("[audio] %s %u\n", cue_name(cue), static_cast<unsigned>(variant));
   }
 };
 
 int16_t mid_x(const Rect& r) { return static_cast<int16_t>(r.x + r.w / 2); }
 int16_t mid_y(const Rect& r) { return static_cast<int16_t>(r.y + r.h / 2); }
+void tap(Arcade& a, const Rect& r, uint32_t now) { a.touch(mid_x(r), mid_y(r), now); }
 
-// Deterministic "child": each round taps a wrong bubble, sometimes asks AGAIN
-// via the badge, then answers by touch or (every third round) by voice.
-class ScriptedPlayer {
+Intent color_intent(color_pop::Color c) {
+  switch (c) {
+    case color_pop::Color::RED: return Intent::RED;
+    case color_pop::Color::BLUE: return Intent::BLUE;
+    case color_pop::Color::GREEN: return Intent::GREEN;
+    case color_pop::Color::YELLOW: return Intent::YELLOW;
+  }
+  return Intent::UNKNOWN;
+}
+
+// Deterministic "child" for Color Pop: each round taps a wrong bubble,
+// sometimes asks AGAIN via the badge, then answers by touch or (every third
+// round) by voice.
+class ColorPopPlayer {
  public:
-  void tick(ColorPopGame& g, uint32_t now) {
+  void tick(Arcade& a, uint32_t now) {
+    using color_pop::Phase;
+    const color_pop::ColorPopGame& g = a.color_pop();
     if (g.phase() != last_) {
       last_ = g.phase();
-      play_start_ = now;
+      start_ = now;
       step_ = 0;
     }
     if (last_ != Phase::PLAY) return;
-    const uint32_t t = now - play_start_;
+    const uint32_t t = now - start_;
     const uint32_t round = g.rounds_completed();
     if (step_ == 0 && t >= 400) {
       for (std::size_t i = 0; i < g.bubble_count(); ++i) {
         if (g.bubble(i).color != g.target()) {
-          g.handle(make_touch_event(mid_x(g.bubble(i).rect), mid_y(g.bubble(i).rect), now));
+          tap(a, g.bubble(i).rect, now);
           break;
         }
       }
       step_ = 1;
     } else if (step_ == 1 && t >= 900) {
-      if (round % 4 == 2) {
-        g.handle(make_touch_event(mid_x(ColorPopGame::kTargetBadge), mid_y(ColorPopGame::kTargetBadge), now));
-      }
+      if (round % 4 == 2) tap(a, color_pop::ColorPopGame::kTargetBadge, now);
       step_ = 2;
     } else if (step_ == 2 && t >= 1400) {
       if (round % 3 == 1) {
-        g.handle(make_voice_event(color_intent(g.target()), now));
+        a.voice(color_intent(g.target()), now);
       } else {
         for (std::size_t i = 0; i < g.bubble_count(); ++i) {
           if (g.bubble(i).color == g.target()) {
-            g.handle(make_touch_event(mid_x(g.bubble(i).rect), mid_y(g.bubble(i).rect), now));
+            tap(a, g.bubble(i).rect, now);
             break;
           }
         }
@@ -155,15 +122,69 @@ class ScriptedPlayer {
   }
 
  private:
-  Phase last_ = Phase::INTRO;
-  uint32_t play_start_ = 0;
+  color_pop::Phase last_ = color_pop::Phase::INTRO;
+  uint32_t start_ = 0;
+  int step_ = 0;
+};
+
+// Deterministic "child" for Hatch-a-Pet: taps the egg (one prompt replay via
+// the badge on every other egg, one crack by voice YES), pets the creature
+// twice, presses NO once, then YES (touch or voice) for another egg.
+class HatchAPetPlayer {
+ public:
+  void tick(Arcade& a, uint32_t now) {
+    using hatch_a_pet::HatchAPetGame;
+    using hatch_a_pet::Phase;
+    const HatchAPetGame& g = a.hatch_a_pet();
+    if (g.phase() != last_) {
+      last_ = g.phase();
+      start_ = now;
+      step_ = 0;
+      next_ = 500;
+    }
+    const uint32_t t = now - start_;
+    if (t < next_) return;
+    const uint32_t n = g.hatch_count();
+    if (last_ == Phase::EGG) {
+      if (step_ == 0 && n % 2 == 1) {
+        tap(a, HatchAPetGame::kPromptBadge, now);
+        next_ = t + 900;
+      } else if (step_ == 2) {
+        a.voice(Intent::YES, now);
+        next_ = t + 450;
+      } else {
+        tap(a, HatchAPetGame::kEgg, now);
+        next_ = t + 450;
+      }
+      ++step_;
+    } else if (last_ == Phase::PET) {
+      switch (step_++) {
+        case 0:
+        case 1: tap(a, HatchAPetGame::kCreature, now); next_ = t + 800; break;
+        case 2: tap(a, HatchAPetGame::kNoButton, now); next_ = t + 900; break;
+        default:
+          if (n % 2 == 0) {
+            a.voice(Intent::YES, now);
+          } else {
+            tap(a, HatchAPetGame::kYesButton, now);
+          }
+          next_ = UINT32_MAX;
+          break;
+      }
+    }
+  }
+
+ private:
+  hatch_a_pet::Phase last_ = hatch_a_pet::Phase::INTRO;
+  uint32_t start_ = 0;
+  uint32_t next_ = 0;
   int step_ = 0;
 };
 
 // ---------------------------------------------------------------- benchmark
 constexpr int kW = kScreenWidth;
 constexpr int kH = kScreenHeight;
-constexpr int kBufLines = 24;  // 1/10 screen, double-buffered, like the device plan
+constexpr int kBufLines = 24;  // 1/10 screen, double-buffered, like the device
 
 struct BenchState {
   uint16_t frame[kW * kH];
@@ -210,12 +231,9 @@ bool write_bmp(const std::string& path, const uint16_t* rgb565) {
   for (int y = kH - 1; y >= 0; --y) {
     for (int x = 0; x < kW; ++x) {
       const uint16_t p = rgb565[y * kW + x];
-      const uint8_t r = static_cast<uint8_t>(((p >> 11) & 0x1F) * 255 / 31);
-      const uint8_t g = static_cast<uint8_t>(((p >> 5) & 0x3F) * 255 / 63);
-      const uint8_t b = static_cast<uint8_t>((p & 0x1F) * 255 / 31);
-      line[x * 3] = b;
-      line[x * 3 + 1] = g;
-      line[x * 3 + 2] = r;
+      line[x * 3] = static_cast<uint8_t>((p & 0x1F) * 255 / 31);
+      line[x * 3 + 1] = static_cast<uint8_t>(((p >> 5) & 0x3F) * 255 / 63);
+      line[x * 3 + 2] = static_cast<uint8_t>(((p >> 11) & 0x1F) * 255 / 31);
     }
     std::fwrite(line.data(), 1, row, f);
   }
@@ -230,6 +248,23 @@ double percentile(std::vector<double> v, double p) {
   return v[std::min(i, v.size() - 1)];
 }
 
+// Screenshot triggers: each fires once, the first frame its condition holds.
+struct ShotPlan {
+  struct Shot {
+    const char* name;
+    bool done;
+  };
+  std::vector<Shot> shots;
+  std::string dir, prefix;
+
+  void maybe(std::size_t i, bool want, const uint16_t* frame) {
+    if (dir.empty() || !want || shots[i].done) return;
+    shots[i].done = true;
+    const std::string path = dir + "/" + prefix + shots[i].name + ".bmp";
+    std::printf("shot %s %s\n", path.c_str(), write_bmp(path, frame) ? "ok" : "FAILED");
+  }
+};
+
 int run_bench(const Options& opt) {
   static BenchState state{};
   g_bench = &state;
@@ -239,33 +274,54 @@ int run_bench(const Options& opt) {
   lv_display_set_buffers(disp, state.buf1, state.buf2, sizeof(state.buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
   lv_display_set_flush_cb(disp, bench_flush);
 
-  static Scene scene;
-  scene.seed = opt.seed ? opt.seed : 1234;
-  scene.feedback.quiet = true;
-  scene.build(lv_screen_active());
-  scene.restart();
-  ScriptedPlayer player;
+  const bool hatch = opt.game == GameId::HATCH_A_PET;
+  const uint32_t seed = opt.seed ? opt.seed : 1234;
+  static ConsoleFeedback feedback;
+  feedback.quiet = true;
+  static Arcade arcade(feedback, seed);
+  arcade.create(lv_screen_active());
+  ColorPopPlayer pop_player;
+  HatchAPetPlayer hatch_player;
 
+  ShotPlan plan;
+  plan.dir = opt.shots;
+  plan.prefix = hatch ? "hatch_a_pet_" : "color_pop_";
+  if (hatch) {
+    plan.shots = {{"00_menu", false},  {"01_intro", false},     {"02_egg", false},       {"03_egg_cracked", false},
+                  {"04_hint", false},  {"05_hatch", false},     {"06_hatch_pop", false}, {"07_pet_hello", false},
+                  {"08_pet", false}};
+  } else {
+    plan.shots = {{"00_menu", false},          {"01_intro", false},     {"02_play_two", false},
+                  {"03_wrong_tap_wiggle", false}, {"04_celebrate", false}, {"05_play_four", false}};
+  }
+
+  const uint32_t launch_at = 600;  // let the launcher settle and be captured
+  const Rect tile = SceneManager::kTileRects[hatch ? 1 : 0];
   const uint32_t frames = opt.seconds * 1000 / opt.frame_ms;
   std::vector<double> render_us, sync_us;
   std::vector<uint64_t> pixels;
   render_us.reserve(frames);
-  struct Shot {
-    const char* name;
-    bool done;
-  } shots[] = {{"01_intro", false}, {"02_play_two", false}, {"03_wrong_tap_wiggle", false},
-               {"04_celebrate", false}, {"05_play_four", false}};
-  Phase last_phase = Phase::INTRO;
+  sync_us.reserve(frames);
+  bool launched = false;
+  int pop_phase = -1, hatch_phase = -1, last_wiggle = -1;
   uint32_t phase_start = 0, wiggle_start = 0;
-  int last_wiggle = -1;
 
   using clock = std::chrono::steady_clock;
   for (uint32_t f = 0; f < frames; ++f) {
     g_sim_now += opt.frame_ms;
+    if (!launched && g_sim_now >= launch_at) {
+      tap(arcade, tile, g_sim_now);
+      launched = true;
+    }
     const auto t0 = clock::now();
-    scene.game.update(opt.frame_ms);
-    player.tick(scene.game, g_sim_now);
-    scene.view.sync(scene.game, g_sim_now);
+    if (arcade.layer() != Arcade::Layer::MENU) {
+      if (hatch) {
+        hatch_player.tick(arcade, g_sim_now);
+      } else {
+        pop_player.tick(arcade, g_sim_now);
+      }
+    }
+    arcade.tick(g_sim_now);
     const auto t1 = clock::now();
     state.frame_pixels = 0;
     lv_timer_handler();
@@ -276,126 +332,140 @@ int run_bench(const Options& opt) {
       pixels.push_back(state.frame_pixels);
     }
 
-    if (opt.shots.empty()) continue;
-    const ColorPopGame& g = scene.game;
-    if (g.phase() != last_phase) {
-      last_phase = g.phase();
-      phase_start = g_sim_now;
-    }
-    if (g.wiggling() != last_wiggle) {
-      last_wiggle = g.wiggling();
-      wiggle_start = g_sim_now;
-    }
-    const uint32_t in_phase = g_sim_now - phase_start;
-    const bool want[] = {
-        g.phase() == Phase::INTRO && f >= 1,
-        g.phase() == Phase::PLAY && g.bubble_count() == 2 && in_phase >= 100,
-        last_wiggle >= 0 && g_sim_now - wiggle_start >= 66 && g.hint_active(),
-        g.phase() == Phase::CELEBRATE && in_phase >= 400,
-        g.phase() == Phase::PLAY && g.bubble_count() == 4 && in_phase >= 100,
-    };
-    for (std::size_t i = 0; i < sizeof(want) / sizeof(want[0]); ++i) {
-      if (want[i] && !shots[i].done) {
-        shots[i].done = true;
-        const std::string path = opt.shots + "/color_pop_" + shots[i].name + ".bmp";
-        std::printf("shot %s %s\n", path.c_str(), write_bmp(path, state.frame) ? "ok" : "FAILED");
+    if (plan.dir.empty()) continue;
+    plan.maybe(0, arcade.layer() == Arcade::Layer::MENU && g_sim_now >= launch_at - 2 * opt.frame_ms, state.frame);
+    if (hatch) {
+      using hatch_a_pet::Phase;
+      const hatch_a_pet::HatchAPetGame& g = arcade.hatch_a_pet();
+      if (arcade.layer() != Arcade::Layer::HATCH_A_PET) continue;
+      if (static_cast<int>(g.phase()) != hatch_phase) {
+        hatch_phase = static_cast<int>(g.phase());
+        phase_start = g_sim_now;
       }
+      const uint32_t in_phase = g_sim_now - phase_start;
+      plan.maybe(1, g.phase() == Phase::INTRO && in_phase >= 300, state.frame);
+      plan.maybe(2, g.phase() == Phase::EGG && g.cracks() == 0 && in_phase >= 300, state.frame);
+      plan.maybe(3, g.phase() == Phase::EGG && g.cracks() >= 2 && !g.wobbling(), state.frame);
+      plan.maybe(4, g.phase() == Phase::EGG && g.hint_active() && in_phase >= 900, state.frame);
+      plan.maybe(5, g.phase() == Phase::HATCH && in_phase >= 300, state.frame);
+      plan.maybe(6, g.phase() == Phase::HATCH && in_phase >= 900, state.frame);
+      plan.maybe(7, g.phase() == Phase::PET && in_phase >= 250, state.frame);
+      plan.maybe(8, g.phase() == Phase::PET && g.pet_count() >= 2 && g.reacting() && in_phase >= 1300, state.frame);
+    } else {
+      using color_pop::Phase;
+      const color_pop::ColorPopGame& g = arcade.color_pop();
+      if (arcade.layer() != Arcade::Layer::COLOR_POP) continue;
+      if (static_cast<int>(g.phase()) != pop_phase) {
+        pop_phase = static_cast<int>(g.phase());
+        phase_start = g_sim_now;
+      }
+      if (g.wiggling() != last_wiggle) {
+        last_wiggle = g.wiggling();
+        wiggle_start = g_sim_now;
+      }
+      const uint32_t in_phase = g_sim_now - phase_start;
+      plan.maybe(1, g.phase() == Phase::INTRO && in_phase >= 100, state.frame);
+      plan.maybe(2, g.phase() == Phase::PLAY && g.bubble_count() == 2 && in_phase >= 100, state.frame);
+      plan.maybe(3, last_wiggle >= 0 && g_sim_now - wiggle_start >= 66 && g.hint_active(), state.frame);
+      plan.maybe(4, g.phase() == Phase::CELEBRATE && in_phase >= 400, state.frame);
+      plan.maybe(5, g.phase() == Phase::PLAY && g.bubble_count() == 4 && in_phase >= 100, state.frame);
     }
   }
 
   lv_mem_monitor_t mem;
   lv_mem_monitor(&mem);
-  double render_sum = 0;
+  double render_sum = 0, sync_sum = 0;
   for (double v : render_us) render_sum += v;
+  for (double v : sync_us) sync_sum += v;
   uint64_t px_sum = 0, px_max = 0;
   for (uint64_t v : pixels) {
     px_sum += v;
     px_max = std::max(px_max, v);
   }
-  double sync_sum = 0;
-  for (double v : sync_us) sync_sum += v;
   const std::size_t rendered = render_us.size();
   const double avg_px = rendered ? static_cast<double>(px_sum) / static_cast<double>(rendered) : 0.0;
+  const double render_avg = rendered ? render_sum / static_cast<double>(rendered) : 0.0;
+  const char* name = hatch ? "hatch_a_pet" : "color_pop";
+  const uint32_t progress = hatch ? arcade.hatch_a_pet().hatch_count() : arcade.color_pop().rounds_completed();
+  const hatch_a_pet::HatchAPetView& hv = arcade.hatch_a_pet_view();
 
-  std::printf("\nColor Pop LVGL benchmark (HOST DESKTOP, not device)\n");
-  std::printf("  seed=%u frame_ms=%u sim_seconds=%u frames=%u rendered=%zu rounds=%u cues=%u\n", scene.seed,
-              opt.frame_ms, opt.seconds, frames, rendered, scene.game.rounds_completed(), scene.feedback.count);
-  std::printf("  render us/frame: avg=%.1f p50=%.1f p95=%.1f max=%.1f\n",
-              rendered ? render_sum / static_cast<double>(rendered) : 0.0, percentile(render_us, 0.5),
+  std::printf("\n%s LVGL benchmark via Arcade (HOST DESKTOP, not device)\n", name);
+  std::printf("  seed=%u frame_ms=%u sim_seconds=%u frames=%u rendered=%zu %s=%u cues=%u\n", seed, opt.frame_ms,
+              opt.seconds, frames, rendered, hatch ? "hatches" : "rounds", progress, feedback.count);
+  std::printf("  render us/frame: avg=%.1f p50=%.1f p95=%.1f max=%.1f\n", render_avg, percentile(render_us, 0.5),
               percentile(render_us, 0.95), percentile(render_us, 1.0));
-  std::printf("  logic+view sync us/frame: avg=%.2f max=%.2f\n", sync_sum / static_cast<double>(frames),
-              percentile(sync_us, 1.0));
-  std::printf("  pixels/rendered frame: avg=%.0f (%.1f%% of screen) max=%llu\n", avg_px,
-              100.0 * avg_px / (kW * kH), static_cast<unsigned long long>(px_max));
+  std::printf("  logic+view sync us/frame: avg=%.2f p95=%.2f max=%.2f\n", sync_sum / static_cast<double>(frames),
+              percentile(sync_us, 0.95), percentile(sync_us, 1.0));
+  if (hatch) {
+    std::printf("  art rasters=%u total_ms=%u max_ms=%u (lv_tick = simulated clock, so 0 here)\n", hv.rasters(),
+                hv.total_raster_ms(), hv.max_raster_ms());
+  }
+  std::printf("  pixels/rendered frame: avg=%.0f (%.1f%% of screen) max=%llu\n", avg_px, 100.0 * avg_px / (kW * kH),
+              static_cast<unsigned long long>(px_max));
   std::printf("  lvgl heap: used=%zu max_used=%zu total=%zu frag=%u%%\n", mem.total_size - mem.free_size,
               mem.max_used, mem.total_size, static_cast<unsigned>(mem.frag_pct));
-  std::printf("JSON {\"engine\":\"lvgl-9.5.0\",\"platform\":\"host-desktop\",\"seed\":%u,\"frame_ms\":%u,"
-              "\"frames\":%u,\"rendered\":%zu,\"render_us_avg\":%.1f,\"render_us_p95\":%.1f,"
-              "\"render_us_max\":%.1f,\"px_avg\":%.0f,\"px_max\":%llu,\"heap_max_used\":%zu,\"rounds\":%u}\n",
-              scene.seed, opt.frame_ms, frames, rendered, rendered ? render_sum / static_cast<double>(rendered) : 0.0,
-              percentile(render_us, 0.95), percentile(render_us, 1.0), avg_px,
-              static_cast<unsigned long long>(px_max), mem.max_used, scene.game.rounds_completed());
-  return scene.game.rounds_completed() > 0 ? 0 : 1;
+  std::printf("JSON {\"engine\":\"lvgl-9.5.0\",\"platform\":\"host-desktop\",\"game\":\"%s\",\"seed\":%u,"
+              "\"frame_ms\":%u,\"frames\":%u,\"rendered\":%zu,\"render_us_avg\":%.1f,\"render_us_p95\":%.1f,"
+              "\"render_us_max\":%.1f,\"sync_us_max\":%.1f,\"px_avg\":%.0f,\"px_max\":%llu,\"heap_max_used\":%zu,"
+              "\"progress\":%u,\"rasters\":%u}\n",
+              name, seed, opt.frame_ms, frames, rendered, render_avg, percentile(render_us, 0.95),
+              percentile(render_us, 1.0), percentile(sync_us, 1.0), avg_px, static_cast<unsigned long long>(px_max),
+              mem.max_used, progress, hatch ? hv.rasters() : 0u);
+  return progress > 0 ? 0 : 1;
 }
 
 // -------------------------------------------------------------- interactive
-Scene* g_scene = nullptr;
-
-void on_press(lv_event_t* e) {
-  lv_point_t p;
-  lv_indev_get_point(lv_indev_active(), &p);
-  const auto x = static_cast<int16_t>(p.x), y = static_cast<int16_t>(p.y);
-  const uint32_t now = lv_tick_get();
-  if (kHomeButton.contains(x, y)) {
-    std::printf("[nav] Home -> restart scene (SceneManager not simulated)\n");
-    g_scene->restart();
-  } else if (kMicButton.contains(x, y)) {
-    std::printf("[nav] Mic: push-to-talk is simulated with keys R/B/G/Y/A/H\n");
-  } else {
-    g_scene->game.handle(make_touch_event(x, y, now));
-  }
-  (void)e;
-}
-
 int run_interactive(const Options& opt) {
   lv_display_t* disp = lv_sdl_window_create(kW, kH);
   lv_sdl_window_set_zoom(disp, static_cast<float>(opt.zoom));
-  lv_sdl_window_set_title(disp, "Little Arcade sim - Color Pop (desktop, not device)");
-  lv_sdl_mouse_create();
+  lv_sdl_window_set_title(disp, "Little Arcade sim (desktop, not device)");
   lv_tick_set_cb(SDL_GetTicks);
 
-  static Scene scene;
-  g_scene = &scene;
-  scene.seed = opt.seed ? opt.seed : static_cast<uint32_t>(SDL_GetTicks() ^ 0xA5A5u) | 1u;
-  scene.build(lv_screen_active());
-  lv_obj_add_event_cb(lv_screen_active(), on_press, LV_EVENT_PRESSED, nullptr);
-  scene.restart();
-  std::printf("Color Pop sim: click bubbles; keys R/B/G/Y = say colour, A = again, H = help, Esc = quit\n");
+  static ConsoleFeedback feedback;
+  const uint32_t seed = opt.seed ? opt.seed : static_cast<uint32_t>(SDL_GetTicks() ^ 0xA5A5u) | 1u;
+  static Arcade arcade(feedback, seed);
+  arcade.create(lv_screen_active());
+  std::printf(
+      "Little Arcade sim: click = touch. Keys: R/B/G/Y colours, A again, H help, J yes, N no, X next,\n"
+      "  Backspace back, C colors, E eggs, Esc quit.\n");
 
   struct Key {
     SDL_Scancode code;
     Intent intent;
     bool down;
-  } keys[] = {{SDL_SCANCODE_R, Intent::RED, false},    {SDL_SCANCODE_B, Intent::BLUE, false},
-              {SDL_SCANCODE_G, Intent::GREEN, false},  {SDL_SCANCODE_Y, Intent::YELLOW, false},
-              {SDL_SCANCODE_A, Intent::AGAIN, false},  {SDL_SCANCODE_H, Intent::HELP, false}};
-  uint32_t last = SDL_GetTicks();
+  } keys[] = {{SDL_SCANCODE_R, Intent::RED, false},       {SDL_SCANCODE_B, Intent::BLUE, false},
+              {SDL_SCANCODE_G, Intent::GREEN, false},     {SDL_SCANCODE_Y, Intent::YELLOW, false},
+              {SDL_SCANCODE_A, Intent::AGAIN, false},     {SDL_SCANCODE_H, Intent::HELP, false},
+              {SDL_SCANCODE_J, Intent::YES, false},       {SDL_SCANCODE_N, Intent::NO, false},
+              {SDL_SCANCODE_X, Intent::NEXT, false},      {SDL_SCANCODE_BACKSPACE, Intent::BACK, false},
+              {SDL_SCANCODE_C, Intent::COLORS, false},    {SDL_SCANCODE_E, Intent::EGGS, false}};
+  bool mouse_down = false;
   for (;;) {
     const uint32_t now = SDL_GetTicks();
-    scene.game.update(now - last);
-    last = now;
-    scene.view.sync(scene.game, now);
-    const uint32_t idle = lv_timer_handler();
+    arcade.tick(now);
+    const uint32_t idle = lv_timer_handler();  // also pumps SDL events
     const Uint8* ks = SDL_GetKeyboardState(nullptr);
     if (ks[SDL_SCANCODE_ESCAPE]) break;
     for (Key& k : keys) {
       const bool down = ks[k.code] != 0;
       if (down && !k.down) {
-        std::printf("[voice] intent %d\n", static_cast<int>(k.intent));
-        scene.game.handle(make_voice_event(k.intent, now));
+        std::printf("[voice] %s\n", intent_name(k.intent));
+        arcade.voice(k.intent, now);
       }
       k.down = down;
     }
+    // Press edges become touch events, exactly like the device touch task.
+    int mx = 0, my = 0;
+    const bool down = (SDL_GetMouseState(&mx, &my) & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
+    if (down && !mouse_down) {
+      const auto x = static_cast<int16_t>(mx / opt.zoom), y = static_cast<int16_t>(my / opt.zoom);
+      if (kMicButton.contains(x, y)) {
+        std::printf("[mic] push-to-talk is simulated with the keyboard\n");
+      } else {
+        arcade.touch(x, y, now);
+      }
+    }
+    mouse_down = down;
     SDL_Delay(std::min<uint32_t>(idle, 5));
   }
   return 0;
@@ -412,6 +482,15 @@ bool parse(int argc, char** argv, Options& opt) {
     uint32_t zoom = 0;
     if (a == "--bench") {
       opt.bench = true;
+    } else if (a == "--game" && i + 1 < argc) {
+      const std::string g = argv[++i];
+      if (g == "color_pop") {
+        opt.game = GameId::COLOR_POP;
+      } else if (g == "hatch_a_pet") {
+        opt.game = GameId::HATCH_A_PET;
+      } else {
+        return false;
+      }
     } else if (a == "--seconds") {
       if (!next(opt.seconds) || opt.seconds == 0) return false;
     } else if (a == "--seed") {
@@ -437,7 +516,8 @@ int main(int argc, char** argv) {
   if (!parse(argc, argv, opt)) {
     std::printf(
         "usage: little_arcade_sim [--zoom N] [--seed N]\n"
-        "       little_arcade_sim --bench [--seconds N] [--seed N] [--frame-ms N] [--shots DIR]\n");
+        "       little_arcade_sim --bench [--game color_pop|hatch_a_pet] [--seconds N] [--seed N]\n"
+        "                         [--frame-ms N] [--shots DIR]\n");
     return 2;
   }
   SDL_SetMainReady();
