@@ -76,6 +76,15 @@ Runtime heap/PSRAM numbers do not exist yet: `app_main` logs them, but the image
 
 These are build and logic results only. Footprint deltas for scenes and views have to be measured once I01 links them.
 
+### All ten game scenes (G01–G10, host-ahead)
+- The container build is clean, with zero warnings. All 10 game components compile for the ESP32-S3 with xtensa GCC: `libcolor_pop.a` … `libbubble_aquarium.a`, 45–105 KB archives including debug info.
+- `little_arcade.bin` is unchanged at 352,985 B because `main` doesn't link any game until I01.
+- Host suites: 14/14 pass with the container GCC, and with MSVC `/W4 /WX /permissive-` in Debug and Release.
+- Gaps each game README flags, where voice falls back to touch only:
+  - There are no intents for animal names, shapes, planets, feed, sleep or pet.
+  - Shape Garage drag isn't possible, because `InputEvent` has no press/move/release phases.
+  - Any new intent must be added to `config/commands.json` and reviewed. It also grows the V01 grammar.
+
 Known follow-ups:
 - LVGL uses its builtin 64 KiB pool in internal `.bss` (`CONFIG_LV_USE_BUILTIN_MALLOC`). P02 should decide
   whether to move LVGL allocations to PSRAM once draw-buffer sizing is measured.
