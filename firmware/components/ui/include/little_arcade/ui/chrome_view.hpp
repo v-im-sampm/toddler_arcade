@@ -34,11 +34,14 @@ struct A8Image {
 class ChromeView {
  public:
   void create(lv_obj_t* parent);
+  // The launcher has no Home button; games show it.
+  void set_home_visible(bool visible);
 
  private:
   static constexpr int kIcon = 40;
   A8Image<kIcon, kIcon> home_{};
   A8Image<kIcon, kIcon> mic_{};
+  lv_obj_t* home_btn_ = nullptr;
 };
 
 lv_color_t to_lv(uint32_t rgb);

@@ -1,16 +1,20 @@
-# Shared UI helpers. The A8 rasterizer and icon shapes are header-only and
-# LVGL-free (host-tested); ChromeView needs LVGL.
+# Shared UI helpers. The A8 rasterizer, colour painter, icon shapes and
+# launcher art are header-only and LVGL-free (host-tested); the views need LVGL.
+set(LA_UI_SRCS chrome_view.cpp argb_image.cpp launcher_view.cpp)
 if(ESP_PLATFORM)
-  idf_component_register(SRCS "chrome_view.cpp" INCLUDE_DIRS "include" REQUIRES core lvgl__lvgl)
+  idf_component_register(SRCS ${LA_UI_SRCS} INCLUDE_DIRS "include" REQUIRES core lvgl__lvgl PRIV_REQUIRES heap)
 else()
   add_library(little_arcade_ui_raster INTERFACE)
   target_include_directories(little_arcade_ui_raster INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include)
   if(TARGET lvgl)
-    add_library(little_arcade_ui STATIC ${CMAKE_CURRENT_LIST_DIR}/chrome_view.cpp)
+    list(TRANSFORM LA_UI_SRCS PREPEND ${CMAKE_CURRENT_LIST_DIR}/)
+    add_library(little_arcade_ui STATIC ${LA_UI_SRCS})
     target_link_libraries(little_arcade_ui PUBLIC little_arcade_ui_raster little_arcade_core lvgl)
   endif()
   if(COMMAND la_host_test)
     la_host_test(ui_raster_test ${CMAKE_CURRENT_LIST_DIR}/test/ui_raster_test.cpp)
     target_link_libraries(ui_raster_test PRIVATE little_arcade_ui_raster)
+    la_host_test(ui_paint_test ${CMAKE_CURRENT_LIST_DIR}/test/ui_paint_test.cpp)
+    target_link_libraries(ui_paint_test PRIVATE little_arcade_ui_raster)
   endif()
 endif()
