@@ -18,6 +18,8 @@ class ColorPopView {
 
   void create(lv_obj_t* parent);
   void sync(const ColorPopGame& game, uint32_t now_ms);
+  // Restart animation timing (called when the game is re-entered).
+  void reset() { initialised_ = false; }
 
  private:
   struct BubbleObjs {

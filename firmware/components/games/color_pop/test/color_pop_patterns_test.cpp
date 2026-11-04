@@ -1,3 +1,4 @@
+#include "little_arcade/games/color_pop_art.hpp"
 #include "little_arcade/games/color_pop_patterns.hpp"
 #include "little_arcade/testing/test_support.hpp"
 #include "little_arcade/ui/a8_raster.hpp"
@@ -61,6 +62,21 @@ int main() {
   EXPECT(leaf.at(15, 20) > 200);  // body beside the vein
   const Mask wave = raster(Pattern::WAVE);
   EXPECT(wave.at(20, 20) == 0);  // gap between the two strokes
+
+  // Launcher tile: three coloured bubbles that fit the tile picture.
+  static uint32_t tile_px[kTileW * kTileH];
+  ui::Canvas tile{tile_px, kTileW, kTileH};
+  tile.clear();
+  paint_tile_art(tile);
+  EXPECT((tile.at(22 - 10, 42) & 0xFFFFFFu) == ui::palette::kRed);
+  EXPECT((tile.at(86 - 10, 42) & 0xFFFFFFu) == ui::palette::kYellow);
+  EXPECT((tile.at(54 + 10, 26) & 0xFFFFFFu) == ui::palette::kBlue);
+  int clue = 0;  // blue bubble's white wave clue (shine is outside this box)
+  for (int y = 20; y < 34; ++y) {
+    for (int x = 48; x < 62; ++x) clue += tile.at(x, y) == (0xFF000000u | ui::palette::kWhite);
+  }
+  EXPECT(clue > 5);
+  EXPECT((tile.at(0, 0) >> 24) == 0 && (tile.at(kTileW - 1, kTileH - 1) >> 24) == 0);
 
   return testing::finish("color_pop_patterns_test");
 }
