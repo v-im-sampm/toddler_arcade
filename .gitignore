@@ -7,3 +7,4 @@ firmware/managed_components/
 firmware/sdkconfig
 firmware/sdkconfig.old
 build-host/
+build-sim/
