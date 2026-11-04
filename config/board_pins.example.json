@@ -1,0 +1,29 @@
+{
+  "board": "Makerfabs MaTouch Lite ESP32-S3 2.4 ST7789",
+  "revision": "TBD",
+  "verified": false,
+  "evidence": [],
+  "display": {
+    "sclk": "TBD",
+    "mosi": "TBD",
+    "cs": "TBD",
+    "dc": "TBD",
+    "rst": "TBD",
+    "backlight": "TBD"
+  },
+  "touch": {
+    "sda": "TBD",
+    "scl": "TBD",
+    "i2c_address": "TBD"
+  },
+  "audio": {
+    "bclk": "TBD",
+    "ws": "TBD",
+    "mic_din": "TBD",
+    "amp_dout": "TBD",
+    "amp_enable": "TBD"
+  },
+  "sd": {
+    "cs": "TBD"
+  }
+}

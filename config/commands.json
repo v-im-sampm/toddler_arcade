@@ -1,0 +1,290 @@
+{
+  "version": 1,
+  "activation": "push_to_talk",
+  "language": "en-US",
+  "intents": [
+    {
+      "id": 1,
+      "name": "START",
+      "aliases": [
+        "start",
+        "play"
+      ],
+      "contexts": [
+        "menu"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "BACK",
+      "aliases": [
+        "back",
+        "home"
+      ],
+      "contexts": [
+        "global"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "AGAIN",
+      "aliases": [
+        "again",
+        "one more"
+      ],
+      "contexts": [
+        "global"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "HELP",
+      "aliases": [
+        "help"
+      ],
+      "contexts": [
+        "global"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "NEXT",
+      "aliases": [
+        "next"
+      ],
+      "contexts": [
+        "global"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "YES",
+      "aliases": [
+        "yes"
+      ],
+      "contexts": [
+        "general"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "NO",
+      "aliases": [
+        "no"
+      ],
+      "contexts": [
+        "general"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "RED",
+      "aliases": [
+        "red"
+      ],
+      "contexts": [
+        "colors"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "BLUE",
+      "aliases": [
+        "blue"
+      ],
+      "contexts": [
+        "colors"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "GREEN",
+      "aliases": [
+        "green"
+      ],
+      "contexts": [
+        "colors"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "YELLOW",
+      "aliases": [
+        "yellow"
+      ],
+      "contexts": [
+        "colors"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "ONE",
+      "aliases": [
+        "one"
+      ],
+      "contexts": [
+        "counting"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "TWO",
+      "aliases": [
+        "two"
+      ],
+      "contexts": [
+        "counting"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "THREE",
+      "aliases": [
+        "three"
+      ],
+      "contexts": [
+        "counting"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "GO",
+      "aliases": [
+        "go"
+      ],
+      "contexts": [
+        "space"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "STOP",
+      "aliases": [
+        "stop"
+      ],
+      "contexts": [
+        "space"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "PAUSE",
+      "aliases": [
+        "pause"
+      ],
+      "contexts": [
+        "global"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "RESUME",
+      "aliases": [
+        "resume"
+      ],
+      "contexts": [
+        "global"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "ROBOT",
+      "aliases": [
+        "robot"
+      ],
+      "contexts": [
+        "menu"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "COLORS",
+      "aliases": [
+        "colors"
+      ],
+      "contexts": [
+        "menu"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "EGGS",
+      "aliases": [
+        "eggs"
+      ],
+      "contexts": [
+        "menu"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "MUSIC",
+      "aliases": [
+        "music"
+      ],
+      "contexts": [
+        "menu"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "SHAPES",
+      "aliases": [
+        "shapes"
+      ],
+      "contexts": [
+        "menu"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "ANIMALS",
+      "aliases": [
+        "animals"
+      ],
+      "contexts": [
+        "menu"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "SPACE",
+      "aliases": [
+        "space"
+      ],
+      "contexts": [
+        "menu"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "FACES",
+      "aliases": [
+        "faces"
+      ],
+      "contexts": [
+        "menu"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "COUNTING",
+      "aliases": [
+        "counting"
+      ],
+      "contexts": [
+        "menu"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "FISH",
+      "aliases": [
+        "fish"
+      ],
+      "contexts": [
+        "menu"
+      ]
+    }
+  ]
+}

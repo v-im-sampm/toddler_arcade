@@ -1,0 +1,6 @@
+# Asset and audio production
+Create original 320×240-compatible cartoon assets. Sprite atlases or LVGL images; choose RGB565 or indexed assets based on measured quality/flash. Avoid JPEG decode stutter in real-time animation. Track provenance in `assets/manifest.json` and export scripts; never use copyrighted WALL-E/R2-D2 likenesses or recognizable audio samples. Target ~2 MB sprites and ~1.5 MB short compressed speech/effects initially, revise after measuring.
+
+Audio: synthetic procedural tones for robot/bubble/space; prerecorded or locally generated voice prompts. Use consistent sample rate/codec and measure ESP32 decode CPU/RAM; test ADPCM or suitable ESP-IDF supported compressed format instead of assuming MP3. Normalize prompts to conservative loudness; hard cap digital output. Preload only frequently used tiny sounds. Fallback visual cue for missing sound.
+
+Each game supplies: icon, background, 2–6 interactive sprites, 2–5 sound cues, 1–4 spoken prompts. Generate an asset manifest with IDs and license/provenance; no internet fetch at runtime.

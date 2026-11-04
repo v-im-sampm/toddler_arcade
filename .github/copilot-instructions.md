@@ -1,0 +1,2 @@
+# GitHub Copilot instructions
+You are building Little Arcade for a 3-year-old. Consult `AGENTS.md` and the relevant `docs/` and `games/` specs. Implement incrementally in ESP-IDF C++ with LVGL and ESP-SR; pin versions after a compatibility spike. Do not invent pinouts or ESP-SR APIs. Touchscreen input is always a complete alternative to voice. Use command intent enums, not raw recognition text, in game code. Tests and measured flash/PSRAM usage are required. Avoid child-data collection, Wi-Fi, accounts, punishments, advertising, and copyrighted character likenesses.
