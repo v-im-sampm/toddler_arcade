@@ -15,13 +15,22 @@ display/touch bring-up waits on H02 and audio on H03 (see `docs/hardware.md`).
 `dependencies.lock` records the exact resolved graph. Change versions only with a new build + size report.
 
 ## Layout
-- `components/core/` — header-only shared contracts (`IGame`, `InputEvent`, `GameContext`) and the
-  generated `intent.hpp`. No ESP-IDF dependencies, so it is host-testable.
-- `components/board/` — generated `board_pins.hpp`. `kPinsVerified` mirrors `config/board_pins.json`;
-  TBD pins are `-1` and drivers must refuse to start on them.
-- `main/` — `app_main` skeleton.
-- `host_test/` — host CTest suite (host only; proves nothing about the device).
-- `partitions.csv` — provisional 16 MB layout: 4 MB factory app, 6 MB `model`, ~5.9 MB `assets`.
+- `components/core/`: shared contracts with no ESP-IDF dependencies, so it is host-testable.
+  - `IGame` and `GameContext`. These are FROZEN for game work.
+  - `InputEvent`, `Rng`, `IFeedback` cues, and layout constants in `geometry.hpp`.
+  - The generated `intent.hpp`.
+  - `SceneManager`, which handles launcher paging, Home/BACK, pause, debounce, idle sleep and voice context filtering.
+- `components/speech/`: push-to-talk session timing and `VoiceIntentFilter`. Pure logic; ESP-SR is not called yet.
+- `components/audio/`: `VolumeLimiter`, which provides muted startup, a parent cap, ramping and a hard peak limit. Pure logic; there is no I2S driver yet.
+- `components/games/<name>/`: one component per game, holding scene logic, a README and host tests.
+  - The IDF project and the host tests discover these folders automatically.
+  - Each folder is owned by its game; don't edit across games without review.
+- `components/board/`: generated `board_pins.hpp`.
+  - `kPinsVerified` mirrors `config/board_pins.json`.
+  - TBD pins are `-1`, and drivers must refuse to start on them.
+- `main/`: the `app_main` skeleton. It does not yet link core, speech, audio or games. That wiring is I01, and is blocked on H02/H03.
+- `host_test/`: host CTest suite. Host only; it proves nothing about the device.
+- `partitions.csv`: provisional 16 MB layout with a 4 MB factory app, 6 MB `model` and about 5.9 MB `assets`.
 
 Generated headers come from `config/*.json`; never edit them by hand:
 ```
@@ -40,6 +49,7 @@ cmake -S firmware/host_test -B build-host
 cmake --build build-host --config Debug
 ctest --test-dir build-host -C Debug --output-on-failure
 ```
+To build a single game in isolation, pass `-DLA_ONLY_GAME=<folder>`, e.g. `-DLA_ONLY_GAME=color_pop`.
 Flashing (`idf.py -p PORT flash monitor`) is untested. Do not flash until H02 confirms the module's
 flash/PSRAM variant; `CONFIG_SPIRAM_MODE_OCT` assumes an N16R8 module.
 
@@ -57,6 +67,14 @@ Clean build reproducible; zero compiler warnings.
 | Host tests | GCC (container) and MSVC `/W4 /WX`: 1/1 passed |
 
 Runtime heap/PSRAM numbers do not exist yet: `app_main` logs them, but the image has never run on a board.
+
+### Host-ahead re-check (after P02-core / V02-logic / P03-logic)
+- The container build is clean, with zero warnings.
+- `little_arcade.bin` is 352,985 B. It's essentially unchanged because `main` doesn't link the new components yet.
+- The container GCC host run passed 5/5 suites: core_contract, scene_manager, voice_policy, volume and color_pop.
+- MSVC `/W4 /WX /permissive-` passes the same suites.
+
+These are build and logic results only. Footprint deltas for scenes and views have to be measured once I01 links them.
 
 Known follow-ups:
 - LVGL uses its builtin 64 KiB pool in internal `.bss` (`CONFIG_LV_USE_BUILTIN_MALLOC`). P02 should decide

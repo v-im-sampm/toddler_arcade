@@ -33,5 +33,14 @@
 | H03 | **BLOCKED** | Needs physical mic + MAX98357A + speaker. H01 found only GPIO4–7 accessible (J1/J2) and 3V3-only headers: a shared-clock full-duplex I2S layout uses all four, leaving no amp-enable GPIO. Requires a hardware decision (hard-wired SD_MODE, sacrificing SD/another bus, or an I/O expander) plus current/thermal measurement of the LD1117. |
 | P02, P03, V01 → all later tickets | Blocked by H02/H03 per dependency table | — |
 
+### Host-ahead work (logic only; NOT hardware-validated, tickets remain open)
+The owner chose to continue host-testable logic while H02/H03 wait on hardware. None of this closes a ticket.
+| ID | Host-ahead part done | Still open |
+|---|---|---|
+| P02 | Frozen `IGame`/`GameContext`, layout constants, `SceneManager` (launcher paging, Home/BACK, pause, debounce, sleep, voice context filter), host tests | LVGL UI task + views, display/touch drivers (needs H02), measured touch latency |
+| P03 | `VolumeLimiter`: muted startup, parent cap, ramp, hard peak limit; host tests | I2S driver, mixer, prompt playback, acoustic level measurement (needs H03) |
+| V02 | `PushToTalkSession` (4 s silence / 8 s max) and `VoiceIntentFilter` (confidence, context, dedupe, playback cooldown); host tests | ESP-SR integration and threshold calibration (needs V01/H03) |
+| G01–G10 | Scene logic + host tests per game folder (see each `firmware/components/games/*/README.md`) | LVGL views, assets (A01), device playthrough (Q01) |
+
 ## Each issue must include
 Exact file ownership, acceptance criteria from the matching spec, target branch, tests to run, expected artifacts and measurement evidence. Do not claim done without physical board testing when hardware is involved.
