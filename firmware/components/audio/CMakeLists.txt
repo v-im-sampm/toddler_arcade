@@ -1,0 +1,7 @@
+if(ESP_PLATFORM)
+  idf_component_register(SRCS "volume.cpp" INCLUDE_DIRS "include")
+else()
+  add_library(little_arcade_audio STATIC ${CMAKE_CURRENT_LIST_DIR}/volume.cpp)
+  target_include_directories(little_arcade_audio PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
+  target_compile_features(little_arcade_audio PUBLIC cxx_std_17)
+endif()

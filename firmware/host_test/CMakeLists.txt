@@ -19,18 +19,20 @@ set(LA_COMPONENTS ${CMAKE_CURRENT_LIST_DIR}/../components)
 add_subdirectory(${LA_COMPONENTS}/core core)
 add_subdirectory(${LA_COMPONENTS}/board board)
 add_subdirectory(${LA_COMPONENTS}/speech speech)
+add_subdirectory(${LA_COMPONENTS}/audio audio)
 target_link_libraries(little_arcade_test_support INTERFACE little_arcade_core)
 
 function(la_host_test name)
   add_executable(${name} ${ARGN})
   target_link_libraries(${name} PRIVATE little_arcade_test_support little_arcade_core
-                        little_arcade_board_pins little_arcade_speech)
+                        little_arcade_board_pins little_arcade_speech little_arcade_audio)
   add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
 la_host_test(core_contract_test core_contract_test.cpp)
 la_host_test(scene_manager_test scene_manager_test.cpp)
 la_host_test(voice_policy_test voice_policy_test.cpp)
+la_host_test(volume_test volume_test.cpp)
 
 # Each game owns components/games/<name>/ and registers its own library + tests.
 file(GLOB LA_GAME_DIRS LIST_DIRECTORIES true ${LA_COMPONENTS}/games/*)
