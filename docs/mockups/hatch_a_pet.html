@@ -1,0 +1,500 @@
+<!doctype html>
+<!--
+  Main menu (launcher) + Hatch-a-Pet visual mockup.
+  Geometry mirrors firmware/components/core/include/little_arcade/scene_manager.hpp (tiles, next-page
+  button, Mic) and firmware/components/games/hatch_a_pet/include/little_arcade/games/hatch_a_pet.hpp.
+  Drawn only with ellipses, polygons and lines so the LVGL view can rasterize the same shapes.
+  Not a hardware artefact: desktop browser only.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Menu + Hatch-a-Pet mockup</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #222; color: #eee; margin: 16px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p { margin: 4px 0 12px; font-size: 13px; color: #bbb; max-width: 1000px; }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; }
+  figure { margin: 0; }
+  figcaption { font-size: 12px; color: #ccc; margin-top: 4px; max-width: 640px; }
+  canvas { image-rendering: pixelated; border: 2px solid #555; background: #000; }
+  .live canvas { cursor: pointer; }
+  label, kbd { font-size: 12px; color: #ccc; margin-right: 12px; }
+</style>
+</head>
+<body>
+<h1>Main menu + Hatch-a-Pet: 320×240 landscape mockup</h1>
+<p>Menu: big picture tiles in the <code>SceneManager</code> tile rects (4 per page), with no text to read.
+The next-page arrow appears only when there are more than 4 games. Home is hidden on the menu
+(you are already home); Mic stays. Hatch-a-Pet: tap the egg 3–5 times to crack it, and a surprise creature hatches
+(8 original creatures). Then you pet it (heart / tap the creature) or ask for another egg (egg button).
+Every tap makes progress. There is no fail state and no text.</p>
+
+<div class="row" id="frames"></div>
+
+<h1 style="margin-top:20px">Live (click to play)</h1>
+<div class="live">
+  <label><input type="checkbox" id="grid"> show hit rects</label>
+  <kbd>Voice keys: C = "colors", E = "eggs", Backspace = BACK, Y = YES, N = NO, A = AGAIN, H = HELP</kbd>
+  <div><canvas id="live" width="320" height="240"></canvas></div>
+  <figcaption id="status"></figcaption>
+</div>
+
+<script>
+const W = 320, H = 240, SCALE = 2;
+const PAL = {
+  sky: '#BFE8FF', skyDark: '#9FD4F5', ground: '#A8E6A1', chrome: '#FFFFFF', chromeEdge: '#5B6B8C',
+  ink: '#33415C', white: '#FFFFFF', shadow: 'rgba(40,60,90,0.25)', cheek: 'rgba(255,120,150,0.45)',
+  RED: '#E84A4A', BLUE: '#3A7BE0', GREEN: '#3FB24A', YELLOW: '#F7C631',
+  shell: '#FFF4DC', tilePop: '#DDF1FF', tileEgg: '#FFE9D6',
+};
+// scene_manager.hpp
+const HOME = [0, 0, 56, 56], MIC = [264, 0, 56, 56];
+const TILES = [[8, 68, 120, 80], [136, 68, 120, 80], [8, 156, 120, 80], [136, 156, 120, 80]];
+const NEXT_PAGE = [264, 100, 48, 96];
+// hatch_a_pet.hpp
+const EGG = [104, 68, 112, 136], CREATURE = [96, 72, 128, 128];
+const NO_BTN = [16, 136, 64, 64], YES_BTN = [240, 136, 64, 64], BADGE = [132, 4, 56, 56];
+const INTRO_MS = 1200, HATCH_MS = 1600, WOBBLE_MS = 300, REACT_MS = 700, HINT_MS = 1500;
+const CREATURES = ['BLOOP', 'FLUFFWING', 'SPROUTLING', 'ZIGZAG', 'PUDDLEPUP', 'GLIMMERBUG', 'ROLYPOLE', 'SNORKLE'];
+const PATTERNS = ['SPOTS', 'STRIPES', 'ZIGZAGS', 'STARS'];
+const PATTERN_COL = { SPOTS: '#3FB8AF', STRIPES: '#F27BA6', ZIGZAGS: '#9B6BD6', STARS: '#F59B3A' };
+
+// ---------------------------------------------------------------- primitives
+function circle(g, x, y, r, fill, stroke, lw) {
+  g.beginPath(); g.arc(x, y, Math.max(0, r), 0, Math.PI * 2);
+  if (fill) { g.fillStyle = fill; g.fill(); }
+  if (stroke) { g.lineWidth = lw || 2; g.strokeStyle = stroke; g.stroke(); }
+}
+function ellipse(g, x, y, rx, ry, rot, fill, stroke, lw) {
+  g.beginPath(); g.ellipse(x, y, rx, ry, rot || 0, 0, Math.PI * 2);
+  if (fill) { g.fillStyle = fill; g.fill(); }
+  if (stroke) { g.lineWidth = lw || 2; g.strokeStyle = stroke; g.stroke(); }
+}
+function poly(g, pts, fill, stroke, lw, close = true) {
+  g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y));
+  if (close) g.closePath();
+  if (fill) { g.fillStyle = fill; g.fill(); }
+  if (stroke) { g.lineWidth = lw || 2; g.strokeStyle = stroke; g.lineJoin = 'round'; g.lineCap = 'round'; g.stroke(); }
+}
+function star(g, cx, cy, ro, ri, fill) {
+  const pts = [];
+  for (let i = 0; i < 10; i++) { const r = i % 2 ? ri : ro, a = -Math.PI / 2 + i * Math.PI / 5; pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); }
+  poly(g, pts, fill);
+}
+function heart(g, cx, cy, s, fill) {
+  circle(g, cx - s * 0.25, cy - s * 0.1, s * 0.27, fill);
+  circle(g, cx + s * 0.25, cy - s * 0.1, s * 0.27, fill);
+  poly(g, [[cx - s * 0.5, cy], [cx + s * 0.5, cy], [cx, cy + s * 0.55]], fill);
+}
+function card(g, r, fill, edge = PAL.chromeEdge) {
+  g.fillStyle = fill; g.strokeStyle = edge; g.lineWidth = 2;
+  g.beginPath(); g.roundRect(r[0] + 4, r[1] + 4, r[2] - 8, r[3] - 8, 10); g.fill(); g.stroke();
+}
+
+// Egg = two half-ellipses (narrow top, round bottom): easy to rasterize in C++.
+function eggPath(g, cx, top, w, h) {
+  const mid = top + h * 0.58;
+  g.beginPath();
+  g.ellipse(cx, mid, w / 2, h * 0.58, 0, Math.PI, 0);
+  g.ellipse(cx, mid, w / 2, h * 0.42, 0, 0, Math.PI);
+  g.closePath();
+}
+// Crack line across the egg at ~48% height, as a zigzag in egg-normalized coords.
+const CRACK = [[-0.5, 0.50], [-0.32, 0.42], [-0.18, 0.53], [-0.02, 0.43], [0.14, 0.54], [0.30, 0.44], [0.5, 0.52]];
+function crackPts(cx, top, w, h) { return CRACK.map(([u, v]) => [cx + u * w, top + v * h]); }
+
+function drawEgg(g, pattern, cx, top, w, h, opts = {}) {
+  const { cracks = 0, need = 4, rot = 0, piece = null, glow = 0 } = opts;
+  g.save();
+  // Wobble pivots around the bottom of the egg.
+  g.translate(cx, top + h); g.rotate(rot); g.translate(-cx, -(top + h));
+  if (glow) { eggPath(g, cx, top - 5, w + 10, h + 10); g.lineWidth = 4; g.strokeStyle = `rgba(255,255,255,${0.6 + Math.sin(glow) * 0.4})`; g.stroke(); }
+  // Shadow under the egg (not under flying shell pieces).
+  if (!piece) ellipse(g, cx + 3, top + h - 2, w * 0.42, 7, 0, PAL.shadow);
+  g.save();
+  eggPath(g, cx, top, w, h); g.clip();
+  if (piece) { // HATCH: keep only the top or bottom shell piece.
+    const c = crackPts(cx, top, w, h);
+    const box = piece === 'top' ? [[cx + w, top - 10], [cx - w, top - 10]] : [[cx + w, top + h + 10], [cx - w, top + h + 10]];
+    g.beginPath(); [...c, ...box].forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); g.clip();
+  }
+  g.fillStyle = PAL.shell; g.fillRect(cx - w, top - 10, w * 2, h + 20);
+  drawEggPattern(g, pattern, cx, top, w, h);
+  // Soft highlight.
+  ellipse(g, cx - w * 0.22, top + h * 0.28, w * 0.09, h * 0.12, -0.4, 'rgba(255,255,255,0.8)');
+  g.restore();
+  // Outline (full egg, or the piece edge).
+  if (!piece) { eggPath(g, cx, top, w, h); g.lineWidth = 2; g.strokeStyle = PAL.ink; g.stroke(); }
+  // Cracks grow left → right with each tap.
+  const pts = crackPts(cx, top, w, h);
+  const n = piece ? pts.length : Math.round((pts.length - 1) * Math.min(1, cracks / need)) + (cracks ? 1 : 0);
+  if (n > 1) poly(g, pts.slice(0, n), null, PAL.ink, 3, false);
+  g.restore();
+}
+function drawEggPattern(g, p, cx, top, w, h) {
+  const col = PATTERN_COL[p];
+  if (p === 'SPOTS') {
+    for (const [u, v, r] of [[-0.2, 0.22, 9], [0.18, 0.3, 11], [-0.28, 0.62, 10], [0.08, 0.7, 13], [0.3, 0.6, 7], [-0.05, 0.12, 6], [-0.1, 0.88, 8]])
+      circle(g, cx + u * w, top + v * h, r, col);
+  } else if (p === 'STRIPES') {
+    for (const v of [0.2, 0.36, 0.68, 0.84]) { g.fillStyle = col; g.fillRect(cx - w, top + v * h - 5, w * 2, 10); }
+  } else if (p === 'ZIGZAGS') {
+    for (const v of [0.24, 0.72]) {
+      const pts = []; for (let i = 0; i <= 8; i++) pts.push([cx - w / 2 + i * w / 8, top + v * h + (i % 2 ? 7 : -7)]);
+      poly(g, pts, null, col, 6, false);
+    }
+  } else {
+    for (const [u, v, r] of [[-0.18, 0.2, 9], [0.2, 0.3, 11], [-0.25, 0.66, 10], [0.12, 0.74, 12], [0.0, 0.92, 7]])
+      star(g, cx + u * w, top + v * h, r, r * 0.45, col);
+  }
+}
+
+// ---------------------------------------------------------------- creatures
+function face(g, cx, cy, s, gap = 14, opts = {}) {
+  for (const sx of [-1, 1]) {
+    circle(g, cx + sx * gap * s, cy, 9 * s, PAL.white, PAL.ink, 1.5);
+    circle(g, cx + sx * gap * s + 1.5 * s, cy + 1.5 * s, 5 * s, PAL.ink);
+    circle(g, cx + sx * gap * s + 3 * s, cy - 1 * s, 1.8 * s, PAL.white);
+    circle(g, cx + sx * (gap + 9) * s, cy + 12 * s, 5 * s, PAL.cheek);
+  }
+  g.beginPath(); g.lineWidth = 3 * s; g.lineCap = 'round'; g.strokeStyle = PAL.ink;
+  if (opts.open) { g.arc(cx, cy + 12 * s, 7 * s, 0, Math.PI); g.closePath(); g.fillStyle = '#B5384B'; g.fill(); g.stroke(); }
+  else { g.arc(cx, cy + 9 * s, 8 * s, 0.2, Math.PI - 0.2); g.stroke(); }
+}
+// Each creature fits the 128×128 creature box at s = 1; t = 0..1 animation (wave/bounce).
+const DRAW = {
+  BLOOP(g, cx, cy, s, t) {
+    const col = '#2EC4B6';
+    g.beginPath(); g.lineWidth = 5 * s; g.strokeStyle = '#1E9C90'; g.lineCap = 'round';
+    g.moveTo(cx, cy - 30 * s); g.quadraticCurveTo(cx - 4 * s, cy - 52 * s, cx + 10 * s, cy - 56 * s);
+    g.arc(cx + 10 * s, cy - 48 * s, 8 * s, -Math.PI / 2, Math.PI * 1.2); g.stroke();
+    ellipse(g, cx, cy + 10 * s, 50 * s, 44 * s, 0, col, PAL.ink, 2);
+    ellipse(g, cx - 22 * s, cy - 10 * s, 10 * s, 6 * s, -0.5, 'rgba(255,255,255,0.5)');
+    face(g, cx, cy + 6 * s, s, 15, { open: t > 0 });
+  },
+  FLUFFWING(g, cx, cy, s, t) {
+    const col = '#FFB48A', flap = Math.sin(t * Math.PI * 6) * 0.35;
+    for (const sx of [-1, 1]) ellipse(g, cx + sx * 50 * s, cy - 2 * s, 18 * s, 10 * s, sx * (-0.5 + flap), PAL.white, PAL.ink, 2);
+    for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; circle(g, cx + Math.cos(a) * 38 * s, cy + 6 * s + Math.sin(a) * 36 * s, 13 * s, col); }
+    circle(g, cx, cy + 6 * s, 40 * s, col);
+    face(g, cx, cy + 4 * s, s, 14, { open: t > 0 });
+  },
+  SPROUTLING(g, cx, cy, s, t) {
+    g.beginPath(); g.lineWidth = 4 * s; g.strokeStyle = '#2E8B3A'; g.moveTo(cx, cy - 36 * s); g.lineTo(cx + 2 * s, cy - 50 * s); g.stroke();
+    ellipse(g, cx + 14 * s, cy - 56 * s, 16 * s, 8 * s, -0.5 + Math.sin(t * Math.PI * 4) * 0.2, '#3FB24A', PAL.ink, 2);
+    ellipse(g, cx, cy + 10 * s, 36 * s, 50 * s, 0, '#7DD35F', PAL.ink, 2);
+    face(g, cx, cy + 2 * s, s, 12, { open: t > 0 });
+  },
+  ZIGZAG(g, cx, cy, s, t) {
+    const col = '#9B6BD6', wag = Math.sin(t * Math.PI * 6) * 6 * s;
+    poly(g, [[cx + 30 * s, cy + 30 * s], [cx + 44 * s, cy + 14 * s + wag], [cx + 52 * s, cy + 36 * s], [cx + 60 * s, cy + 16 * s + wag], [cx + 62 * s, cy + 2 * s + wag]], null, col, 9 * s, false);
+    for (const dx of [-16, 0, 16]) poly(g, [[cx + (dx - 8) * s, cy - 32 * s], [cx + dx * s, cy - 46 * s], [cx + (dx + 8) * s, cy - 32 * s]], '#7A4FB8');
+    ellipse(g, cx, cy + 8 * s, 42 * s, 42 * s, 0, col, PAL.ink, 2);
+    for (const sx of [-1, 1]) ellipse(g, cx + sx * 24 * s, cy + 50 * s, 10 * s, 6 * s, 0, '#7A4FB8');
+    ellipse(g, cx, cy + 22 * s, 24 * s, 16 * s, 0, '#C7A8EE');
+    face(g, cx, cy - 2 * s, s, 14, { open: t > 0 });
+  },
+  PUDDLEPUP(g, cx, cy, s, t) {
+    const col = '#4FA3F7', flop = Math.sin(t * Math.PI * 4) * 0.25;
+    g.beginPath(); g.moveTo(cx, cy - 48 * s);
+    g.bezierCurveTo(cx + 18 * s, cy - 24 * s, cx + 44 * s, cy - 4 * s, cx + 44 * s, cy + 18 * s);
+    g.arc(cx, cy + 18 * s, 44 * s, 0, Math.PI);
+    g.bezierCurveTo(cx - 44 * s, cy - 4 * s, cx - 18 * s, cy - 24 * s, cx, cy - 48 * s);
+    g.fillStyle = col; g.fill(); g.lineWidth = 2; g.strokeStyle = PAL.ink; g.stroke();
+    for (const sx of [-1, 1]) ellipse(g, cx + sx * 40 * s, cy + 6 * s, 10 * s, 22 * s, sx * (0.35 + flop), '#2C6FB8', PAL.ink, 2);
+    face(g, cx, cy + 8 * s, s, 15, { open: t > 0 });
+    ellipse(g, cx, cy + 15 * s, 5 * s, 3.5 * s, 0, PAL.ink);
+  },
+  GLIMMERBUG(g, cx, cy, s, t) {
+    for (const sx of [-1, 1]) {
+      g.beginPath(); g.lineWidth = 3 * s; g.strokeStyle = PAL.ink; g.moveTo(cx + sx * 8 * s, cy - 36 * s); g.lineTo(cx + sx * 20 * s, cy - 54 * s); g.stroke();
+      circle(g, cx + sx * 20 * s, cy - 54 * s, 5 * s, t > 0 ? PAL.white : '#F7C631', PAL.ink, 1.5);
+    }
+    circle(g, cx, cy + 6 * s, 46 * s, '#F7C631', PAL.ink, 2);
+    for (const [u, v, r] of [[-26, -14, 6], [24, -18, 5], [-30, 18, 5], [30, 14, 6], [-12, 36, 4], [14, 36, 5]]) circle(g, cx + u * s, cy + v * s, r * s, '#E0892B');
+    g.beginPath(); g.lineWidth = 2; g.strokeStyle = '#C9862A'; g.moveTo(cx, cy - 38 * s); g.lineTo(cx, cy - 18 * s); g.stroke();
+    face(g, cx, cy + 4 * s, s, 13, { open: t > 0 });
+  },
+  ROLYPOLE(g, cx, cy, s, t) {
+    g.save(); g.translate(cx, cy + 6 * s); g.rotate(Math.sin(t * Math.PI * 2) * 0.25);
+    circle(g, 0, 0, 46 * s, '#F59B3A', PAL.ink, 2);
+    g.save(); g.beginPath(); g.arc(0, 0, 45 * s, 0, Math.PI * 2); g.clip();
+    for (const dx of [-30, 30]) ellipse(g, dx * s, 0, 8 * s, 50 * s, dx > 0 ? 0.25 : -0.25, '#D9762A');
+    g.restore(); g.restore();
+    face(g, cx, cy + 2 * s, s, 13, { open: t > 0 });
+  },
+  SNORKLE(g, cx, cy, s, t) {
+    const col = '#F27BA6', curl = Math.sin(t * Math.PI * 4) * 0.4;
+    ellipse(g, cx - 6 * s, cy + 10 * s, 42 * s, 40 * s, 0, col, PAL.ink, 2);
+    for (const sx of [-1, 1]) ellipse(g, cx - 6 * s + sx * 30 * s, cy - 26 * s, 9 * s, 12 * s, sx * 0.4, '#D95C8C', PAL.ink, 2);
+    g.beginPath(); g.lineWidth = 13 * s; g.lineCap = 'round'; g.strokeStyle = col;
+    g.moveTo(cx + 12 * s, cy + 18 * s); g.quadraticCurveTo(cx + 46 * s, cy + 20 * s, cx + 50 * s, cy - 2 * s);
+    g.arc(cx + 42 * s, cy - 2 * s, 8 * s, 0, -Math.PI * (1.1 + curl), true); g.stroke();
+    face(g, cx - 10 * s, cy, s, 12, { open: false });
+  },
+};
+function drawCreature(g, kind, cx, cy, s, t = 0) { g.save(); DRAW[kind](g, cx, cy, s, t); g.restore(); }
+
+// ---------------------------------------------------------------- chrome + menu
+function background(g) {
+  g.fillStyle = PAL.sky; g.fillRect(0, 0, W, H);
+  g.fillStyle = PAL.skyDark; g.fillRect(0, 0, W, 62);
+  g.fillStyle = PAL.ground; g.fillRect(0, 230, W, 10);
+}
+function homeButton(g) {
+  const [hx, hy] = HOME; card(g, HOME, PAL.chrome);
+  poly(g, [[hx + 14, hy + 30], [hx + 28, hy + 15], [hx + 42, hy + 30]], PAL.ink);
+  g.fillStyle = PAL.ink; g.fillRect(hx + 18, hy + 29, 20, 14);
+  g.fillStyle = PAL.chrome; g.fillRect(hx + 25, hy + 34, 6, 9);
+}
+function micButton(g) {
+  const [mx, my] = MIC; card(g, MIC, PAL.chrome);
+  g.fillStyle = PAL.ink; g.beginPath(); g.roundRect(mx + 22, my + 12, 12, 22, 6); g.fill();
+  g.lineWidth = 3; g.strokeStyle = PAL.ink; g.beginPath(); g.arc(mx + 28, my + 26, 11, 0, Math.PI); g.stroke();
+  g.fillRect(mx + 26, my + 37, 4, 7); g.fillRect(mx + 20, my + 43, 16, 3);
+}
+// Menu logo: rainbow arc of the four game colours (decoration, nothing to read).
+function logo(g) {
+  const cols = [PAL.RED, PAL.YELLOW, PAL.GREEN, PAL.BLUE];
+  cols.forEach((c, i) => { g.beginPath(); g.lineWidth = 6; g.lineCap = 'butt'; g.strokeStyle = c; g.arc(160, 50, 34 - i * 7, Math.PI, 0); g.stroke(); });
+  circle(g, 126, 52, 6, PAL.white); circle(g, 194, 52, 6, PAL.white);
+}
+const GAMES = [
+  { id: 'COLOR_POP', voice: 'colors', bg: PAL.tilePop, draw(g, cx, cy) {
+    const b = (x, y, c, k) => { circle(g, x + 2, y + 3, 17, PAL.shadow); circle(g, x, y, 17, PAL[c], PAL.ink, 2); circle(g, x - 9, y - 7, 2.5, PAL.white);
+      if (k === 'heart') heart(g, x, y + 1, 15, PAL.white); else if (k === 'star') star(g, x, y + 1, 9, 4, PAL.white);
+      else { g.lineWidth = 2.5; g.strokeStyle = PAL.white; for (const dy of [-4, 4]) { g.beginPath(); for (let i = 0; i <= 8; i++) { const px = x - 8 + i * 2, py = y + dy + Math.sin(i / 8 * Math.PI * 2) * 2.5; i ? g.lineTo(px, py) : g.moveTo(px, py); } g.stroke(); } } };
+    b(cx - 32, cy + 8, 'RED', 'heart'); b(cx + 32, cy + 8, 'YELLOW', 'star'); b(cx, cy - 8, 'BLUE', 'wave');
+  } },
+  { id: 'HATCH_A_PET', voice: 'eggs', bg: PAL.tileEgg, draw(g, cx, cy) {
+    drawEgg(g, 'SPOTS', cx - 14, cy - 30, 44, 56, { cracks: 3, need: 4, rot: -0.12 });
+    drawCreature(g, 'BLOOP', cx + 30, cy + 10, 0.32);
+  } },
+];
+function drawTile(g, slot, game, pressed) {
+  const [x, y, w, h] = TILES[slot], k = pressed ? 0.94 : 1;
+  g.save(); g.translate(x + w / 2, y + h / 2); g.scale(k, k); g.translate(-(x + w / 2), -(y + h / 2));
+  g.fillStyle = PAL.shadow; g.beginPath(); g.roundRect(x + 5, y + 6, w - 6, h - 6, 14); g.fill();
+  g.fillStyle = game ? game.bg : 'rgba(255,255,255,0.25)'; g.strokeStyle = game ? PAL.ink : 'rgba(51,65,92,0.35)'; g.lineWidth = game ? 3 : 2;
+  if (!game) g.setLineDash([5, 4]);
+  g.beginPath(); g.roundRect(x + 2, y + 2, w - 6, h - 6, 14); g.fill(); g.stroke(); g.setLineDash([]);
+  if (game) { g.save(); g.beginPath(); g.roundRect(x + 3, y + 3, w - 8, h - 8, 13); g.clip(); game.draw(g, x + w / 2 - 1, y + h / 2 - 1); g.restore(); }
+  g.restore();
+}
+function nextPageButton(g, page, pages) {
+  const [x, y, w, h] = NEXT_PAGE;
+  g.fillStyle = PAL.chrome; g.strokeStyle = PAL.chromeEdge; g.lineWidth = 2;
+  g.beginPath(); g.roundRect(x + 2, y + 2, w - 4, h - 4, 12); g.fill(); g.stroke();
+  poly(g, [[x + 16, y + 26], [x + 34, y + 44], [x + 16, y + 62]], PAL.ink);
+  for (let i = 0; i < pages; i++) circle(g, x + w / 2 - (pages - 1) * 5 + i * 10, y + 80, 3.5, i === page ? PAL.ink : 'rgba(51,65,92,0.3)');
+}
+function renderMenu(g, m) {
+  background(g); logo(g); micButton(g);
+  for (let slot = 0; slot < 4; slot++) {
+    const game = m.games[m.page * 4 + slot];
+    if (game || m.showEmpty) drawTile(g, slot, game, m.pressed === slot);
+  }
+  const pages = Math.ceil(m.games.length / 4);
+  if (pages > 1) nextPageButton(g, m.page, pages);
+  if (m.showRects) hitRects(g, [MIC, ...TILES, ...(pages > 1 ? [NEXT_PAGE] : [])]);
+}
+
+// ---------------------------------------------------------------- Hatch-a-Pet scene
+function badge(g, s, now) {
+  const [bx, by, bw] = BADGE, cx = bx + bw / 2, cy = by + bw / 2;
+  const pulse = s.hintMs > 0 ? 3 + Math.sin(now / 120) * 2 : 0;
+  circle(g, cx, cy, bw / 2 + pulse, PAL.white, PAL.ink, 2);
+  if (s.phase === 'INTRO') {
+    g.fillStyle = PAL.ink; g.font = 'bold 30px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('?', cx, cy + 2);
+  } else if (s.phase === 'PET') {
+    drawEgg(g, s.nextPattern || 'STARS', cx, cy - 18, 28, 36, {}); // "another egg?" = the egg button picture
+  } else {
+    drawEgg(g, s.pattern, cx, cy - 18, 28, 36, { cracks: 2, need: 4 }); // "tap the egg"
+  }
+  g.strokeStyle = PAL.ink; g.lineWidth = 2;
+  for (const r of [6, 11]) { g.beginPath(); g.arc(bx + bw + 6, cy, r, -0.7, 0.7); g.stroke(); }
+}
+function sparkles(g, cx, cy, t) {
+  const cols = [PAL.RED, PAL.BLUE, PAL.GREEN, PAL.YELLOW, PAL.white];
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2, d = 20 + t * 60, sz = 6 * (1 - t) + 1;
+    g.fillStyle = cols[i % cols.length]; g.fillRect(cx + Math.cos(a) * d - sz / 2, cy + Math.sin(a) * d - sz / 2, sz, sz);
+  }
+}
+function renderHatch(g, s, now) {
+  background(g); homeButton(g); micButton(g); badge(g, s, now);
+  const [ex, ey, ew, eh] = EGG, ecx = ex + ew / 2;
+  const [, cy0, , ch] = CREATURE, ccx = 160, ccy = cy0 + ch / 2;
+  if (s.phase === 'INTRO') {
+    // Egg drops in with a soft bounce.
+    const t = Math.min(1, s.phaseMs / 600), drop = (1 - t) * (1 - t) * -60 + Math.sin(t * Math.PI) * -6;
+    drawEgg(g, s.pattern, ecx, ey + drop, ew, eh, {});
+  } else if (s.phase === 'EGG') {
+    const wob = s.wobbleMs > 0 ? Math.sin((1 - s.wobbleMs / WOBBLE_MS) * Math.PI * 4) * 0.14 * (s.wobbleMs / WOBBLE_MS) : 0;
+    drawEgg(g, s.pattern, ecx, ey, ew, eh, { cracks: s.cracks, need: s.need, rot: wob, glow: s.hintMs > 0 ? 1 + now / 120 : 0 });
+  } else if (s.phase === 'HATCH') {
+    const t = s.phaseMs / HATCH_MS;
+    if (t < 0.2) { // excited shake
+      drawEgg(g, s.pattern, ecx, ey, ew, eh, { cracks: s.need, need: s.need, rot: Math.sin(t * 60) * 0.06 });
+    } else {
+      const u = Math.min(1, (t - 0.2) / 0.3), grow = Math.min(1, (t - 0.2) / 0.35);
+      const bounce = grow < 1 ? 0.4 + 0.6 * grow : 1 + Math.sin(Math.min(1, (t - 0.55) / 0.3) * Math.PI) * 0.08;
+      const fadeTop = Math.max(0, 1 - (t - 0.2) / 0.35), fadeBottom = t < 0.5 ? 1 : Math.max(0, 1 - (t - 0.5) / 0.3);
+      g.save(); g.globalAlpha = fadeBottom;
+      drawEgg(g, s.pattern, ecx, ey + u * 18, ew, eh, { piece: 'bottom' });
+      g.restore();
+      drawCreature(g, s.creature, ccx, ccy + (1 - grow) * 30, bounce, 0);
+      // Top shell tips off sideways and fades before it reaches the top bar.
+      g.save(); g.globalAlpha = fadeTop;
+      g.translate(ecx - u * 70, ey - u * 6); g.rotate(-u * 0.9); g.translate(-ecx, -ey);
+      drawEgg(g, s.pattern, ecx, ey, ew, eh, { piece: 'top' });
+      g.restore();
+      if (t > 0.3) sparkles(g, ccx, ccy, Math.min(1, (t - 0.3) / 0.6));
+    }
+  } else { // PET
+    const r = s.reactMs > 0 ? 1 - s.reactMs / REACT_MS : 0;
+    const hop = r ? -Math.sin(r * Math.PI) * 14 : 0, squash = r ? 1 + Math.sin(r * Math.PI * 2) * 0.05 : 1;
+    ellipse(g, ccx + 3, cy0 + ch + 2, 46 - (r ? Math.sin(r * Math.PI) * 10 : 0), 7, 0, PAL.shadow);
+    g.save(); g.translate(ccx, ccy + hop); g.scale(1 / squash, squash); g.translate(-ccx, -ccy);
+    drawCreature(g, s.creature, ccx, ccy, 1, r);
+    g.restore();
+    if (r) for (let i = 0; i < 3; i++) { const k = Math.min(1, r * 1.3 - i * 0.15); if (k > 0) { g.globalAlpha = 1 - k; heart(g, ccx - 40 + i * 40, cy0 + 10 - k * 34, 14, '#F27BA6'); g.globalAlpha = 1; } }
+    // NO = "stay with my pet" (heart), YES = "another egg" (egg picture).
+    card(g, NO_BTN, PAL.chrome); heart(g, NO_BTN[0] + 32, NO_BTN[1] + 31, 30, '#F27BA6');
+    if (s.hintMs > 0) circle(g, YES_BTN[0] + 32, YES_BTN[1] + 32, 38 + Math.sin(now / 120) * 2, null, PAL.white, 4);
+    card(g, YES_BTN, PAL.chrome); drawEgg(g, s.nextPattern || 'STARS', YES_BTN[0] + 32, YES_BTN[1] + 11, 34, 42, {});
+  }
+  if (s.showRects) hitRects(g, s.phase === 'PET' ? [HOME, MIC, BADGE, CREATURE, NO_BTN, YES_BTN] : [HOME, MIC, BADGE, EGG]);
+}
+
+function hitRects(g, rects) {
+  g.strokeStyle = 'rgba(255,0,255,0.8)'; g.lineWidth = 1; g.setLineDash([3, 2]);
+  for (const r of rects) g.strokeRect(r[0] + 0.5, r[1] + 0.5, r[2] - 1, r[3] - 1);
+  g.strokeStyle = 'rgba(255,0,255,0.4)'; g.beginPath(); g.moveTo(0, 64.5); g.lineTo(W, 64.5); g.stroke();
+  g.setLineDash([]);
+}
+function makeCanvas(parent, caption) {
+  const fig = document.createElement('figure'), c = document.createElement('canvas');
+  c.width = W; c.height = H; c.style.width = W * SCALE + 'px'; c.style.height = H * SCALE + 'px';
+  const cap = document.createElement('figcaption'); cap.textContent = caption;
+  fig.append(c, cap); parent.append(fig);
+  return c.getContext('2d');
+}
+
+// ---------------------------------------------------------------- storyboard
+const frames = document.getElementById('frames');
+const hs = (extra) => ({ phase: 'EGG', phaseMs: 0, pattern: 'SPOTS', creature: 'BLOOP', cracks: 0, need: 4, hintMs: 0, wobbleMs: 0, reactMs: 0, nextPattern: 'STARS', showRects: false, ...extra });
+const board = [
+  ['1. Menu: two games so far (tap a tile, or say "colors" / "eggs")', g => renderMenu(g, { games: GAMES, page: 0 })],
+  ['2. Menu with >4 games (future): next-page arrow + page dots; dashed = future slots, not drawn', g => renderMenu(g, { games: [...GAMES, null, null, GAMES[0]], page: 0, showEmpty: true })],
+  ['3. INTRO (1.2 s): egg drops in; any tap skips', g => renderHatch(g, hs({ phase: 'INTRO', phaseMs: 450 }), 0)],
+  ['4. EGG: badge = "tap the egg"; every tap in the play area cracks it', g => renderHatch(g, hs({ pattern: 'STRIPES' }), 0)],
+  ['5. EGG: 2nd of 4 taps, wobble + crack grows', g => renderHatch(g, hs({ pattern: 'ZIGZAGS', cracks: 2, wobbleMs: 180 }), 0)],
+  ['6. EGG: badge tapped (AGAIN/HELP) → egg glows', g => renderHatch(g, hs({ pattern: 'STARS', cracks: 1, hintMs: 900 }), 0)],
+  ['7. HATCH (1.6 s, input ignored): shell lifts, creature pops up', g => renderHatch(g, hs({ phase: 'HATCH', phaseMs: 560, pattern: 'SPOTS', creature: 'PUDDLEPUP' }), 0)],
+  ['8. HATCH: sparkles, shell fades', g => renderHatch(g, hs({ phase: 'HATCH', phaseMs: 1150, pattern: 'SPOTS', creature: 'PUDDLEPUP' }), 0)],
+  ['9. PET: heart = stay & pet (NO), egg = another egg (YES); tap creature to pet', g => renderHatch(g, hs({ phase: 'PET', creature: 'PUDDLEPUP' }), 0)],
+  ['10. PET: petting → hop + hearts; badge tapped → egg button glows', g => renderHatch(g, hs({ phase: 'PET', creature: 'GLIMMERBUG', reactMs: 380, hintMs: 900 }), 0)],
+  ['11. All 8 original creatures', g => {
+    background(g);
+    CREATURES.forEach((c, i) => drawCreature(g, c, 40 + (i % 4) * 80, 80 + Math.floor(i / 4) * 104, 0.52));
+  }],
+  ['12. Egg patterns (spots, stripes, zigzags, stars) at different crack counts', g => {
+    background(g);
+    PATTERNS.forEach((p, i) => drawEgg(g, p, 40 + i * 80, 70, 64, 80, { cracks: i + 1, need: 4 }));
+  }],
+  ['13. Hit rects: menu tiles 120×80, next page 48×96', g => renderMenu(g, { games: [...GAMES, GAMES[0], GAMES[1], GAMES[0]], page: 0, showRects: true })],
+  ['14. Hit rects: egg 112×136, creature 128², buttons 64², badge 56²', g => renderHatch(g, hs({ phase: 'PET', creature: 'SNORKLE', showRects: true }), 0)],
+];
+const boardCtx = board.map(([cap]) => makeCanvas(frames, cap));
+// Redrawn periodically: some browsers discard the backing store of many offscreen canvases.
+const drawBoard = () => board.forEach(([, fn], i) => { boardCtx[i].clearRect(0, 0, W, H); fn(boardCtx[i]); });
+drawBoard();
+setInterval(drawBoard, 1000);
+
+// ---------------------------------------------------------------- live panel
+const live = document.getElementById('live'), lg = live.getContext('2d');
+live.style.width = W * 3 + 'px'; live.style.height = H * 3 + 'px';
+const statusEl = document.getElementById('status');
+const rnd = n => Math.floor(Math.random() * n);
+const inRect = (r, x, y) => x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3];
+const M = { mode: 'MENU', games: GAMES, page: 0, pressed: -1, pressMs: 0, launchSlot: -1, showRects: false };
+const S = hs({ phase: 'INTRO' });
+let bag = [], prev = null, lastSay = '';
+const say = t => { lastSay = t; };
+function drawFromBag() {
+  if (!bag.length) { bag = [...CREATURES].sort(() => Math.random() - 0.5); if (bag[0] === prev) bag.push(bag.shift()); }
+  return prev = bag.shift();
+}
+function newEgg() { S.creature = drawFromBag(); S.pattern = PATTERNS[rnd(4)]; S.nextPattern = PATTERNS[rnd(4)]; S.need = 3 + rnd(3); S.cracks = 0; S.hintMs = S.wobbleMs = S.reactMs = 0; }
+function startEgg() { S.phase = 'EGG'; S.phaseMs = 0; say('PROMPT "Tap the egg!"'); }
+function enterHatch() { Object.assign(S, hs({ phase: 'INTRO' })); bag = []; newEgg(); S.phase = 'INTRO'; M.mode = 'HATCH'; }
+function crack() { S.cracks++; S.wobbleMs = WOBBLE_MS; S.hintMs = 0; say(`tok #${S.cracks}`); if (S.cracks >= S.need) { S.phase = 'HATCH'; S.phaseMs = 0; say(`CRACK! hatching ${S.creature}`); } }
+function pet() { S.reactMs = REACT_MS; say(`${S.creature} giggles`); }
+function hint() { S.hintMs = HINT_MS; say(S.phase === 'PET' ? 'PROMPT "Another egg?"' : 'PROMPT "Tap the egg!"'); }
+function goHome() { M.mode = 'MENU'; say('Home → menu'); }
+function launch(game) {
+  if (game.id === 'HATCH_A_PET') { enterHatch(); say('launch Hatch-a-Pet'); }
+  else say('launch Color Pop (playable in color_pop.html)');
+}
+function hatchInput(ev) {
+  if (S.phase === 'HATCH') return;
+  if (S.phase === 'INTRO') { startEgg(); return; }
+  if (ev.touch) {
+    const { x, y } = ev;
+    if (inRect(BADGE, x, y)) return hint();
+    if (y < 64) return;
+    if (S.phase === 'EGG') return crack();
+    if (inRect(YES_BTN, x, y)) { newEgg(); startEgg(); return; }
+    return pet();
+  }
+  const i = ev.intent;
+  if (S.phase === 'EGG') { if (i === 'YES') crack(); else if (i === 'AGAIN' || i === 'HELP') hint(); return; }
+  if (i === 'YES' || i === 'AGAIN' || i === 'NEXT') { newEgg(); startEgg(); }
+  else if (i === 'NO') pet(); else if (i === 'HELP') hint();
+}
+live.addEventListener('pointerdown', e => {
+  const b = live.getBoundingClientRect();
+  const x = Math.floor((e.clientX - b.left) * W / b.width), y = Math.floor((e.clientY - b.top) * H / b.height);
+  if (inRect(MIC, x, y)) { say('Mic: push-to-talk (use the voice keys here)'); return; }
+  if (M.mode === 'MENU') {
+    const slot = TILES.findIndex(r => inRect(r, x, y));
+    const game = slot >= 0 ? M.games[M.page * 4 + slot] : null;
+    if (game) { M.pressed = slot; M.pressMs = 120; M.launchSlot = slot; }
+    return;
+  }
+  if (inRect(HOME, x, y)) return goHome();
+  hatchInput({ touch: true, x, y });
+});
+window.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (M.mode === 'MENU') {
+    if (k === 'c') launch(GAMES[0]); else if (k === 'e') launch(GAMES[1]);
+    return;
+  }
+  if (k === 'backspace') { e.preventDefault(); return goHome(); }
+  const intent = { y: 'YES', n: 'NO', a: 'AGAIN', h: 'HELP', x: 'NEXT' }[k];
+  if (intent) { say(`voice ${intent}`); hatchInput({ intent }); }
+});
+document.getElementById('grid').addEventListener('change', e => { M.showRects = S.showRects = e.target.checked; });
+let last = performance.now();
+function tick(now) {
+  const dt = Math.min(100, now - last); last = now;
+  if (M.pressMs > 0 && (M.pressMs -= dt) <= 0) { M.pressed = -1; launch(M.games[M.page * 4 + M.launchSlot]); }
+  if (M.mode === 'HATCH') {
+    S.hintMs = Math.max(0, S.hintMs - dt); S.wobbleMs = Math.max(0, S.wobbleMs - dt); S.reactMs = Math.max(0, S.reactMs - dt); S.phaseMs += dt;
+    if (S.phase === 'INTRO' && S.phaseMs >= INTRO_MS) startEgg();
+    else if (S.phase === 'HATCH' && S.phaseMs >= HATCH_MS) { S.phase = 'PET'; S.phaseMs = 0; S.reactMs = REACT_MS; say(`${S.creature} says hi! PROMPT "Another egg?"`); }
+    renderHatch(lg, S, now);
+    statusEl.textContent = `Hatch-a-Pet  phase=${S.phase}  cracks=${S.cracks}/${S.need}  creature=${S.creature}  audio: ${lastSay}`;
+  } else {
+    renderMenu(lg, M);
+    statusEl.textContent = `Menu  audio: ${lastSay}`;
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
