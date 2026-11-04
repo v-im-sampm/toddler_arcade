@@ -1,9 +1,10 @@
 # Reproducible ESP-IDF build for Little Arcade using the pinned Espressif container under WSL containers (wslc).
-# Usage: pwsh tools/idf_wslc_build.ps1 [-Clean] [-Memory 3G]
+# Usage: pwsh tools/idf_wslc_build.ps1 [-Clean] [-Memory 3G] [-Jobs 2]
 # -Memory caps the container (wslc run -m); use it when the Windows host is low on
-# commit memory and containers are killed with exit code 137.
+# commit memory and containers are killed with exit code 137. -Jobs limits ninja
+# parallelism for an already-configured build (lower peak RAM).
 # Produces firmware/build/ plus size reports. Builds only: never flashes.
-param([switch]$Clean, [string]$Memory)
+param([switch]$Clean, [string]$Memory, [int]$Jobs = 0)
 $ErrorActionPreference = 'Stop'
 $Image = 'espressif/idf:v5.5.6'
 $Repo = (Resolve-Path "$PSScriptRoot/..").Path
@@ -20,6 +21,7 @@ set -e
 git config --global --add safe.directory '*'
 cd /project/firmware
 if [ "$CLEAN" = "1" ]; then rm -rf build sdkconfig managed_components; fi
+if [ "$JOBS" -gt 0 ] && [ -f build/build.ninja ]; then ninja -C build -j "$JOBS" all; fi
 idf.py build
 idf.py size | tee build/size.txt
 idf.py size-components | tee build/size-components.txt
@@ -33,5 +35,5 @@ fi
 '@ -replace "`r", ''
 
 $limit = if ($Memory) { @('-m', $Memory) } else { @() }
-wslc run --rm @limit -e CLEAN=$([int]$Clean.IsPresent) -v "${Repo}:/project" $Image bash -c $script
+wslc run --rm @limit -e CLEAN=$([int]$Clean.IsPresent) -e JOBS=$Jobs -v "${Repo}:/project" $Image bash -c $script
 if ($LASTEXITCODE -ne 0) { throw "Container build failed ($LASTEXITCODE)" }
