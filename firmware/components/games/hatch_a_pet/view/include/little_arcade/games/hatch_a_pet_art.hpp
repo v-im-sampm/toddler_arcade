@@ -141,9 +141,8 @@ inline void paint_egg(ui::Canvas& c, EggPattern pattern, float cx, float top, fl
     }
   }
   // Soft highlight, then the outline.
-  layer(pal::kWhite, 204, [&](float x, float y) {
-    return ui::in_ellipse(x, y, cx - w * 0.22f, top + h * 0.28f, w * 0.09f, h * 0.12f, -0.4f);
-  });
+  const ui::Ellipse shine(cx - w * 0.22f, top + h * 0.28f, w * 0.09f, h * 0.12f, -0.4f);
+  layer(pal::kWhite, 204, [&](float x, float y) { return shine.contains(x, y); });
   ui::paint(c, x0, y0, x1, y1, pal::kInk, 255, [&](float x, float y) {
     return egg_inside(x, y, cx, top, w, h, 1.0f) && !egg_inside(x, y, cx, top, w, h, -1.0f) &&
            in_piece(piece, x, y, cx, top, w, h);
@@ -264,8 +263,9 @@ inline void paint_creature(ui::Canvas& c, Creature kind, float cx, float cy, flo
       ui::fill_circle(c, bx, by, 46 * s, 0xF59B3A);
       for (const float dx : {-30.0f, 30.0f}) {
         const float ex = bx + dx * s, rot = dx > 0 ? 0.25f : -0.25f, m = 50 * s + 1;
-        ui::paint(c, ex - m, by - m, ex + m, by + m, 0xD9762A, 255, [=](float x, float y) {
-          return ui::in_circle(x, y, bx, by, 45 * s) && ui::in_ellipse(x, y, ex, by, 8 * s, 50 * s, rot);
+        const ui::Ellipse band(ex, by, 8 * s, 50 * s, rot);
+        ui::paint(c, ex - m, by - m, ex + m, by + m, 0xD9762A, 255, [=, &band](float x, float y) {
+          return ui::in_circle(x, y, bx, by, 45 * s) && band.contains(x, y);
         });
       }
       ui::stroke_circle(c, bx, by, 46 * s, 2, ink);

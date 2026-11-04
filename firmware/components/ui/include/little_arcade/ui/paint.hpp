@@ -39,7 +39,10 @@ inline uint32_t blend_over(uint32_t dst, uint32_t rgb, uint32_t a) {
 
 // Paints `rgb` at opacity `opa` wherever `inside(x, y)` holds, inside the box
 // [x0, x1) x [y0, y1) (clamped to the canvas). Coverage is supersampled
-// ss x ss per pixel for antialiased edges.
+// ss x ss per pixel for antialiased edges. The four corner sub-samples are
+// tested first: when they agree the pixel is treated as fully in or out, so
+// only edge pixels pay for all ss*ss samples (features narrower than about
+// one pixel are not used by the art).
 template <typename Inside>
 void paint(Canvas& c, float x0, float y0, float x1, float y1, uint32_t rgb, uint8_t opa, Inside inside, int ss = 4) {
   const int px0 = x0 < 0 ? 0 : static_cast<int>(x0);
@@ -47,18 +50,26 @@ void paint(Canvas& c, float x0, float y0, float x1, float y1, uint32_t rgb, uint
   const int px1 = x1 > static_cast<float>(c.w) ? c.w : static_cast<int>(std::ceil(x1));
   const int py1 = y1 > static_cast<float>(c.h) ? c.h : static_cast<int>(std::ceil(y1));
   const float step = 1.0f / static_cast<float>(ss);
+  const float lo = 0.5f * step, hi = (static_cast<float>(ss) - 0.5f) * step;
   const int total = ss * ss;
   for (int py = py0; py < py1; ++py) {
+    const float fy = static_cast<float>(py);
     for (int px = px0; px < px1; ++px) {
-      int hits = 0;
-      for (int sy = 0; sy < ss; ++sy) {
-        const float y = static_cast<float>(py) + (static_cast<float>(sy) + 0.5f) * step;
-        for (int sx = 0; sx < ss; ++sx) {
-          const float x = static_cast<float>(px) + (static_cast<float>(sx) + 0.5f) * step;
-          if (inside(x, y)) ++hits;
+      const float fx = static_cast<float>(px);
+      const int corners = static_cast<int>(inside(fx + lo, fy + lo)) + static_cast<int>(inside(fx + hi, fy + lo)) +
+                          static_cast<int>(inside(fx + lo, fy + hi)) + static_cast<int>(inside(fx + hi, fy + hi));
+      if (corners == 0) continue;
+      int hits = total;
+      if (corners != 4) {
+        hits = 0;
+        for (int sy = 0; sy < ss; ++sy) {
+          const float y = fy + (static_cast<float>(sy) + 0.5f) * step;
+          for (int sx = 0; sx < ss; ++sx) {
+            if (inside(fx + (static_cast<float>(sx) + 0.5f) * step, y)) ++hits;
+          }
         }
+        if (hits == 0) continue;
       }
-      if (hits == 0) continue;
       const uint32_t a = (static_cast<uint32_t>(hits) * opa + static_cast<uint32_t>(total) / 2) / static_cast<uint32_t>(total);
       uint32_t& d = c.px[py * c.w + px];
       d = blend_over(d, rgb, a);
@@ -66,16 +77,21 @@ void paint(Canvas& c, float x0, float y0, float x1, float y1, uint32_t rgb, uint
   }
 }
 
-// Ellipse with radii (rx, ry) rotated by `rot` radians around its centre.
-inline bool in_ellipse(float x, float y, float cx, float cy, float rx, float ry, float rot = 0.0f) {
-  float dx = x - cx, dy = y - cy;
-  if (rot != 0.0f) {
-    const float cs = std::cos(rot), sn = std::sin(rot);
+// Ellipse with radii (rx, ry) rotated by `rot` radians around its centre,
+// with the trigonometry and reciprocals computed once.
+struct Ellipse {
+  float cx, cy, cs, sn, irx2, iry2;
+  Ellipse(float cx_, float cy_, float rx, float ry, float rot = 0.0f)
+      : cx(cx_), cy(cy_), cs(std::cos(rot)), sn(std::sin(rot)), irx2(1.0f / (rx * rx)), iry2(1.0f / (ry * ry)) {}
+  bool contains(float x, float y) const {
+    const float dx = x - cx, dy = y - cy;
     const float u = dx * cs + dy * sn, v = -dx * sn + dy * cs;
-    dx = u;
-    dy = v;
+    return u * u * irx2 + v * v * iry2 <= 1.0f;
   }
-  return (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1.0f;
+};
+
+inline bool in_ellipse(float x, float y, float cx, float cy, float rx, float ry, float rot = 0.0f) {
+  return Ellipse(cx, cy, rx, ry, rot).contains(x, y);
 }
 
 // Stroke of radius-r circle arc between angles a0..a1 (radians, y down, a0 < a1).
@@ -137,10 +153,18 @@ struct Path {
   bool filled(float x, float y) const { return in_polygon(x, y, pts, n); }
   bool stroked(float x, float y, float half_width, bool closed = false) const {
     const float hw2 = half_width * half_width;
+    auto near = [&](int i, int j) {
+      const float ax = pts[2 * i], ay = pts[2 * i + 1], bx = pts[2 * j], by = pts[2 * j + 1];
+      if (x < (ax < bx ? ax : bx) - half_width || x > (ax > bx ? ax : bx) + half_width ||
+          y < (ay < by ? ay : by) - half_width || y > (ay > by ? ay : by) + half_width) {
+        return false;
+      }
+      return seg_dist2(x, y, ax, ay, bx, by) <= hw2;
+    };
     for (int i = 1; i < n; ++i) {
-      if (seg_dist2(x, y, pts[2 * i - 2], pts[2 * i - 1], pts[2 * i], pts[2 * i + 1]) <= hw2) return true;
+      if (near(i - 1, i)) return true;
     }
-    return closed && n > 1 && seg_dist2(x, y, pts[2 * n - 2], pts[2 * n - 1], pts[0], pts[1]) <= hw2;
+    return closed && n > 1 && near(n - 1, 0);
   }
   // Bounding box grown by `pad`.
   void bounds(float pad, float& x0, float& y0, float& x1, float& y1) const {
@@ -172,14 +196,14 @@ inline void stroke_circle(Canvas& c, float cx, float cy, float r, float width, u
 }
 inline void fill_ellipse(Canvas& c, float cx, float cy, float rx, float ry, float rot, uint32_t rgb, uint8_t opa = 255) {
   const float m = (rx > ry ? rx : ry) + 1;
-  paint(c, cx - m, cy - m, cx + m, cy + m, rgb, opa,
-        [=](float x, float y) { return in_ellipse(x, y, cx, cy, rx, ry, rot); });
+  const Ellipse e(cx, cy, rx, ry, rot);
+  paint(c, cx - m, cy - m, cx + m, cy + m, rgb, opa, [&e](float x, float y) { return e.contains(x, y); });
 }
 inline void stroke_ellipse(Canvas& c, float cx, float cy, float rx, float ry, float rot, float width, uint32_t rgb) {
   const float hw = width * 0.5f, m = (rx > ry ? rx : ry) + hw + 1;
-  paint(c, cx - m, cy - m, cx + m, cy + m, rgb, 255, [=](float x, float y) {
-    return in_ellipse(x, y, cx, cy, rx + hw, ry + hw, rot) && !in_ellipse(x, y, cx, cy, rx - hw, ry - hw, rot);
-  });
+  const Ellipse outer(cx, cy, rx + hw, ry + hw, rot), inner(cx, cy, rx - hw, ry - hw, rot);
+  paint(c, cx - m, cy - m, cx + m, cy + m, rgb, 255,
+        [&](float x, float y) { return outer.contains(x, y) && !inner.contains(x, y); });
 }
 // Filled ellipse with an outline, the most common creature primitive.
 inline void blob(Canvas& c, float cx, float cy, float rx, float ry, float rot, uint32_t fill, uint32_t edge,

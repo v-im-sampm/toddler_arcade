@@ -1,7 +1,9 @@
 # Reproducible ESP-IDF build for Little Arcade using the pinned Espressif container under WSL containers (wslc).
-# Usage: pwsh tools/idf_wslc_build.ps1 [-Clean]
+# Usage: pwsh tools/idf_wslc_build.ps1 [-Clean] [-Memory 3G]
+# -Memory caps the container (wslc run -m); use it when the Windows host is low on
+# commit memory and containers are killed with exit code 137.
 # Produces firmware/build/ plus size reports. Builds only: never flashes.
-param([switch]$Clean)
+param([switch]$Clean, [string]$Memory)
 $ErrorActionPreference = 'Stop'
 $Image = 'espressif/idf:v5.5.6'
 $Repo = (Resolve-Path "$PSScriptRoot/..").Path
@@ -30,5 +32,6 @@ else
 fi
 '@ -replace "`r", ''
 
-wslc run --rm -e CLEAN=$([int]$Clean.IsPresent) -v "${Repo}:/project" $Image bash -c $script
+$limit = if ($Memory) { @('-m', $Memory) } else { @() }
+wslc run --rm @limit -e CLEAN=$([int]$Clean.IsPresent) -v "${Repo}:/project" $Image bash -c $script
 if ($LASTEXITCODE -ne 0) { throw "Container build failed ($LASTEXITCODE)" }
