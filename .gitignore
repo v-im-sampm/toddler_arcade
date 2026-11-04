@@ -1,0 +1,9 @@
+# Upstream Makerfabs schematic has no license; reference it by URL/hash in config/board_pins.json
+docs/*.PDF
+__pycache__/
+*.pyc
+firmware/build/
+firmware/managed_components/
+firmware/sdkconfig
+firmware/sdkconfig.old
+build-host/

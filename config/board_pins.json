@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "board": "Makerfabs MaTouch Lite ESP32-S3 2.4 ST7789",
+  "module": "ESP32-S3-WROOM-1 (flash/PSRAM variant not read from physical module; README states 16 MB flash, 8 MB PSRAM)",
+  "schematic_revision": "v1.0",
+  "physical_pcb_revision": "TBD",
+  "verified": false,
+  "verification_level": "source_review",
+  "verification_note": "Traced from the upstream schematic and cross-checked against the upstream example. No physical board has been inspected or powered. Do not treat any value here as bench-validated.",
+  "evidence": {
+    "schematic": {
+      "url": "https://github.com/Makerfabs/MaTouch_Lite_ESP32-S3-SPI-IPS-with-Touch-2.4-ST7789/blob/2632b6522ee5439ac8bfe9f038fb4d05006a8c57/hardware/MaTouch%20Lite%20ESP32-S3%20SPI%20IPS%20with%20Touch%202.4%27%27%20ST7789%20v1.0.PDF",
+      "repository_commit": "2632b6522ee5439ac8bfe9f038fb4d05006a8c57",
+      "git_blob_sha1": "f3eed606b0160e0ff6f497a0e8cfc7df0121d2d3",
+      "sha256": "7A7E09508263490F6BBD5D1170D6FA5134BF3C29F946166757D3951008430088"
+    },
+    "example_touch": {
+      "url": "https://github.com/Makerfabs/MaTouch_Lite_ESP32-S3-SPI-IPS-with-Touch-2.4-ST7789/blob/630f37c09eeb1aa339a199f9e7b5f48eee76dab3/example/LVGL_Touch/ui/ui.ino",
+      "repository_commit": "630f37c09eeb1aa339a199f9e7b5f48eee76dab3"
+    },
+    "example_display": {
+      "url": "https://github.com/Makerfabs/MaTouch_Lite_ESP32-S3-SPI-IPS-with-Touch-2.4-ST7789/blob/630f37c09eeb1aa339a199f9e7b5f48eee76dab3/example/LVGL_Touch/libraries/TFT_eSPI/User_Setup.h",
+      "repository_commit": "630f37c09eeb1aa339a199f9e7b5f48eee76dab3"
+    }
+  },
+  "display": {
+    "controller": "ST7789V",
+    "native_resolution": "240x320 portrait; landscape rotation not yet validated",
+    "example_spi_hz": 27000000,
+    "example_color_order": "BGR",
+    "pins": {
+      "sclk": { "gpio": 14, "net": "IO14/SCLK", "sources": ["schematic", "example_display"] },
+      "mosi": { "gpio": 13, "net": "IO13/MOSI", "sources": ["schematic", "example_display"] },
+      "miso": { "gpio": 12, "net": "IO12/HMISO", "sources": ["schematic"], "note": "LCD SDO reaches GPIO12 through diode D4; example does not define TFT_MISO" },
+      "cs": { "gpio": 15, "net": "IO15/HNSS0", "sources": ["schematic", "example_display"] },
+      "dc": { "gpio": 21, "net": "IO21/LCD_RS", "sources": ["schematic", "example_display"] },
+      "rst": { "gpio": 1, "net": "IO1/LCD_RST", "sources": ["schematic", "example_display"] },
+      "backlight": { "gpio": 48, "net": "IO48/BKL", "sources": ["schematic", "example_display"], "note": "Drives S8050 Q3 low-side switch; active level assumed high, not bench-tested" }
+    }
+  },
+  "touch": {
+    "controller": "NS2009",
+    "i2c_address": "0x48",
+    "i2c_address_sources": ["schematic (A0 tied to GND)", "example_touch"],
+    "example_i2c_hz": 100000,
+    "pins": {
+      "scl": { "gpio": 9, "net": "IO9", "sources": ["schematic", "example_touch"], "note": "3.3 kOhm pull-up R11" },
+      "sda": { "gpio": 10, "net": "IO10", "sources": ["schematic", "example_touch"], "note": "3.3 kOhm pull-up R12" },
+      "penirq": { "gpio": 11, "net": "IO11", "sources": ["schematic"], "note": "Example polls and does not use PENIRQ" }
+    }
+  },
+  "sd": {
+    "interface": "SDIO 1-bit (DAT1, DAT2 and CD/DAT3 only have 10 kOhm pull-ups, no GPIO)",
+    "pins": {
+      "clk": { "gpio": 42, "net": "IO42/SCLK", "sources": ["schematic"] },
+      "cmd": { "gpio": 2, "net": "IO2/CMD", "sources": ["schematic"] },
+      "d0": { "gpio": 41, "net": "IO41/D0", "sources": ["schematic"] }
+    }
+  },
+  "usb": {
+    "pins": {
+      "native_d_minus": { "gpio": 19, "net": "USB_D-", "sources": ["schematic"] },
+      "native_d_plus": { "gpio": 20, "net": "USB_D+", "sources": ["schematic"] },
+      "uart0_tx": { "gpio": 43, "net": "TXD/IO43", "sources": ["schematic"], "note": "CH340K USB-UART" },
+      "uart0_rx": { "gpio": 44, "net": "RXD/IO44", "sources": ["schematic"], "note": "CH340K USB-UART" }
+    }
+  },
+  "buttons": {
+    "pins": {
+      "boot": { "gpio": 0, "net": "IO0", "sources": ["schematic"], "note": "Strapping pin; flash/boot button" }
+    }
+  },
+  "expansion": {
+    "voltage": "Headers carry +3V3 and GND only; 5 V (VBUS after diode D3) is not on a header",
+    "headers": {
+      "J1": { "signal_gpios": [4, 5], "pinout": "1=IO4, 2=IO5, 3=+3V3, 4=GND", "note": "Upstream example uses GPIO5=SDA, GPIO4=SCL for an external I2C sensor" },
+      "J2": { "signal_gpios": [6, 7], "pinout": "1=IO6, 2=IO7, 3=+3V3, 4=GND" }
+    }
+  },
+  "strapping_or_reserved_gpios": [0, 3, 19, 20, 43, 44, 45, 46],
+  "module_internal_gpios": [35, 36, 37],
+  "unrouted_gpios": {
+    "gpios": [8, 16, 17, 18, 38, 39, 40, 47],
+    "note": "Only dangling net labels at the module (CSI_*, IO38/SCL, IO39/SDA, IO40, IO47/SPI_NCS2); no connector or pad shown. Not physically accessible per schematic."
+  },
+  "power": {
+    "regulator": "LD1117 3.3 V from VBUS via 1N4148WS diode D3",
+    "budget_note": "LD1117 headroom for an external amplifier is unmeasured; MAX98357A should not be powered from the header 3V3 without H03 current measurement"
+  },
+  "audio": {
+    "status": "No microphone or amplifier on board. External I2S wiring not selected or tested (H03).",
+    "candidate_pool_gpios": [4, 5, 6, 7],
+    "pins": {
+      "bclk": { "gpio": "TBD" },
+      "ws": { "gpio": "TBD" },
+      "mic_data_in": { "gpio": "TBD" },
+      "amp_data_out": { "gpio": "TBD" },
+      "amp_enable": { "gpio": "TBD" }
+    }
+  }
+}

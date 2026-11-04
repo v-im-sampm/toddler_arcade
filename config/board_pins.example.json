@@ -1,29 +1,49 @@
 {
+  "schema_version": 1,
   "board": "Makerfabs MaTouch Lite ESP32-S3 2.4 ST7789",
-  "revision": "TBD",
+  "schematic_revision": "TBD",
+  "physical_pcb_revision": "TBD",
   "verified": false,
-  "evidence": [],
+  "verification_level": "none",
+  "evidence": {},
+  "bench_tests": [],
   "display": {
-    "sclk": "TBD",
-    "mosi": "TBD",
-    "cs": "TBD",
-    "dc": "TBD",
-    "rst": "TBD",
-    "backlight": "TBD"
+    "controller": "ST7789V",
+    "pins": {
+      "sclk": { "gpio": "TBD" },
+      "mosi": { "gpio": "TBD" },
+      "cs": { "gpio": "TBD" },
+      "dc": { "gpio": "TBD" },
+      "rst": { "gpio": "TBD" },
+      "backlight": { "gpio": "TBD" }
+    }
   },
   "touch": {
-    "sda": "TBD",
-    "scl": "TBD",
-    "i2c_address": "TBD"
-  },
-  "audio": {
-    "bclk": "TBD",
-    "ws": "TBD",
-    "mic_din": "TBD",
-    "amp_dout": "TBD",
-    "amp_enable": "TBD"
+    "controller": "NS2009",
+    "i2c_address": "TBD",
+    "pins": {
+      "sda": { "gpio": "TBD" },
+      "scl": { "gpio": "TBD" }
+    }
   },
   "sd": {
-    "cs": "TBD"
+    "pins": {
+      "clk": { "gpio": "TBD" },
+      "cmd": { "gpio": "TBD" },
+      "d0": { "gpio": "TBD" }
+    }
+  },
+  "strapping_or_reserved_gpios": [],
+  "module_internal_gpios": [],
+  "unrouted_gpios": { "gpios": [] },
+  "audio": {
+    "candidate_pool_gpios": [],
+    "pins": {
+      "bclk": { "gpio": "TBD" },
+      "ws": { "gpio": "TBD" },
+      "mic_data_in": { "gpio": "TBD" },
+      "amp_data_out": { "gpio": "TBD" },
+      "amp_enable": { "gpio": "TBD" }
+    }
   }
 }
