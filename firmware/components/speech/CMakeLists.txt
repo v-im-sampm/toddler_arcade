@@ -1,0 +1,7 @@
+if(ESP_PLATFORM)
+  idf_component_register(SRCS "voice_policy.cpp" INCLUDE_DIRS "include" REQUIRES core)
+else()
+  add_library(little_arcade_speech STATIC ${CMAKE_CURRENT_LIST_DIR}/voice_policy.cpp)
+  target_include_directories(little_arcade_speech PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
+  target_link_libraries(little_arcade_speech PUBLIC little_arcade_core)
+endif()
