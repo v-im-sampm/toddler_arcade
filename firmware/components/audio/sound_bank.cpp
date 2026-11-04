@@ -1,0 +1,211 @@
+#include "little_arcade/audio/sound_bank.hpp"
+
+#include "little_arcade/scene_manager.hpp"
+
+namespace little_arcade::audio {
+namespace {
+
+// C-major pentatonic, C5 upward: any mix of these sounds consonant.
+constexpr uint16_t kPenta[] = {523, 587, 659, 784, 880, 1047, 1175, 1319, 1568, 1760};
+constexpr uint8_t kPentaCount = sizeof(kPenta) / sizeof(kPenta[0]);
+
+constexpr Tone tone(Wave w, uint16_t f0, uint16_t f1, uint16_t ms, uint8_t level, uint8_t attack = 4,
+                    uint8_t release = 20) {
+  return Tone{w, f0, f1, ms, level, attack, release};
+}
+constexpr Tone rest(uint16_t ms) { return Tone{Wave::SINE, 0, 0, ms, 0, 0, 0}; }
+constexpr Tone pluck(uint16_t hz, uint16_t ms, uint8_t level = 150) {
+  return tone(Wave::TRIANGLE, hz, hz, ms, level, 3, static_cast<uint8_t>(ms > 120 ? 100 : ms * 2 / 3));
+}
+constexpr Tone bell(uint16_t hz, uint16_t ms, uint8_t level = 150) {
+  return tone(Wave::SINE, hz, hz, ms, level, 4, static_cast<uint8_t>(ms > 150 ? 140 : ms * 3 / 4));
+}
+
+// ---- shared defaults ----------------------------------------------------
+
+Sound tap_blip() { return Sound{}.add(tone(Wave::TRIANGLE, 950, 760, 40, 110, 2, 28)); }
+
+Sound gentle_hmm() {  // TRY_AGAIN: soft, falling, never a buzzer
+  return Sound{}.add(tone(Wave::SINE, 494, 440, 140, 120, 15, 60)).add(tone(Wave::SINE, 440, 392, 200, 110, 10, 120));
+}
+
+Sound sparkle_success(uint8_t variant) {
+  const uint8_t k = variant % 3;
+  return Sound{}.add(bell(kPenta[3 + k], 90)).add(bell(kPenta[5 + k], 200));
+}
+
+Sound celebrate_arpeggio() {
+  return Sound{}
+      .add(pluck(523, 90, 160))
+      .add(pluck(659, 90, 160))
+      .add(pluck(784, 90, 160))
+      .add(pluck(1047, 120, 170))
+      .add(rest(30))
+      .add(bell(1319, 110, 130))
+      .add(bell(1568, 320, 140));
+}
+
+Sound default_prompt() { return Sound{}.add(bell(659, 150, 140)).add(bell(784, 240, 140)); }
+
+Sound default_note(uint8_t variant) { return Sound{}.add(pluck(kPenta[variant % kPentaCount], 220, 150)); }
+
+Sound default_reaction(uint8_t variant) {
+  const uint16_t base = static_cast<uint16_t>(500 + 70 * (variant % 8));
+  return Sound{}
+      .add(tone(Wave::SINE, base, static_cast<uint16_t>(base * 3 / 2), 110, 140, 8, 40))
+      .add(tone(Wave::SINE, static_cast<uint16_t>(base * 5 / 4), static_cast<uint16_t>(base * 7 / 4), 140, 140, 8, 80));
+}
+
+Sound default_sound(Cue cue, uint8_t variant) {
+  switch (cue) {
+    case Cue::TAP: return tap_blip();
+    case Cue::PROMPT: return default_prompt();
+    case Cue::SUCCESS: return sparkle_success(variant);
+    case Cue::TRY_AGAIN: return gentle_hmm();
+    case Cue::CELEBRATE: return celebrate_arpeggio();
+    case Cue::NOTE: return default_note(variant);
+    case Cue::REACTION: return default_reaction(variant);
+    case Cue::AMBIENT: break;  // no background loop yet: silence is calmer
+  }
+  return Sound{};
+}
+
+// ---- Color Pop ------------------------------------------------------------
+// Each colour gets its own short motif so the prompt is learnable without
+// speech (spoken prompts are a later asset task). Order: RED, BLUE, GREEN, YELLOW.
+
+Sound color_prompt(uint8_t color) {
+  Sound s;
+  switch (color % 4) {
+    case 0:  // red: warm low "bum-BUM"
+      s.add(pluck(392, 130, 160)).add(rest(20)).add(pluck(523, 260, 170));
+      break;
+    case 1:  // blue: gentle falling
+      s.add(bell(784, 150)).add(bell(659, 150)).add(bell(523, 260));
+      break;
+    case 2:  // green: hopping up
+      s.add(pluck(523, 110)).add(pluck(659, 110)).add(pluck(784, 240));
+      break;
+    default:  // yellow: bright twinkle
+      s.add(bell(1047, 100, 130)).add(bell(1319, 100, 130)).add(bell(1047, 100, 130)).add(bell(1568, 240, 130));
+      break;
+  }
+  return s;
+}
+
+Sound bubble_pop(uint8_t color) {
+  const uint16_t lo = static_cast<uint16_t>(520 + 90 * (color % 4));
+  return Sound{}
+      .add(tone(Wave::NOISE, 7000, 7000, 18, 90, 1, 12))
+      .add(tone(Wave::SINE, lo, static_cast<uint16_t>(lo * 5 / 2), 90, 170, 2, 50))
+      .add(bell(kPenta[4 + (color % 4)], 160, 120));
+}
+
+Sound color_pop_sound(Cue cue, uint8_t variant) {
+  switch (cue) {
+    case Cue::PROMPT: return color_prompt(variant);
+    case Cue::SUCCESS: return bubble_pop(variant);
+    case Cue::CELEBRATE: {  // fired together with SUCCESS: let the pop land first
+      Sound s;
+      s.add(rest(240));
+      const Sound arp = celebrate_arpeggio();
+      for (uint8_t i = 0; i < arp.count; ++i) s.add(arp.tones[i]);
+      return s;
+    }
+    default: return default_sound(cue, variant);
+  }
+}
+
+// ---- Hatch-a-Pet ----------------------------------------------------------
+
+Sound egg_prompt(uint8_t prompt) {
+  if (prompt == 0) {  // TAP_THE_EGG: "knock knock"
+    return Sound{}.add(pluck(330, 70, 170)).add(rest(90)).add(pluck(330, 70, 170)).add(rest(60)).add(bell(659, 200, 120));
+  }
+  // ANOTHER_EGG: curious rising "ooh?"
+  return Sound{}.add(tone(Wave::SINE, 392, 523, 180, 140, 20, 40)).add(bell(659, 260, 130));
+}
+
+Sound egg_crack(uint8_t crack) {  // crack 1..N rises in pitch toward hatching
+  const uint8_t k = crack > 0 ? static_cast<uint8_t>(crack - 1) : 0;
+  return Sound{}
+      .add(tone(Wave::NOISE, 3500, 3500, 22, 110, 1, 15))
+      .add(pluck(kPenta[k % kPentaCount], 90, 160));
+}
+
+Sound hatch_fanfare(uint8_t creature) {
+  const uint8_t k = creature % 5;
+  return Sound{}
+      .add(tone(Wave::SINE, 400, 1200, 160, 130, 10, 40))
+      .add(rest(20))
+      .add(bell(kPenta[k], 110, 150))
+      .add(bell(kPenta[k + 2], 110, 150))
+      .add(bell(kPenta[k + 4], 300, 150));
+}
+
+// Eight original creature "voices": BLOOP, FLUFFWING, SPROUTLING, ... in
+// Creature enum order. Simple chirps/boings; no recognizable characters.
+Sound creature_voice(uint8_t creature) {
+  Sound s;
+  switch (creature % 8) {
+    case 0:  // bloop: bubbly low-high wobble
+      s.add(tone(Wave::SINE, 300, 520, 90, 160, 6, 30)).add(tone(Wave::SINE, 360, 620, 110, 150, 6, 60));
+      break;
+    case 1:  // fluffwing: tiny fluttering tweets
+      s.add(tone(Wave::SINE, 1400, 1900, 60, 120, 4, 30)).add(rest(30)).add(tone(Wave::SINE, 1500, 2100, 70, 120, 4, 40));
+      break;
+    case 2:  // sproutling: soft rising "hee"
+      s.add(tone(Wave::TRIANGLE, 600, 900, 200, 140, 20, 80));
+      break;
+    case 3:  // boing
+      s.add(tone(Wave::TRIANGLE, 220, 660, 80, 160, 3, 20)).add(tone(Wave::TRIANGLE, 660, 330, 160, 140, 3, 90));
+      break;
+    case 4:  // purr-ish low rumble
+      s.add(tone(Wave::PULSE, 110, 120, 160, 70, 20, 60)).add(tone(Wave::PULSE, 120, 100, 160, 60, 10, 80));
+      break;
+    case 5:  // giggle: three quick hops
+      s.add(pluck(880, 60)).add(pluck(988, 60)).add(pluck(1175, 110));
+      break;
+    case 6:  // sleepy yawn: slow falling
+      s.add(tone(Wave::SINE, 700, 380, 360, 130, 40, 160));
+      break;
+    default:  // happy squeak
+      s.add(tone(Wave::SINE, 1000, 1500, 90, 130, 5, 30)).add(tone(Wave::SINE, 1500, 1200, 90, 120, 5, 50));
+      break;
+  }
+  return s;
+}
+
+Sound hatch_a_pet_sound(Cue cue, uint8_t variant) {
+  switch (cue) {
+    case Cue::PROMPT: return egg_prompt(variant);
+    case Cue::NOTE: return egg_crack(variant);
+    case Cue::SUCCESS: return hatch_fanfare(variant);
+    case Cue::REACTION: return creature_voice(variant);
+    case Cue::CELEBRATE:  // fired with the hatch fanfare: a soft sparkle after it
+      return Sound{}.add(rest(720)).add(bell(1568, 90, 110)).add(bell(1319, 90, 110)).add(bell(2093, 260, 110));
+    case Cue::TAP: return Sound{}.add(tone(Wave::TRIANGLE, 420, 380, 35, 120, 2, 25));  // soft "tok"
+    default: return default_sound(cue, variant);
+  }
+}
+
+}  // namespace
+
+Sound sound_for(uint8_t scene, Cue cue, uint8_t variant) {
+  switch (scene) {
+    case static_cast<uint8_t>(GameId::COLOR_POP): return color_pop_sound(cue, variant);
+    case static_cast<uint8_t>(GameId::HATCH_A_PET): return hatch_a_pet_sound(cue, variant);
+    default: return default_sound(cue, variant);
+  }
+}
+
+Sound scene_change_sound(uint8_t from_scene, uint8_t to_scene) {
+  if (from_scene == to_scene) return Sound{};
+  if (to_scene == IFeedback::kSceneMenu) {  // back home: soft descending "whoop"
+    return Sound{}.add(tone(Wave::SINE, 880, 440, 180, 120, 10, 80));
+  }
+  // launching a game: rising "whoosh" + ding
+  return Sound{}.add(tone(Wave::SINE, 330, 990, 160, 120, 20, 30)).add(bell(1319, 220, 120));
+}
+
+}  // namespace little_arcade::audio

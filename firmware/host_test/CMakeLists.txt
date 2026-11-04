@@ -33,6 +33,7 @@ la_host_test(core_contract_test core_contract_test.cpp)
 la_host_test(scene_manager_test scene_manager_test.cpp)
 la_host_test(voice_policy_test voice_policy_test.cpp)
 la_host_test(volume_test volume_test.cpp)
+la_host_test(audio_synth_test ${LA_COMPONENTS}/audio/test/audio_synth_test.cpp)
 la_host_test(touch_calibration_test touch_calibration_test.cpp)
 add_subdirectory(${LA_COMPONENTS}/ui ui)
 

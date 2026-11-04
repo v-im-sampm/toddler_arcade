@@ -117,6 +117,7 @@ void SceneManager::launch(const GameEntry& entry) {
   current_ = &entry;
   rng_.reseed(config_.base_seed + launches_++);
   mode_ = Mode::PLAYING;
+  context_.feedback.set_scene(static_cast<uint8_t>(entry.id));
   entry.game->enter(context_);
 }
 
@@ -124,6 +125,7 @@ void SceneManager::go_home() {
   if (current_) current_->game->exit();
   current_ = nullptr;
   mode_ = Mode::MENU;
+  context_.feedback.set_scene(IFeedback::kSceneMenu);
 }
 
 void SceneManager::sleep() {

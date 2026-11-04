@@ -19,8 +19,15 @@ enum class Cue : uint8_t {
 
 class IFeedback {
  public:
+  // Scene marker for set_scene(): the launcher, not a game.
+  static constexpr uint8_t kSceneMenu = 0xFF;
+
   virtual ~IFeedback() = default;
   virtual void play(Cue cue, uint8_t variant) = 0;
+  // Which scene subsequent cues belong to (a GameId value or kSceneMenu), so
+  // the audio layer can pick that game's sound palette. Called by the
+  // SceneManager before a game's enter() and after its exit().
+  virtual void set_scene(uint8_t scene) { (void)scene; }
 };
 
 class NullFeedback final : public IFeedback {
