@@ -1,0 +1,8 @@
+# Name,   Type, SubType, Offset,   Size,     Flags
+# Provisional 16 MB layout (P01). Single factory app, no OTA in release-1 prototype.
+# Sizes are budgets to be re-measured after V01 (models) and A01 (assets).
+nvs,      data, nvs,     0x9000,   0x6000,
+phy_init, data, phy,     0xF000,   0x1000,
+factory,  app,  factory, 0x10000,  0x400000,
+model,    data, spiffs,  0x410000, 0x600000,
+assets,   data, spiffs,  0xA10000, 0x5F0000,

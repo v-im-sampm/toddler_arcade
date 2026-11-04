@@ -1,0 +1,29 @@
+# Little Arcade P01 defaults. Board facts come from config/board_pins.json (source-reviewed, not bench-verified).
+CONFIG_IDF_TARGET="esp32s3"
+
+# Flash: README states 16 MB. Physical module marking not yet observed (H02).
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# PSRAM: README states 8 MB; octal mode assumes an ESP32-S3-WROOM-1 N16R8 module (unverified).
+# IGNORE_NOTFOUND lets the skeleton boot and log the failure instead of boot-looping if the mode is wrong.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_IGNORE_NOTFOUND=y
+CONFIG_SPIRAM_USE_MALLOC=y
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096
+CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=65536
+
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_FREERTOS_HZ=1000
+
+# Release 1 is offline: keep radios off.
+CONFIG_BT_ENABLED=n
+
+# LVGL: 16-bit colour for ST7789 RGB565.
+CONFIG_LV_COLOR_DEPTH_16=y
+CONFIG_LV_BUILD_EXAMPLES=n
