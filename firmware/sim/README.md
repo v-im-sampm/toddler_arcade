@@ -41,7 +41,7 @@ build-sim\Release\little_arcade_sim.exe [--zoom 3] [--seed N]
 | Mic button | logs only; push-to-talk is simulated by the keys above |
 | `Esc` | quit |
 
-Audio cues are printed to the console (`[audio] PROMPT 0`) instead of being played.
+Audio cues are printed to the console (`[audio] PROMPT 0`) and played through the PC speakers with the same synth and sound bank as the device (SDL audio, 16 kHz mono, level 4). Pass `--mute` to silence them. Bench mode stays silent.
 
 ## Headless benchmark
 

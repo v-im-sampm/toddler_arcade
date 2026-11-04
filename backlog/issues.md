@@ -30,7 +30,7 @@
 | H01 | Done — source review only | `config/board_pins.json` (`verified: false`), `docs/hardware.md` conflict matrix, `tools/board_pins.py` gate. Physical PCB revision not observed. |
 | P01 | Done — container build; flashed during H02 | `firmware/` ESP-IDF v5.5.6 skeleton, `dependencies.lock`, size report in `firmware/README.md`. Boots on the H02 board (N16R8: 16 MB flash, 8 MB octal PSRAM). |
 | H02 | **In progress** — display + touch working on one board | `board_io` ST7789 (27 MHz, BGR, inverted, landscape) and NS2009 at 0x48. The owner played Color Pop with correct picture and touch. Boot log and memory figures are in `firmware/README.md`. Still open: measured 5-point calibration, backlight level, PCB revision, photos, touch latency. |
-| H03 | **BLOCKED** | Needs physical mic + MAX98357A + speaker. H01 found only GPIO4–7 accessible (J1/J2) and 3V3-only headers: a shared-clock full-duplex I2S layout uses all four, leaving no amp-enable GPIO. Requires a hardware decision (hard-wired SD_MODE, sacrificing SD/another bus, or an I/O expander) plus current/thermal measurement of the LD1117. |
+| H03 | **IN PROGRESS** | Owner wired INMP441 + MAX98357A (user-reported, `config/board_pins.json` `audio.wiring_evidence`): BCLK 4, WS 5, mic SD 6, amp DIN 7, SD_MODE hard-wired on via 10 k to 3V3, GAIN floating (9 dB), amp on header 3V3. Firmware evidence (`h03_audio_first`, `h03_loopback` logs): full-duplex I2S0 starts, mic delivers 16 kHz frames whose RMS responds to room sound, game cues reach I2S (out_peak 3854 ≈ −18.6 dBFS at level 4), no brownout/reset. **Still open:** speaker audibility/loudness confirmed by ear or meter, boot pop check, amp current and LD1117 thermal measurement. Acoustic loopback via the mic was inconclusive (room noise). |
 | P02, P03, V01 → all later tickets | Blocked by H02/H03 per dependency table | — |
 
 ### Host-ahead work (logic only; NOT hardware-validated, tickets remain open)
@@ -38,7 +38,7 @@ The owner chose to continue host-testable logic while H02/H03 wait on hardware. 
 | ID | Host-ahead part done | Still open |
 |---|---|---|
 | P02 | Frozen `IGame`/`GameContext`, layout constants, `SceneManager` (launcher paging, Home/BACK, pause, debounce, sleep, voice context filter), host tests | LVGL UI task + views, display/touch drivers (needs H02), measured touch latency |
-| P03 | `VolumeLimiter`: muted startup, parent cap, ramp, hard peak limit; host tests | I2S driver, mixer, prompt playback, acoustic level measurement (needs H03) |
+| P03 | `VolumeLimiter`; 4-voice procedural synth, per-game sound bank (Color Pop, Hatch-a-Pet, shared defaults), `AudioFeedback` (lock-free cue queue, merge, limiter), full-duplex I2S backend on device, SDL audio in the simulator; host tests | Spoken voice-prompt assets/playback, parent volume setting (device auto-applies level 4 after first frame instead of staying muted), acoustic level measurement (needs H03) |
 | V02 | `PushToTalkSession` (4 s silence / 8 s max) and `VoiceIntentFilter` (confidence, context, dedupe, playback cooldown); host tests | ESP-SR integration and threshold calibration (needs V01/H03) |
 | G01–G10 | All 10 scenes: logic + host tests (14/14 suites pass on MSVC and container GCC; each game component compiles for ESP32-S3). See each `firmware/components/games/*/README.md` | LVGL views, assets (A01), device playthrough (Q01); decide whether to add game-specific voice intents (animals, shapes, planets, feed/sleep) |
 

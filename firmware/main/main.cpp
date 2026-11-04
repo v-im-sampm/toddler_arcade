@@ -15,6 +15,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "little_arcade/arcade.hpp"
+#include "little_arcade/audio/audio_feedback.hpp"
+#include "little_arcade/audio/i2s_audio.hpp"
 #include "little_arcade/board_io.hpp"
 #include "little_arcade/board_pins.hpp"
 #include "little_arcade/intent.hpp"
@@ -60,13 +62,18 @@ void log_board() {
   }
 }
 
-class LogFeedback final : public IFeedback {
- public:
-  void play(Cue cue, uint8_t variant) override {
-    ESP_LOGI("audio", "cue=%u variant=%u (no audio until H03)", static_cast<unsigned>(cue),
-             static_cast<unsigned>(variant));
-  }
-};
+// Provisional bring-up volume (0..10, clamped to the VolumeLimiter parent cap
+// of 6). Output stays muted until this is applied after the first frame, then
+// ramps over 300 ms; there is no startup sound. A parent-settings screen will
+// replace this constant (P03/settings); tune only with H03 level measurements.
+constexpr uint8_t kStartupVolumeLevel = 4;
+// H03 bring-up: log INMP441 RMS/peak numbers only (no samples kept or sent).
+constexpr bool kMicLevelProbe = true;
+// H03 diagnostic only, keep false in normal builds: ~10 s after boot plays six
+// soft menu chimes (level kStartupVolumeLevel) so the [audio] mic RMS log can
+// show acoustic loopback from the speaker to the INMP441.
+constexpr bool kAudioLoopbackSelfTest = false;
+
 
 const char* layer_name(Arcade::Layer l) {
   switch (l) {
@@ -78,7 +85,7 @@ const char* layer_name(Arcade::Layer l) {
   return "none";
 }
 
-LogFeedback g_feedback;
+audio::AudioFeedback g_feedback;
 Arcade* g_arcade = nullptr;
 esp_lcd_panel_handle_t g_panel = nullptr;
 uint64_t g_frame_pixels = 0;
@@ -86,6 +93,17 @@ bool g_was_pressed = false;
 
 uint32_t tick_ms() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
 
+void audio_loopback_self_test(uint32_t now) {
+  static const uint32_t start = now;
+  static uint32_t next = 10000;
+  static int played = 0;
+  const uint32_t t = now - start;
+  if (played < 6 && t >= next) {
+    g_feedback.play(Cue::SUCCESS, 0);
+    ESP_LOGI("audio", "[selftest] chime %d at %u ms", ++played, static_cast<unsigned>(t));
+    next = t + 900;
+  }
+}
 void flush_done(void* ctx) { lv_display_flush_ready(static_cast<lv_display_t*>(ctx)); }
 
 void flush(lv_display_t*, const lv_area_t* area, uint8_t* px_map) {
@@ -155,6 +173,15 @@ void ui_task(void*) {
   board::backlight_set(true);
   log_memory("ui_ready");
 
+  audio::I2sAudioOptions audio_opts;
+  audio_opts.mic_level_probe = kMicLevelProbe;
+  if (audio::start_i2s_audio(g_feedback, audio_opts)) {
+    g_feedback.set_level(kStartupVolumeLevel);
+  } else {
+    ESP_LOGE(kTag, "audio unavailable; games stay fully playable with visual cues");
+  }
+  log_memory("audio_ready");
+
   uint32_t stats_start = tick_ms(), frames = 0;
   int64_t render_us_sum = 0, render_us_max = 0, tick_us_max = 0;
   uint64_t pixels_sum = 0;
@@ -162,6 +189,7 @@ void ui_task(void*) {
   for (;;) {
     const uint32_t now = tick_ms();
     if (touch_err == ESP_OK) poll_touch(now);
+    if (kAudioLoopbackSelfTest) audio_loopback_self_test(now);
     const int64_t t_tick = esp_timer_get_time();
     arcade.tick(now);  // game logic + view sync (+ lazy Hatch-a-Pet art rasters)
     const int64_t tick_us = esp_timer_get_time() - t_tick;

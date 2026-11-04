@@ -1,7 +1,8 @@
 // Little Arcade desktop simulator: the full Arcade shell (launcher + Home +
 // Color Pop + Hatch-a-Pet) with the real game logic and real LVGL views.
 //
-// Interactive:  little_arcade_sim [--zoom N] [--seed N]
+// Interactive:  little_arcade_sim [--zoom N] [--seed N] [--mute]
+//   Sounds play through the PC speakers using the device synth (level 4).
 //   Mouse = touch (Home and the launcher work like the device).
 //   Keys = voice intents: R B G Y colours, A AGAIN, H HELP, J YES, N NO,
 //   X NEXT, Backspace BACK, C COLORS, E EGGS. Esc quits.
@@ -24,6 +25,7 @@
 #include <vector>
 
 #include "little_arcade/arcade.hpp"
+#include "little_arcade/audio/audio_feedback.hpp"
 #include "lvgl.h"
 
 using namespace little_arcade;
@@ -37,6 +39,7 @@ struct Options {
   uint32_t seed = 0;
   uint32_t frame_ms = LV_DEF_REFR_PERIOD;
   int zoom = 3;
+  bool mute = false;
   std::string shots;
 };
 
@@ -64,6 +67,39 @@ class ConsoleFeedback final : public IFeedback {
     if (!quiet) std::printf("[audio] %s %u\n", cue_name(cue), static_cast<unsigned>(variant));
   }
 };
+
+// Interactive mode: prints cues and plays them through the same synth and
+// volume limiter as the device, via an SDL audio callback (host speakers).
+class SpeakerFeedback final : public IFeedback {
+ public:
+  ConsoleFeedback console;
+  audio::AudioFeedback audio;
+  void play(Cue cue, uint8_t variant) override {
+    console.play(cue, variant);
+    audio.play(cue, variant);
+  }
+  void set_scene(uint8_t scene) override { audio.set_scene(scene); }
+};
+
+void sdl_audio_callback(void* user, Uint8* stream, int len) {
+  static_cast<audio::AudioFeedback*>(user)->render(reinterpret_cast<int16_t*>(stream),
+                                                   static_cast<std::size_t>(len) / sizeof(int16_t));
+}
+
+bool open_sim_audio(audio::AudioFeedback& fb) {
+  if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) return false;
+  SDL_AudioSpec want{};
+  want.freq = static_cast<int>(audio::kSampleRateHz);
+  want.format = AUDIO_S16SYS;
+  want.channels = 1;
+  want.samples = 256;
+  want.callback = sdl_audio_callback;
+  want.userdata = &fb;
+  const SDL_AudioDeviceID dev = SDL_OpenAudioDevice(nullptr, 0, &want, nullptr, 0);
+  if (dev == 0) return false;
+  SDL_PauseAudioDevice(dev, 0);
+  return true;
+}
 
 int16_t mid_x(const Rect& r) { return static_cast<int16_t>(r.x + r.w / 2); }
 int16_t mid_y(const Rect& r) { return static_cast<int16_t>(r.y + r.h / 2); }
@@ -421,7 +457,12 @@ int run_interactive(const Options& opt) {
   lv_sdl_window_set_title(disp, "Little Arcade sim (desktop, not device)");
   lv_tick_set_cb(SDL_GetTicks);
 
-  static ConsoleFeedback feedback;
+  static SpeakerFeedback feedback;
+  if (!opt.mute && open_sim_audio(feedback.audio)) {
+    feedback.audio.set_level(4);  // same provisional level as the device
+  } else {
+    std::printf("sim audio off (%s)\n", opt.mute ? "--mute" : SDL_GetError());
+  }
   const uint32_t seed = opt.seed ? opt.seed : static_cast<uint32_t>(SDL_GetTicks() ^ 0xA5A5u) | 1u;
   static Arcade arcade(feedback, seed);
   arcade.create(lv_screen_active());
@@ -500,6 +541,8 @@ bool parse(int argc, char** argv, Options& opt) {
     } else if (a == "--zoom") {
       if (!next(zoom) || zoom == 0 || zoom > 8) return false;
       opt.zoom = static_cast<int>(zoom);
+    } else if (a == "--mute") {
+      opt.mute = true;
     } else if (a == "--shots" && i + 1 < argc) {
       opt.shots = argv[++i];
     } else {
@@ -515,7 +558,7 @@ int main(int argc, char** argv) {
   Options opt;
   if (!parse(argc, argv, opt)) {
     std::printf(
-        "usage: little_arcade_sim [--zoom N] [--seed N]\n"
+        "usage: little_arcade_sim [--zoom N] [--seed N] [--mute]\n"
         "       little_arcade_sim --bench [--game color_pop|hatch_a_pet] [--seconds N] [--seed N]\n"
         "                         [--frame-ms N] [--shots DIR]\n");
     return 2;

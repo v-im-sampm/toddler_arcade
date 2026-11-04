@@ -37,7 +37,7 @@ Evidence:
 Corrections to the earlier uncommitted draft: LCD CS is **GPIO15**, not GPIO5; the TF card is 1-bit, so GPIO12/13/15 are **not** shared with SD data lines; GPIO5 is a free J1 signal, not LCD CS.
 
 ### H01 risks escalated to H03 (blocking)
-- **Only four accessible GPIOs.** A mic plus MAX98357A needs BCLK, WS, mic DATA and amp DIN = 4 GPIOs with shared clocks, leaving **no GPIO for amplifier enable/SD_MODE**. Amp enable must then be hard-wired (startup-pop and mute behavior must be bench-checked), or another interface must be sacrificed with hardware-agent review. Do not assign audio pins until H03.
+- **Only four accessible GPIOs.** A mic plus MAX98357A needs BCLK, WS, mic DATA and amp DIN = 4 GPIOs with shared clocks, leaving **no GPIO for amplifier enable/SD_MODE**. **Decision (H03, owner wiring):** SD_MODE is hard-wired on (10 k to 3V3, left channel); firmware keeps the amp silent by streaming zeros, starts muted and ramps up. Owner-reported pins: BCLK GPIO4, WS GPIO5, mic SD GPIO6, amp DIN GPIO7 (`config/board_pins.json`, source `user_reported`, not bench-verified). Startup-pop behaviour still needs a bench check.
 - **Shared I2S clocks for RX and TX** on one ESP32-S3 I2S port (full-duplex) must be validated with the chosen ESP-IDF driver.
 - **Power:** headers provide only +3V3 from an LD1117; 5 V is not broken out. MAX98357A current at 3.3 V and LD1117 thermal headroom are unmeasured.
 - **PCB revision:** physical revision marking not observed.
