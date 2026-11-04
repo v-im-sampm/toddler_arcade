@@ -5,9 +5,10 @@ The app boots (expected), logs build/board/memory facts and idles. It does not d
 display/touch bring-up waits on H02 and audio on H03 (see `docs/hardware.md`).
 
 ## Pinned toolchain and dependencies (P01 spike)
+
 | Item | Version | Where pinned |
-|---|---|---|
-| ESP-IDF | v5.5.6 (container `espressif/idf:v5.5.6`) | `main/idf_component.yml`, `tools/idf_docker_build.ps1` |
+| --- | --- | --- |
+| ESP-IDF | v5.5.6 (container `espressif/idf:v5.5.6`) | `main/idf_component.yml`, `tools/idf_wslc_build.ps1` |
 | LVGL | 9.5.0 | `main/idf_component.yml` |
 | esp_lvgl_port | 2.9.0 | `main/idf_component.yml` |
 | esp-sr | 2.6.1 (resolved, not yet called; V01 decides) | `main/idf_component.yml` |
@@ -15,6 +16,7 @@ display/touch bring-up waits on H02 and audio on H03 (see `docs/hardware.md`).
 `dependencies.lock` records the exact resolved graph. Change versions only with a new build + size report.
 
 ## Layout
+
 - `components/core/`: shared contracts with no ESP-IDF dependencies, so it is host-testable.
   - `IGame` and `GameContext`. These are FROZEN for game work.
   - `InputEvent`, `Rng`, `IFeedback` cues, and layout constants in `geometry.hpp`.
@@ -33,32 +35,40 @@ display/touch bring-up waits on H02 and audio on H03 (see `docs/hardware.md`).
 - `partitions.csv`: provisional 16 MB layout with a 4 MB factory app, 6 MB `model` and about 5.9 MB `assets`.
 
 Generated headers come from `config/*.json`; never edit them by hand:
+
 ```
 python tools/gen_firmware_headers.py          # regenerate
 python tools/gen_firmware_headers.py --check  # CI drift check (also run by tools/validate_specs.py)
 ```
 
 ## Build
-ESP-IDF build in the pinned container (no local IDF install needed), plus size reports and GCC host tests:
+
+ESP-IDF build in the pinned container via WSL containers (`wslc`; do not use Docker), with no local IDF install needed, plus size reports and GCC host tests:
+
 ```
-pwsh tools/idf_docker_build.ps1          # add -Clean for a from-scratch build
+pwsh tools/idf_wslc_build.ps1          # add -Clean for a from-scratch build
 ```
+
 Host tests with a local compiler:
+
 ```
 cmake -S firmware/host_test -B build-host
 cmake --build build-host --config Debug
 ctest --test-dir build-host -C Debug --output-on-failure
 ```
+
 To build a single game in isolation, pass `-DLA_ONLY_GAME=<folder>`, e.g. `-DLA_ONLY_GAME=color_pop`.
 Flashing (`idf.py -p PORT flash monitor`) is untested. Do not flash until H02 confirms the module's
 flash/PSRAM variant; `CONFIG_SPIRAM_MODE_OCT` assumes an N16R8 module.
 
 ## P01 build evidence (container build only — not run on hardware)
-Environment: `espressif/idf:v5.5.6` (digest `sha256:bf72fe7a15c2…`), xtensa-esp-elf GCC 14.2.0, Docker on Windows.
+
+Environment: `espressif/idf:v5.5.6` (digest `sha256:bf72fe7a15c2…`), xtensa-esp-elf GCC 14.2.0. These numbers were recorded
+before the switch to WSL containers; rebuilds now use `tools/idf_wslc_build.ps1` with the same image.
 Clean build reproducible; zero compiler warnings.
 
 | Measure | Value |
-|---|---|
+| --- | --- |
 | `little_arcade.bin` | 353,104 B (0x56350); 92% of 4 MB factory partition free |
 | Bootloader | 0x5590 B; 33% free |
 | Static DIRAM | 128,795 B used / 341,760 B (37.7%); `.bss` 68,456 B |
@@ -69,6 +79,7 @@ Clean build reproducible; zero compiler warnings.
 Runtime heap/PSRAM numbers do not exist yet: `app_main` logs them, but the image has never run on a board.
 
 ### Host-ahead re-check (after P02-core / V02-logic / P03-logic)
+
 - The container build is clean, with zero warnings.
 - `little_arcade.bin` is 352,985 B. It's essentially unchanged because `main` doesn't link the new components yet.
 - The container GCC host run passed 5/5 suites: core_contract, scene_manager, voice_policy, volume and color_pop.
@@ -77,6 +88,7 @@ Runtime heap/PSRAM numbers do not exist yet: `app_main` logs them, but the image
 These are build and logic results only. Footprint deltas for scenes and views have to be measured once I01 links them.
 
 ### All ten game scenes (G01–G10, host-ahead)
+
 - The container build is clean, with zero warnings. All 10 game components compile for the ESP32-S3 with xtensa GCC: `libcolor_pop.a` … `libbubble_aquarium.a`, 45–105 KB archives including debug info.
 - `little_arcade.bin` is unchanged at 352,985 B because `main` doesn't link any game until I01.
 - Host suites: 14/14 pass with the container GCC, and with MSVC `/W4 /WX /permissive-` in Debug and Release.
@@ -86,6 +98,7 @@ These are build and logic results only. Footprint deltas for scenes and views ha
   - Any new intent must be added to `config/commands.json` and reviewed. It also grows the V01 grammar.
 
 Known follow-ups:
+
 - LVGL uses its builtin 64 KiB pool in internal `.bss` (`CONFIG_LV_USE_BUILTIN_MALLOC`). P02 should decide
   whether to move LVGL allocations to PSRAM once draw-buffer sizing is measured.
 - `model` (6 MB) and `assets` partitions are provisional until V01 and A01 measure real content.

@@ -1,10 +1,14 @@
-# Reproducible ESP-IDF build for Little Arcade using the pinned Espressif container.
-# Usage: pwsh tools/idf_docker_build.ps1 [-Clean]
+# Reproducible ESP-IDF build for Little Arcade using the pinned Espressif container under WSL containers (wslc).
+# Usage: pwsh tools/idf_wslc_build.ps1 [-Clean]
 # Produces firmware/build/ plus size reports. Builds only: never flashes.
 param([switch]$Clean)
 $ErrorActionPreference = 'Stop'
 $Image = 'espressif/idf:v5.5.6'
 $Repo = (Resolve-Path "$PSScriptRoot/..").Path
+
+if (-not (Get-Command wslc -ErrorAction SilentlyContinue)) {
+  throw 'wslc (WSL containers CLI) not found. Install/update WSL; Docker is not supported for this project.'
+}
 
 python "$Repo/tools/gen_firmware_headers.py" --check
 if ($LASTEXITCODE -ne 0) { throw 'Generated headers are stale' }
@@ -26,5 +30,5 @@ else
 fi
 '@ -replace "`r", ''
 
-docker run --rm -e CLEAN=$([int]$Clean.IsPresent) -v "${Repo}:/project" $Image bash -c $script
+wslc run --rm -e CLEAN=$([int]$Clean.IsPresent) -v "${Repo}:/project" $Image bash -c $script
 if ($LASTEXITCODE -ne 0) { throw "Container build failed ($LASTEXITCODE)" }
