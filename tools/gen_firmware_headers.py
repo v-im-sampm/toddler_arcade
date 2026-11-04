@@ -90,6 +90,12 @@ def gen_pins(cfg):
             out.append(f"inline constexpr int k{camel(name)} = {value};\n")
         if group == "touch" and str(body.get("i2c_address", "TBD")).startswith("0x"):
             out.append(f"inline constexpr uint8_t kI2cAddress = {body['i2c_address']};\n")
+        if group == "audio":
+            source = body.get("wiring_evidence", {}).get("source", "none")
+            bench = bool(body.get("wiring_evidence", {}).get("bench_tests"))
+            out.append("// Wiring provenance; bench-verified only once H03 bench tests are recorded.\n")
+            out.append(f"inline constexpr const char* kWiringSource = \"{source}\";\n")
+            out.append(f"inline constexpr bool kWiringBenchVerified = {'true' if bench else 'false'};\n")
         out.append(f"}}  // namespace {group}\n\n")
     out.append("}  // namespace little_arcade::board\n")
     return "".join(out)

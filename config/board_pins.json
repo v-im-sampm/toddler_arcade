@@ -85,17 +85,23 @@
   },
   "power": {
     "regulator": "LD1117 3.3 V from VBUS via 1N4148WS diode D3",
-    "budget_note": "LD1117 headroom for an external amplifier is unmeasured; MAX98357A should not be powered from the header 3V3 without H03 current measurement"
+    "budget_note": "LD1117 headroom for an external amplifier is unmeasured. The owner has wired MAX98357A Vin to header +3V3 (user-reported); keep digital output capped and measure current/brownout before raising volume (H03)."
   },
   "audio": {
-    "status": "No microphone or amplifier on board. External I2S wiring not selected or tested (H03).",
+    "status": "External INMP441 mic + MAX98357A amp wired by the owner (user-reported wiring table, 2026-11-04). Not bench-verified: no scope capture, current or acoustic level measurement yet (H03).",
     "candidate_pool_gpios": [4, 5, 6, 7],
+    "wiring_evidence": {
+      "source": "user_reported",
+      "description": "Owner-supplied wiring table. Shared I2S clocks: INMP441 SCK + MAX98357A BCLK -> GPIO4 (J1); INMP441 WS + MAX98357A LRC -> GPIO5 (J1); INMP441 SD -> GPIO6 (J2); MAX98357A DIN -> GPIO7 (J2). INMP441 VDD 3V3, L/R -> GND (left slot). MAX98357A Vin 3V3, GAIN unconnected (~9 dB), SD -> 3V3 via 10 kOhm (always enabled; selects left channel per datasheet SD_MODE thresholds, so firmware writes the same sample to both slots).",
+      "bench_tests": []
+    },
+    "amp_shutdown": "No GPIO: SD_MODE hard-wired high through 10 kOhm (amp always enabled). Startup pop and mute behaviour rely on I2S clocks being idle until firmware starts them.",
+    "amp_gain": "GAIN pin floating (datasheet default 9 dB)",
     "pins": {
-      "bclk": { "gpio": "TBD" },
-      "ws": { "gpio": "TBD" },
-      "mic_data_in": { "gpio": "TBD" },
-      "amp_data_out": { "gpio": "TBD" },
-      "amp_enable": { "gpio": "TBD" }
+      "bclk": { "gpio": 4, "net": "J1-1 IO4", "sources": ["user_reported"] },
+      "ws": { "gpio": 5, "net": "J1-2 IO5", "sources": ["user_reported"] },
+      "mic_data_in": { "gpio": 6, "net": "J2-1 IO6", "sources": ["user_reported"] },
+      "amp_data_out": { "gpio": 7, "net": "J2-2 IO7", "sources": ["user_reported"] }
     }
   }
 }

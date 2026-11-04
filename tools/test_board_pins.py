@@ -26,9 +26,24 @@ class BoardPinGateTest(unittest.TestCase):
     def test_lcd_cs_matches_schematic(self):
         self.assertEqual(load()["display"]["pins"]["cs"]["gpio"], 15)
 
-    def test_audio_pins_rejected_while_unverified(self):
-        cfg = load()
+    def test_audio_pins_rejected_without_wiring_evidence(self):
+        cfg = copy.deepcopy(load())
+        del cfg["audio"]["wiring_evidence"]
+        self.assertTrue(any("H03" in e for e in check(cfg)))
+        cfg = json.loads((ROOT / "config/board_pins.example.json").read_text(encoding="utf-8"))
         cfg["audio"]["pins"]["bclk"]["gpio"] = 4
+        self.assertTrue(any("H03" in e for e in check(cfg)))
+
+    def test_user_reported_audio_wiring_is_not_bench_verified(self):
+        cfg = load()
+        self.assertEqual(cfg["audio"]["wiring_evidence"]["source"], "user_reported")
+        self.assertEqual(cfg["audio"]["wiring_evidence"]["bench_tests"], [])
+        pins = {k: v["gpio"] for k, v in cfg["audio"]["pins"].items()}
+        self.assertEqual(pins, {"bclk": 4, "ws": 5, "mic_data_in": 6, "amp_data_out": 7})
+
+    def test_blank_wiring_description_rejected(self):
+        cfg = copy.deepcopy(load())
+        cfg["audio"]["wiring_evidence"]["description"] = " "
         self.assertTrue(any("H03" in e for e in check(cfg)))
 
     def test_duplicate_gpio_rejected(self):

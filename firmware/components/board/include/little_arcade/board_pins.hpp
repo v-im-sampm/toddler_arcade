@@ -45,11 +45,13 @@ inline constexpr int kBoot = 0;
 }  // namespace buttons
 
 namespace audio {
-inline constexpr int kBclk = kPinTbd;
-inline constexpr int kWs = kPinTbd;
-inline constexpr int kMicDataIn = kPinTbd;
-inline constexpr int kAmpDataOut = kPinTbd;
-inline constexpr int kAmpEnable = kPinTbd;
+inline constexpr int kBclk = 4;
+inline constexpr int kWs = 5;
+inline constexpr int kMicDataIn = 6;
+inline constexpr int kAmpDataOut = 7;
+// Wiring provenance; bench-verified only once H03 bench tests are recorded.
+inline constexpr const char* kWiringSource = "user_reported";
+inline constexpr bool kWiringBenchVerified = false;
 }  // namespace audio
 
 }  // namespace little_arcade::board

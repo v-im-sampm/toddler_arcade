@@ -107,15 +107,17 @@ void test_default_context_is_safe() {
 
 void test_board_pins_gate() {
   namespace b = little_arcade::board;
-  EXPECT(b::audio::kBclk == b::kPinTbd);
-  EXPECT(b::audio::kWs == b::kPinTbd);
-  EXPECT(b::audio::kMicDataIn == b::kPinTbd);
-  EXPECT(b::audio::kAmpDataOut == b::kPinTbd);
-  EXPECT(b::audio::kAmpEnable == b::kPinTbd);
+  EXPECT(b::audio::kBclk == 4);
+  EXPECT(b::audio::kWs == 5);
+  EXPECT(b::audio::kMicDataIn == 6);
+  EXPECT(b::audio::kAmpDataOut == 7);
+  EXPECT(!b::audio::kWiringBenchVerified);  // user-reported wiring, not bench-validated
   const int assigned[] = {b::display::kSclk, b::display::kMosi, b::display::kMiso, b::display::kCs,
                           b::display::kDc,   b::display::kRst,  b::display::kBacklight,
                           b::touch::kScl,    b::touch::kSda,    b::touch::kPenirq,
-                          b::sd::kClk,       b::sd::kCmd,       b::sd::kD0};
+                          b::sd::kClk,       b::sd::kCmd,       b::sd::kD0,
+                          b::audio::kBclk,   b::audio::kWs,     b::audio::kMicDataIn,
+                          b::audio::kAmpDataOut};
   std::set<int> unique;
   for (int pin : assigned) {
     if (pin != b::kPinTbd) EXPECT(unique.insert(pin).second);

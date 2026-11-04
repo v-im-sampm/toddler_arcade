@@ -15,6 +15,17 @@ def iter_pins(cfg):
                 yield group, name, pin["gpio"]
 
 
+WIRING_SOURCES = ("user_reported", "bench")
+
+
+def audio_wiring_documented(cfg):
+    """External audio wiring is owner-chosen; a recorded wiring report unlocks the pins
+    (still unverified) without asserting bench validation."""
+    ev = cfg.get("audio", {}).get("wiring_evidence")
+    return (isinstance(ev, dict) and ev.get("source") in WIRING_SOURCES
+            and bool(str(ev.get("description", "")).strip()))
+
+
 def check(cfg):
     errors = []
     if not isinstance(cfg.get("verified"), bool):
@@ -46,8 +57,8 @@ def check(cfg):
         if group in FUNCTIONAL_GROUPS and gpio in blocked:
             errors.append(f"{label}: GPIO{gpio} is strapping/reserved/internal/unrouted")
         if group == "audio":
-            if not cfg.get("verified"):
-                errors.append(f"{label}: audio pins stay TBD until H03 bench validation")
+            if not cfg.get("verified") and not audio_wiring_documented(cfg):
+                errors.append(f"{label}: audio pins stay TBD until H03 wiring evidence or bench validation")
             if gpio not in audio_pool:
                 errors.append(f"{label}: GPIO{gpio} is outside audio.candidate_pool_gpios")
     return errors
