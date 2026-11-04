@@ -1,0 +1,16 @@
+# Shared UI helpers. The A8 rasterizer and icon shapes are header-only and
+# LVGL-free (host-tested); ChromeView needs LVGL.
+if(ESP_PLATFORM)
+  idf_component_register(SRCS "chrome_view.cpp" INCLUDE_DIRS "include" REQUIRES core lvgl__lvgl)
+else()
+  add_library(little_arcade_ui_raster INTERFACE)
+  target_include_directories(little_arcade_ui_raster INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include)
+  if(TARGET lvgl)
+    add_library(little_arcade_ui STATIC ${CMAKE_CURRENT_LIST_DIR}/chrome_view.cpp)
+    target_link_libraries(little_arcade_ui PUBLIC little_arcade_ui_raster little_arcade_core lvgl)
+  endif()
+  if(COMMAND la_host_test)
+    la_host_test(ui_raster_test ${CMAKE_CURRENT_LIST_DIR}/test/ui_raster_test.cpp)
+    target_link_libraries(ui_raster_test PRIVATE little_arcade_ui_raster)
+  endif()
+endif()

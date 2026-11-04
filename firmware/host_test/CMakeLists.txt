@@ -33,6 +33,7 @@ la_host_test(core_contract_test core_contract_test.cpp)
 la_host_test(scene_manager_test scene_manager_test.cpp)
 la_host_test(voice_policy_test voice_policy_test.cpp)
 la_host_test(volume_test volume_test.cpp)
+add_subdirectory(${LA_COMPONENTS}/ui ui)
 
 # Each game owns components/games/<name>/ and registers its own library + tests.
 # -DLA_ONLY_GAME=<name> builds a single game (used for isolated parallel work).
