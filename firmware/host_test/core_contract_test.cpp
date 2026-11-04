@@ -7,18 +7,11 @@
 #include "little_arcade/game.hpp"
 #include "little_arcade/input.hpp"
 #include "little_arcade/intent.hpp"
+#include "little_arcade/testing/test_support.hpp"
 
 using namespace little_arcade;
 
 namespace {
-int g_failures = 0;
-void expect(bool ok, const char* expr, int line) {
-  if (!ok) {
-    std::printf("FAIL %s:%d: %s\n", __FILE__, line, expr);
-    ++g_failures;
-  }
-}
-#define EXPECT(cond) expect(static_cast<bool>(cond), #cond, __LINE__)
 
 static_assert(static_cast<int>(Intent::UNKNOWN) == 0, "UNKNOWN must be 0");
 static_assert(intent_allowed(Intent::RED, static_cast<uint32_t>(Context::Colors)), "constexpr filter");
@@ -65,7 +58,7 @@ class MockGame final : public IGame {
   uint32_t elapsed = 0;
   void enter(GameContext& context) override {
     ++entered;
-    seed = context.rng_seed;
+    seed = context.rng.next();
   }
   void update(uint32_t dt_ms) override { elapsed += dt_ms; }
   void handle(const InputEvent& e) override {
@@ -82,8 +75,10 @@ class MockGame final : public IGame {
 
 void test_game_lifecycle_touch_and_voice_equivalent() {
   MockGame game;
-  GameContext ctx;
-  ctx.rng_seed = 1234;
+  Rng rng(1234);
+  NullFeedback feedback;
+  GameContext ctx(rng, feedback);
+  const uint32_t expected_first = Rng(1234).next();
   IGame& scene = game;
   scene.enter(ctx);
   scene.handle(make_voice_event(Intent::RED, 10));
@@ -93,7 +88,7 @@ void test_game_lifecycle_touch_and_voice_equivalent() {
   scene.update(17);
   scene.exit();
   EXPECT(game.entered == 1 && game.exited == 1);
-  EXPECT(game.seed == 1234);
+  EXPECT(game.seed == expected_first);
   EXPECT(game.reds == 2);
   EXPECT(game.rejected == 1);
   EXPECT(game.elapsed == 33);
@@ -103,7 +98,9 @@ void test_game_lifecycle_touch_and_voice_equivalent() {
 }
 
 void test_default_context_is_safe() {
-  GameContext ctx;
+  Rng rng(1);
+  NullFeedback feedback;
+  GameContext ctx(rng, feedback);
   EXPECT(!ctx.audio_enabled);
   EXPECT(!ctx.voice_enabled);
 }
@@ -132,10 +129,5 @@ int main() {
   test_game_lifecycle_touch_and_voice_equivalent();
   test_default_context_is_safe();
   test_board_pins_gate();
-  if (g_failures) {
-    std::printf("%d failure(s)\n", g_failures);
-    return 1;
-  }
-  std::printf("PASS: host core contract tests (host only; not device validation)\n");
-  return 0;
+  return testing::finish("core contract tests");
 }

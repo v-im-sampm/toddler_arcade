@@ -1,3 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+# Each game is its own component under components/games/<name>/.
+file(GLOB LA_GAME_DIRS LIST_DIRECTORIES true ${CMAKE_CURRENT_LIST_DIR}/components/games/*)
+foreach(dir ${LA_GAME_DIRS})
+  if(IS_DIRECTORY ${dir} AND EXISTS ${dir}/CMakeLists.txt)
+    list(APPEND EXTRA_COMPONENT_DIRS ${dir})
+  endif()
+endforeach()
 project(little_arcade)
