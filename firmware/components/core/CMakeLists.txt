@@ -1,0 +1,7 @@
+if(ESP_PLATFORM)
+  idf_component_register(INCLUDE_DIRS "include")
+else()
+  add_library(little_arcade_core INTERFACE)
+  target_include_directories(little_arcade_core INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include)
+  target_compile_features(little_arcade_core INTERFACE cxx_std_17)
+endif()

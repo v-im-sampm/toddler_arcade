@@ -14,4 +14,6 @@ from board_pins import check_file
 for cfg in ('config/board_pins.json', 'config/board_pins.example.json'):
     errs = check_file(root/cfg)
     assert not errs, f'{cfg}: {errs}'
+import gen_firmware_headers
+assert gen_firmware_headers.main(['--check']) == 0, 'generated firmware headers are stale'
 print('PASS: command IDs, ten game specs, hardware pin safety gate')
