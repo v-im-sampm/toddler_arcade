@@ -46,7 +46,7 @@ void AudioFeedback::apply(const Event& e) {
     last_at_ = samples_;
     sound = sound_for(e.scene, static_cast<Cue>(e.a), e.b);
   }
-  if (sound.count == 0) return;
+  if (sound.empty()) return;
   synth_.trigger(sound);
   played_.fetch_add(1, std::memory_order_relaxed);
 }

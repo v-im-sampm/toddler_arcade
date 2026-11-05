@@ -109,14 +109,14 @@
     { "id": "feed_monster.count.two", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
     { "id": "feed_monster.count.three", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
     { "id": "feed_monster.giggle", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
-    { "id": "animal_sounds.sound.cow", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
-    { "id": "animal_sounds.sound.duck", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
-    { "id": "animal_sounds.sound.sheep", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
-    { "id": "animal_sounds.sound.pig", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
-    { "id": "animal_sounds.sound.dog", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
-    { "id": "animal_sounds.sound.cat", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
-    { "id": "animal_sounds.sound.frog", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
-    { "id": "animal_sounds.sound.owl", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" }
+    { "id": "animal_sounds.sound.cow", "kind": "recorded_sound", "source": "assets/audio/animal_sounds/cow.wav", "origin": "https://bigsoundbank.com/cow-moos-2-s2382.html", "author": "Joseph Sardin (BigSoundBank.com)", "license": "CC0-1.0", "provenance": "assets/audio/animal_sounds/sources.json", "status": "implemented" },
+    { "id": "animal_sounds.sound.duck", "kind": "recorded_sound", "source": "assets/audio/animal_sounds/duck.wav", "origin": "https://bigsoundbank.com/ducks-s0276.html", "author": "Joseph Sardin (BigSoundBank.com)", "license": "CC0-1.0", "provenance": "assets/audio/animal_sounds/sources.json", "status": "implemented" },
+    { "id": "animal_sounds.sound.sheep", "kind": "recorded_sound", "source": "assets/audio/animal_sounds/sheep.wav", "origin": "https://bigsoundbank.com/sheep-3-s2345.html", "author": "Joseph Sardin (BigSoundBank.com)", "license": "CC0-1.0", "provenance": "assets/audio/animal_sounds/sources.json", "status": "implemented" },
+    { "id": "animal_sounds.sound.pig", "kind": "recorded_sound", "source": "assets/audio/animal_sounds/pig.wav", "origin": "https://bigsoundbank.com/grumpy-pig-1-s1658.html", "author": "Joseph Sardin (BigSoundBank.com)", "license": "CC0-1.0", "provenance": "assets/audio/animal_sounds/sources.json", "status": "implemented" },
+    { "id": "animal_sounds.sound.dog", "kind": "recorded_sound", "source": "assets/audio/animal_sounds/dog.wav", "origin": "https://bigsoundbank.com/barking-dog-2-s2954.html", "author": "Joseph Sardin (BigSoundBank.com)", "license": "CC0-1.0", "provenance": "assets/audio/animal_sounds/sources.json", "status": "implemented" },
+    { "id": "animal_sounds.sound.cat", "kind": "recorded_sound", "source": "assets/audio/animal_sounds/cat.wav", "origin": "https://bigsoundbank.com/meow-cat-2-s1890.html", "author": "Joseph Sardin (BigSoundBank.com)", "license": "CC0-1.0", "provenance": "assets/audio/animal_sounds/sources.json", "status": "implemented" },
+    { "id": "animal_sounds.sound.frog", "kind": "recorded_sound", "source": "assets/audio/animal_sounds/frog.wav", "origin": "https://bigsoundbank.com/one-frog-s0819.html", "author": "Joseph Sardin (BigSoundBank.com)", "license": "CC0-1.0", "provenance": "assets/audio/animal_sounds/sources.json", "status": "implemented" },
+    { "id": "animal_sounds.sound.owl", "kind": "recorded_sound", "source": "assets/audio/animal_sounds/owl.wav", "origin": "https://bigsoundbank.com/tawny-owl-3-s3459.html", "author": "Joseph Sardin (BigSoundBank.com)", "license": "CC0-1.0", "provenance": "assets/audio/animal_sounds/sources.json", "status": "implemented" }
   ],
   "note": "Procedural sounds and illustrations are original; no recorded samples or network assets. Spoken game prompts are not included."
 }

@@ -22,18 +22,34 @@ struct Tone {
   uint8_t release_ms = 0;
 };
 
-// A short procedural sound: a sequence of tones, copied by value into a voice.
+// Mono PCM at kSampleRateHz, held in flash and never copied.
+struct PcmClip {
+  const int16_t* samples = nullptr;
+  uint32_t count = 0;
+};
+
+// A short sound: an optional PCM clip followed by a sequence of tones, copied
+// by value into a voice (the clip by pointer).
 struct Sound {
   static constexpr std::size_t kMaxTones = 8;
   Tone tones[kMaxTones]{};
   uint8_t count = 0;
+  const PcmClip* clip = nullptr;
+  uint8_t clip_level = 0;  // 0..255, same scale as Tone::level
 
   Sound& add(const Tone& t) {
     if (count < kMaxTones) tones[count++] = t;
     return *this;
   }
+  Sound& with_clip(const PcmClip& c, uint8_t level) {
+    clip = &c;
+    clip_level = level;
+    return *this;
+  }
+  bool has_clip() const { return clip != nullptr && clip->count > 0; }
+  bool empty() const { return count == 0 && !has_clip(); }
   uint32_t duration_ms() const {
-    uint32_t total = 0;
+    uint32_t total = has_clip() ? clip->count * 1000u / kSampleRateHz : 0u;
     for (uint8_t i = 0; i < count; ++i) total += tones[i].ms;
     return total;
   }
@@ -59,6 +75,8 @@ class Synth {
     Sound sound;
     uint8_t index = 0;
     bool active = false;
+    bool in_clip = false;
+    uint32_t clip_pos = 0;
     uint32_t age = 0;
     uint32_t pos = 0;  // sample within the current tone
     uint32_t len = 0;  // samples in the current tone
@@ -72,6 +90,7 @@ class Synth {
   };
 
   void start_tone(Voice& v);
+  int32_t next_clip_sample(Voice& v);
   int32_t next_sample(Voice& v);
 
   Voice voices_[kVoices];

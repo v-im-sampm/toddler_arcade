@@ -21,6 +21,8 @@ void AnimalSoundsGame::exit() {
   count_ = 0;
   hint_ms_ = 0;
   sound_ms_ = 0;
+  call_pending_ = false;
+  call_delay_ms_ = 0;
   wiggle_ms_ = 0;
   wiggle_index_ = -1;
   chosen_index_ = -1;
@@ -51,22 +53,30 @@ void AnimalSoundsGame::new_round() {
   have_previous_target_ = true;
   hint_ms_ = 0;
   sound_ms_ = 0;
+  call_pending_ = false;
+  call_delay_ms_ = 0;
   wiggle_ms_ = 0;
   wiggle_index_ = -1;
   chosen_index_ = -1;
 }
 
-void AnimalSoundsGame::replay(bool with_hint) {
-  sound_ms_ = kSoundShowMs;  // sound-wave animation + clue on the speaker button
+void AnimalSoundsGame::replay(bool with_hint, uint32_t delay_ms) {
+  sound_ms_ = delay_ms + kSoundShowMs;  // sound-wave animation + clue on the speaker button
   if (with_hint) hint_ms_ = kHintMs;
-  ctx_->feedback.play(Cue::NOTE, variant_of(target_));
+  if (delay_ms == 0) {
+    call_pending_ = false;
+    ctx_->feedback.play(Cue::NOTE, variant_of(target_));
+  } else {
+    call_pending_ = true;
+    call_delay_ms_ = delay_ms;
+  }
 }
 
 void AnimalSoundsGame::start_play() {
   phase_ = Phase::PLAY;
   phase_ms_ = 0;
   ctx_->feedback.play(Cue::PROMPT, kPromptWhoMadeThatSound);
-  replay(false);
+  replay(false, kCallAfterCueMs);
 }
 
 void AnimalSoundsGame::update(uint32_t dt_ms) {
@@ -74,6 +84,13 @@ void AnimalSoundsGame::update(uint32_t dt_ms) {
   hint_ms_ = saturating_sub(hint_ms_, dt_ms);
   sound_ms_ = saturating_sub(sound_ms_, dt_ms);
   wiggle_ms_ = saturating_sub(wiggle_ms_, dt_ms);
+  if (call_pending_) {
+    call_delay_ms_ = saturating_sub(call_delay_ms_, dt_ms);
+    if (call_delay_ms_ == 0) {
+      call_pending_ = false;
+      ctx_->feedback.play(Cue::NOTE, variant_of(target_));
+    }
+  }
   phase_ms_ += dt_ms;
   if (phase_ == Phase::INTRO && phase_ms_ >= kIntroMs) {
     start_play();
@@ -106,6 +123,7 @@ void AnimalSoundsGame::choose(int index) {
     phase_ms_ = 0;
     hint_ms_ = 0;
     sound_ms_ = 0;
+    call_pending_ = false;
     wiggle_ms_ = 0;
     ctx_->feedback.play(Cue::SUCCESS, variant_of(c.animal));
     ctx_->feedback.play(Cue::CELEBRATE, 0);
@@ -115,7 +133,7 @@ void AnimalSoundsGame::choose(int index) {
   wiggle_index_ = index;
   wiggle_ms_ = kWiggleMs;
   ctx_->feedback.play(Cue::TRY_AGAIN, 0);
-  replay(true);
+  replay(true, kCallAfterCueMs);
 }
 
 void AnimalSoundsGame::handle(const InputEvent& event) {

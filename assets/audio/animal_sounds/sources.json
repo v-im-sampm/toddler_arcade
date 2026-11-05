@@ -1,0 +1,91 @@
+{
+  "_comment": "Provenance for the Animal Sounds (G06) call clips. Regenerate with: python tools/make_animal_clips.py. All sources are CC0 (public domain) recordings by Joseph Sardin, BigSoundBank.com (https://bigsoundbank.com/licenses.html). start_s/window_s select the decoded region; exact=true keeps the whole window (multi-syllable calls), otherwise the loudest call in the window is trimmed automatically.",
+  "animals": {
+    "cow": {
+      "title": "Cow Moos #2",
+      "author": "Joseph Sardin (BigSoundBank.com)",
+      "license": "CC0 1.0 (public domain)",
+      "source_page": "https://bigsoundbank.com/cow-moos-2-s2382.html",
+      "download_url": "https://bigsoundbank.com/UPLOAD/ogg/2382.ogg",
+      "start_s": 1.2,
+      "window_s": 1.15,
+      "exact": true,
+      "sha256": "da8241b7bc3696b808cb352ad2e8d996a4d2c1addbc20865fc3f84bf17e23c1d"
+    },
+    "duck": {
+      "title": "Ducks",
+      "author": "Joseph Sardin (BigSoundBank.com)",
+      "license": "CC0 1.0 (public domain)",
+      "source_page": "https://bigsoundbank.com/ducks-s0276.html",
+      "download_url": "https://bigsoundbank.com/UPLOAD/ogg/0276.ogg",
+      "start_s": 0.3,
+      "window_s": 1.1,
+      "exact": true,
+      "sha256": "d0cd046f5b76490884fd17da80c7f12dbf48acf606e712ad754f54d4969b6f42"
+    },
+    "sheep": {
+      "title": "Sheep #3",
+      "author": "Joseph Sardin (BigSoundBank.com)",
+      "license": "CC0 1.0 (public domain)",
+      "source_page": "https://bigsoundbank.com/sheep-3-s2345.html",
+      "download_url": "https://bigsoundbank.com/UPLOAD/ogg/2345.ogg",
+      "start_s": 0.0,
+      "window_s": 2.0,
+      "sha256": "e9cc402c198d4b9b2dd842e00089e49b41f4b22231fa558f447da2ed006b746d"
+    },
+    "pig": {
+      "title": "Grumpy Pig #1 (mouth imitation of a grunting pig)",
+      "author": "Joseph Sardin (BigSoundBank.com)",
+      "license": "CC0 1.0 (public domain)",
+      "source_page": "https://bigsoundbank.com/grumpy-pig-1-s1658.html",
+      "download_url": "https://bigsoundbank.com/UPLOAD/ogg/1658.ogg",
+      "start_s": 0.55,
+      "window_s": 1.0,
+      "exact": true,
+      "sha256": "2feb1fac93d83081c7b5d22055d36cd5a1533737a495c7fa018511bea0db0abb"
+    },
+    "dog": {
+      "title": "Barking Dog #2 (sled dog)",
+      "author": "Joseph Sardin (BigSoundBank.com)",
+      "license": "CC0 1.0 (public domain)",
+      "source_page": "https://bigsoundbank.com/barking-dog-2-s2954.html",
+      "download_url": "https://bigsoundbank.com/UPLOAD/ogg/2954.ogg",
+      "start_s": 0.0,
+      "window_s": 0.65,
+      "exact": true,
+      "sha256": "5663ebf5326cb7f3317ec2bf582e66bd62829491f2eac06f387c1b9356c4df54"
+    },
+    "cat": {
+      "title": "Meow Cat #2",
+      "author": "Joseph Sardin (BigSoundBank.com)",
+      "license": "CC0 1.0 (public domain)",
+      "source_page": "https://bigsoundbank.com/meow-cat-2-s1890.html",
+      "download_url": "https://bigsoundbank.com/UPLOAD/ogg/1890.ogg",
+      "start_s": 0.85,
+      "window_s": 1.15,
+      "exact": true,
+      "sha256": "040f4abef91d442998a471d8640f829d9fe96752aec096adb498bac0b65419fd"
+    },
+    "frog": {
+      "title": "One Frog",
+      "author": "Joseph Sardin (BigSoundBank.com)",
+      "license": "CC0 1.0 (public domain)",
+      "source_page": "https://bigsoundbank.com/one-frog-s0819.html",
+      "download_url": "https://bigsoundbank.com/UPLOAD/ogg/0819.ogg",
+      "start_s": 6.0,
+      "window_s": 1.15,
+      "exact": true,
+      "sha256": "e4a32bbf65d4d37c3495766a9a35789b3b929d96e53eb86cd5a16b977f1702b0"
+    },
+    "owl": {
+      "title": "Tawny Owl #3",
+      "author": "Joseph Sardin (BigSoundBank.com)",
+      "license": "CC0 1.0 (public domain)",
+      "source_page": "https://bigsoundbank.com/tawny-owl-3-s3459.html",
+      "download_url": "https://bigsoundbank.com/UPLOAD/ogg/3459.ogg",
+      "start_s": 0.0,
+      "window_s": 2.0,
+      "sha256": "a53c033ea34564dac7ec516c9894799c11ddcd093efc2d68f1bde35ec1413436"
+    }
+  }
+}

@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <vector>
 
+#include "little_arcade/audio/animal_clips.hpp"
 #include "little_arcade/audio/audio_feedback.hpp"
 #include "little_arcade/audio/sound_bank.hpp"
 #include "little_arcade/audio/synth.hpp"
@@ -104,15 +105,55 @@ void test_rest_is_silent_and_glide_moves_pitch() {
   EXPECT(late > early * 3);
 }
 
+void test_clip_plays_with_ramped_edges_then_tones() {
+  std::vector<int16_t> square(ms_samples(60));
+  for (std::size_t i = 0; i < square.size(); ++i) square[i] = (i / 8) % 2 ? 20000 : -20000;  // worst-case unfaded data
+  const PcmClip clip{square.data(), static_cast<uint32_t>(square.size())};
+  Synth s;
+  s.trigger(Sound{}.with_clip(clip, 255).add(Tone{Wave::SINE, 440, 440, 40, 200, 0, 0}));
+  EXPECT(s.active_voices() == 1);
+  const auto body = render(s, square.size());
+  EXPECT(body.front() == 0 && std::abs(static_cast<int>(body.back())) < 400);  // edges ramp, no clicks
+  EXPECT(peak(body) > 19000 && peak(body) <= 20000);
+  EXPECT(peak(render(s, ms_samples(40))) > 20000);  // the tone follows the clip
+  render(s, 64);
+  EXPECT(s.active_voices() == 0);
+
+  Synth only;
+  only.trigger(Sound{}.with_clip(clip, 128));
+  EXPECT(peak(render(only, square.size())) <= 10100);  // clip_level scales the data
+  EXPECT(peak(render(only, 64)) == 0 && only.active_voices() == 0);
+  EXPECT(Sound{}.with_clip(PcmClip{}, 200).empty());
+}
+
+void test_animal_clips_are_safe_recordings() {
+  for (uint8_t a = 0; a < kAnimalClipCount; ++a) {
+    const PcmClip& c = animal_clip(a);
+    EXPECT(c.samples != nullptr && c.count >= ms_samples(300) && c.count <= ms_samples(kMaxSoundMs));
+    int top = 0;
+    int64_t energy = 0;
+    for (uint32_t i = 0; i < c.count; ++i) {
+      const int v = std::abs(static_cast<int>(c.samples[i]));
+      top = v > top ? v : top;
+      energy += static_cast<int64_t>(v) * v;
+    }
+    EXPECT(top <= 30000);                                     // normalised below full scale
+    EXPECT(energy / c.count > 1000 * 1000);                   // not silent (RMS > ~1000)
+    EXPECT(std::abs(static_cast<int>(c.samples[0])) < 2000);  // faded in and out offline
+    EXPECT(std::abs(static_cast<int>(c.samples[c.count - 1])) < 2000);
+  }
+}
+
 void test_bank_covers_every_cue_safely() {
   for (uint8_t scene : kScenes) {
     for (Cue cue : kAllCues) {
       for (uint8_t variant = 0; variant < 12; ++variant) {
         const Sound s = sound_for(scene, cue, variant);
         const bool silent_ambient = cue == Cue::AMBIENT && scene != static_cast<uint8_t>(GameId::ROBO_BUDDY);
-        EXPECT((s.count == 0) == silent_ambient);
+        EXPECT(s.empty() == silent_ambient);
         EXPECT(s.count <= Sound::kMaxTones);
         EXPECT(s.duration_ms() <= kMaxSoundMs);
+        EXPECT(!s.has_clip() || s.clip_level <= kMaxToneLevel);
         for (uint8_t i = 0; i < s.count; ++i) {
           const Tone& t = s.tones[i];
           EXPECT(t.level <= kMaxToneLevel);
@@ -213,9 +254,10 @@ void test_game_palettes_are_distinct() {
   EXPECT(sound_for(animals, Cue::PROMPT, 0).count > 0);
   for (uint8_t animal = 0; animal < 8; ++animal) {
     const Sound call = sound_for(animals, Cue::NOTE, animal);
-    EXPECT(call.count > 0 && call.duration_ms() <= 600);
+    EXPECT(call.has_clip() && call.clip == &animal_clip(animal));
+    EXPECT(call.duration_ms() >= 300 && call.duration_ms() <= kMaxSoundMs);
     for (uint8_t other = static_cast<uint8_t>(animal + 1); other < 8; ++other) {
-      EXPECT(!same_sound(call, sound_for(animals, Cue::NOTE, other)));
+      EXPECT(call.clip != sound_for(animals, Cue::NOTE, other).clip);
     }
   }
   EXPECT(scene_change_sound(pop, pop).count == 0);
@@ -310,6 +352,8 @@ int main() {
   test_deterministic();
   test_voice_stealing_caps_polyphony();
   test_rest_is_silent_and_glide_moves_pitch();
+  test_clip_plays_with_ramped_edges_then_tones();
+  test_animal_clips_are_safe_recordings();
   test_bank_covers_every_cue_safely();
   test_try_again_is_gentle();
   test_game_palettes_are_distinct();

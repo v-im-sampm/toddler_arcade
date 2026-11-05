@@ -42,6 +42,9 @@ class AnimalSoundsGame final : public IGame {
   static constexpr uint32_t kIntroMs = 1500;
   static constexpr uint32_t kCelebrateMs = 1800;
   static constexpr uint32_t kSoundShowMs = 1200;
+  // The animal call waits for the question chime / "try again" hum to finish
+  // so the two never overlap. Direct replays (speaker, AGAIN, HELP) are immediate.
+  static constexpr uint32_t kCallAfterCueMs = 450;
   static constexpr uint32_t kWiggleMs = 400;
   static constexpr uint32_t kHintMs = 1500;
 
@@ -68,7 +71,7 @@ class AnimalSoundsGame final : public IGame {
  private:
   void new_round();
   void start_play();
-  void replay(bool with_hint);
+  void replay(bool with_hint, uint32_t delay_ms = 0);
   void choose(int index);
   int hit_test(int16_t x, int16_t y) const;
 
@@ -82,6 +85,8 @@ class AnimalSoundsGame final : public IGame {
   uint32_t phase_ms_ = 0;
   uint32_t hint_ms_ = 0;
   uint32_t sound_ms_ = 0;
+  uint32_t call_delay_ms_ = 0;
+  bool call_pending_ = false;
   uint32_t wiggle_ms_ = 0;
   int wiggle_index_ = -1;
   int chosen_index_ = -1;

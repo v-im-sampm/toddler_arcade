@@ -29,7 +29,7 @@ int64_t incr_for(uint32_t hz) { return static_cast<int64_t>((static_cast<uint64_
 }  // namespace
 
 void Synth::trigger(const Sound& sound) {
-  if (sound.count == 0) return;
+  if (sound.empty()) return;
   Voice* pick = &voices_[0];
   for (Voice& v : voices_) {
     if (!v.active) {
@@ -45,7 +45,11 @@ void Synth::trigger(const Sound& sound) {
   v.age = ++trigger_count_;
   v.lfsr = static_cast<uint16_t>(0xACE1u ^ (v.age * 0x9E37u));
   if (v.lfsr == 0) v.lfsr = 1;
-  start_tone(v);
+  if (sound.has_clip()) {
+    v.in_clip = true;
+  } else {
+    start_tone(v);
+  }
 }
 
 void Synth::stop_all() {
@@ -73,7 +77,32 @@ void Synth::start_tone(Voice& v) {
   v.dincr = (incr_for(f1) - v.incr) / static_cast<int64_t>(v.len);
 }
 
+// Clips get the same minimum edge ramp as tones, so even an unfaded clip
+// cannot click when it starts or ends.
+int32_t Synth::next_clip_sample(Voice& v) {
+  const PcmClip& c = *v.sound.clip;
+  const uint32_t edge = ms_to_samples(kMinEdgeMs);
+  const uint32_t left = c.count - v.clip_pos;
+  int32_t env = 32768;
+  if (v.clip_pos < edge) env = static_cast<int32_t>((static_cast<uint64_t>(v.clip_pos) << 15) / edge);
+  if (left <= edge) {
+    const int32_t rel = static_cast<int32_t>((static_cast<uint64_t>(left - 1) << 15) / edge);
+    if (rel < env) env = rel;
+  }
+  const int32_t s = c.samples[v.clip_pos++];
+  return static_cast<int32_t>((static_cast<int64_t>(s) * env * v.sound.clip_level) / (32768 * 255));
+}
+
 int32_t Synth::next_sample(Voice& v) {
+  if (v.in_clip) {
+    if (v.clip_pos < v.sound.clip->count) return next_clip_sample(v);
+    v.in_clip = false;
+    if (v.sound.count == 0) {
+      v.active = false;
+      return 0;
+    }
+    start_tone(v);
+  }
   while (v.pos >= v.len) {
     if (++v.index >= v.sound.count) {
       v.active = false;

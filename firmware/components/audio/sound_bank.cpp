@@ -1,5 +1,7 @@
 #include "little_arcade/audio/sound_bank.hpp"
 
+#include "little_arcade/audio/animal_clips.hpp"
+
 #include "little_arcade/scene_manager.hpp"
 
 namespace little_arcade::audio {
@@ -322,47 +324,12 @@ Sound shape_garage_sound(Cue cue, uint8_t variant) {
   }
 }
 
-// Animal Sounds calls are synthesized from gentle glides and short pauses.
-// They are original sound effects, not samples or speech recordings.
-Sound animal_call(uint8_t animal) {
-  switch (animal % 8) {
-    case 0:  // cow: warm, low two-part moo
-      return Sound{}.add(tone(Wave::SINE, 150, 112, 220, 125, 18, 60))
-          .add(rest(35))
-          .add(tone(Wave::SINE, 178, 132, 235, 120, 16, 70));
-    case 1:  // duck: three bright, soft quacks
-      return Sound{}.add(tone(Wave::TRIANGLE, 920, 680, 95, 105, 5, 35))
-          .add(rest(35))
-          .add(tone(Wave::TRIANGLE, 880, 660, 105, 100, 5, 40))
-          .add(rest(30))
-          .add(tone(Wave::TRIANGLE, 980, 740, 100, 105, 5, 40));
-    case 2:  // sheep: a mellow rising and falling baa
-      return Sound{}.add(tone(Wave::SINE, 430, 560, 170, 115, 16, 55))
-          .add(tone(Wave::SINE, 560, 385, 205, 110, 12, 75));
-    case 3:  // pig: two round, nasal oinks
-      return Sound{}.add(tone(Wave::TRIANGLE, 390, 345, 115, 105, 8, 40))
-          .add(rest(40))
-          .add(tone(Wave::TRIANGLE, 470, 370, 135, 105, 8, 55));
-    case 4:  // dog: a friendly pair of soft woofs
-      return Sound{}.add(tone(Wave::SINE, 360, 540, 95, 115, 5, 35))
-          .add(rest(45))
-          .add(tone(Wave::SINE, 420, 680, 105, 110, 5, 40))
-          .add(tone(Wave::SINE, 680, 510, 100, 100, 7, 45));
-    case 5:  // cat: two gentle, rounded mew glides
-      return Sound{}.add(tone(Wave::SINE, 610, 840, 135, 110, 12, 40))
-          .add(tone(Wave::SINE, 840, 520, 195, 110, 10, 70));
-    case 6:  // frog: three short, low croaks
-      return Sound{}.add(tone(Wave::TRIANGLE, 510, 405, 80, 105, 5, 30))
-          .add(rest(35))
-          .add(tone(Wave::TRIANGLE, 485, 390, 85, 100, 5, 35))
-          .add(rest(35))
-          .add(tone(Wave::TRIANGLE, 455, 365, 100, 100, 5, 40));
-    default:  // owl: two soft, rounded hoots
-      return Sound{}.add(tone(Wave::SINE, 610, 550, 210, 110, 18, 65))
-          .add(rest(60))
-          .add(tone(Wave::SINE, 590, 500, 245, 105, 18, 80));
-  }
-}
+// Animal Sounds plays short public-domain/CC0 recordings of real animals
+// (assets/audio/animal_sounds/sources.json), normalised offline to a
+// conservative peak and still capped by the VolumeLimiter.
+constexpr uint8_t kAnimalCallLevel = 190;
+
+Sound animal_call(uint8_t animal) { return Sound{}.with_clip(animal_clip(animal), kAnimalCallLevel); }
 
 Sound animal_sounds_sound(Cue cue, uint8_t variant) {
   switch (cue) {

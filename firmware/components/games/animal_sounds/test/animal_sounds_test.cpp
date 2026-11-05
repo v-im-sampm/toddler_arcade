@@ -19,6 +19,7 @@ struct Harness {
   void enter_and_play() {
     game.enter(ctx);
     game.update(AnimalSoundsGame::kIntroMs);
+    game.update(AnimalSoundsGame::kCallAfterCueMs);  // the call follows the prompt chime
   }
   int wrong_index() const {
     for (std::size_t i = 0; i < game.card_count(); ++i) {
@@ -77,6 +78,12 @@ void test_intro_then_prompt_and_sound() {
   h.game.update(1);
   EXPECT(h.game.phase() == Phase::PLAY);
   EXPECT(h.fb.count_of(Cue::PROMPT) == 1);
+  EXPECT(h.fb.last()->cue == Cue::PROMPT && !h.fb.any(Cue::NOTE));  // chime first, never overlapping
+  EXPECT(h.game.sound_playing());
+  h.game.update(AnimalSoundsGame::kCallAfterCueMs - 1);
+  EXPECT(!h.fb.any(Cue::NOTE));
+  h.game.update(1);
+  EXPECT(h.fb.count_of(Cue::NOTE) == 1);
   EXPECT(h.fb.last()->cue == Cue::NOTE && h.fb.last()->variant == static_cast<uint8_t>(h.game.target()));
   EXPECT(h.game.sound_playing());
   h.game.update(AnimalSoundsGame::kSoundShowMs);
@@ -91,6 +98,7 @@ void test_intro_tap_skips_without_answering() {
   h.tap_card(h.game.target_index());
   EXPECT(h.game.phase() == Phase::PLAY);
   EXPECT(h.game.rounds_completed() == 0);
+  h.game.update(AnimalSoundsGame::kCallAfterCueMs);
   EXPECT(h.fb.count_of(Cue::NOTE) == 1);
 }
 
@@ -188,6 +196,8 @@ void test_wrong_answer_is_gentle_and_retryable() {
   EXPECT(h.game.wiggling() == wrong);
   EXPECT(h.game.hint_active());
   EXPECT(h.fb.count_of(Cue::TRY_AGAIN) == 1);
+  EXPECT(h.fb.last()->cue == Cue::TRY_AGAIN);  // the call waits for the soft hum
+  h.game.update(AnimalSoundsGame::kCallAfterCueMs);
   EXPECT(h.fb.count_of(Cue::NOTE) == notes + 1);  // the sound replays
   h.tap_card(wrong);  // repeated wrong taps stay gentle
   EXPECT(h.game.phase() == Phase::PLAY && h.game.card_count() == AnimalSoundsGame::kMinCards);
@@ -272,7 +282,9 @@ void test_through_scene_manager() {
   mgr.handle(make_voice_event(Intent::RED, 300));  // out of context: never reaches game
   mgr.handle(make_voice_event(Intent::GO, 350));
   EXPECT(fb.count_of(Cue::NOTE) == notes && fb.count_of(Cue::TRY_AGAIN) == 0);
-  mgr.handle(make_voice_event(Intent::AGAIN, 400));  // Global: reaches game
+  mgr.handle(make_voice_event(Intent::AGAIN, 400));  // Global: reaches game, plays at once
+  EXPECT(fb.count_of(Cue::NOTE) == notes + 1);
+  mgr.update(AnimalSoundsGame::kCallAfterCueMs);  // the pending first call is not doubled
   EXPECT(fb.count_of(Cue::NOTE) == notes + 1);
   const Rect& r = game.card(static_cast<std::size_t>(game.target_index())).rect;
   mgr.handle(make_touch_event(static_cast<int16_t>(r.x + r.w / 2), static_cast<int16_t>(r.y + r.h / 2), 600));
