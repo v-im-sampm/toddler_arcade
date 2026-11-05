@@ -88,6 +88,9 @@ void ParentView::create(lv_obj_t* screen) {
   lv_obj_t* done_label = nullptr;
   button(settings_, ParentGate::kDoneRect, &done_label);
   lv_label_set_text(done_label, LV_SYMBOL_OK);
+  mic_button_ = button(settings_, ParentGate::kMicToggleRect, &mic_label_);
+  lv_obj_set_style_text_font(mic_label_, LV_FONT_DEFAULT, 0);
+  lv_obj_set_style_text_align(mic_label_, LV_TEXT_ALIGN_CENTER, 0);
 
   lv_obj_add_flag(root_, LV_OBJ_FLAG_HIDDEN);
   shown_ = ParentGate::State::CLOSED;
@@ -131,6 +134,7 @@ void ParentView::sync(const ParentGate& gate) {
     if (s == ParentGate::State::CLOSED) return;
     shown_a_ = shown_b_ = 0;  // force a full refresh on every opening
     shown_level_ = -1;
+    shown_mic_ = -1;
     lv_obj_move_foreground(root_);
   }
   if (s == ParentGate::State::CHALLENGE && (gate.sum_a() != shown_a_ || gate.sum_b() != shown_b_)) {
@@ -148,6 +152,15 @@ void ParentView::sync(const ParentGate& gate) {
       lv_obj_set_style_bg_color(level_buttons_[l], ui::to_lv(on ? pal::kGreen : pal::kWhite), 0);
       lv_obj_set_style_border_width(level_buttons_[l], on ? 4 : 2, 0);
     }
+  }
+  const int mic = gate.mic_enabled() ? 1 : 0;
+  if (s == ParentGate::State::SETTINGS && mic != shown_mic_) {
+    shown_mic_ = mic;
+    // Sound Jar may record a short clip into RAM only; never saved or sent.
+    lv_label_set_text(mic_label_, mic ? "Mic\nON" : "Mic\nOFF");
+    lv_obj_center(mic_label_);
+    lv_obj_set_style_bg_color(mic_button_, ui::to_lv(mic ? pal::kGreen : pal::kWhite), 0);
+    lv_obj_set_style_border_width(mic_button_, mic ? 4 : 2, 0);
   }
 }
 

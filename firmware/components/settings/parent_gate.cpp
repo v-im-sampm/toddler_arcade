@@ -2,8 +2,8 @@
 
 namespace little_arcade::settings {
 
-ParentGate::ParentGate(uint32_t seed, uint8_t level)
-    : rng_(seed ^ 0x5EC0A7E5u), level_(level > kMaxLevel ? kMaxLevel : level) {}
+ParentGate::ParentGate(uint32_t seed, uint8_t level, bool mic_enabled)
+    : rng_(seed ^ 0x5EC0A7E5u), level_(level > kMaxLevel ? kMaxLevel : level), mic_enabled_(mic_enabled) {}
 
 bool ParentGate::pointer(bool pressed, int16_t x, int16_t y, uint32_t now_ms) {
   const bool edge = pressed && !was_pressed_;
@@ -78,6 +78,7 @@ void ParentGate::on_press(int16_t x, int16_t y) {
       if (i == answer_index_) {
         state_ = State::SETTINGS;
         level_at_open_ = level_;
+        mic_at_open_ = mic_enabled_;
       } else {
         close();  // no retry loop and no failure screen
       }
@@ -93,11 +94,16 @@ void ParentGate::on_press(int16_t x, int16_t y) {
       return;
     }
   }
+  if (kMicToggleRect.contains(x, y)) {
+    mic_enabled_ = !mic_enabled_;
+    return;
+  }
   if (kDoneRect.contains(x, y)) close();
 }
 
 void ParentGate::close() {
   if (state_ == State::SETTINGS && level_ != level_at_open_) level_changed_ = true;
+  if (state_ == State::SETTINGS && mic_enabled_ != mic_at_open_) mic_changed_ = true;
   state_ = State::CLOSED;
   holding_ = false;
   preview_ = false;
@@ -106,6 +112,12 @@ void ParentGate::close() {
 bool ParentGate::take_level_changed() {
   const bool c = level_changed_;
   level_changed_ = false;
+  return c;
+}
+
+bool ParentGate::take_mic_changed() {
+  const bool c = mic_changed_;
+  mic_changed_ = false;
   return c;
 }
 

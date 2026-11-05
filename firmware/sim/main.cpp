@@ -1,15 +1,17 @@
 // Little Arcade desktop simulator: launcher + Home + real game logic and
 // LVGL views, including Feed the Monster and the other games.
 //
-// Interactive:  little_arcade_sim [--zoom N] [--seed N] [--mute] [--volume 0..6]
+// Interactive:  little_arcade_sim [--zoom N] [--seed N] [--mute] [--no-mic] [--volume 0..6]
 //   Sounds play through the PC speakers using the device synth. Like the
 //   device, sound starts muted until a parent opts in: hold the Mic corner
 //   (top-right) for 5 s, answer the sum, pick a level. --volume N stands in
 //   for a level a parent already saved (the sim does not persist settings).
+//   Sound Jar records from the PC microphone into RAM only (--no-mic: built-in
+//   sounds instead).
 //   Mouse = touch (Home and the launcher work like the device).
 //   Keys = voice intents: R B G Y colours, A AGAIN, H HELP, J YES, N NO,
 //     X NEXT, Backspace BACK, C COLORS, E EGGS, K COUNTING, M MUSIC, T ROBOT. Esc quits.
-// Benchmark:    little_arcade_sim --bench [--game animal_sounds|color_pop|feed_monster|hatch_a_pet|rainbow_piano|robo_buddy]
+// Benchmark:    little_arcade_sim --bench [--game animal_sounds|color_pop|feed_monster|hatch_a_pet|rainbow_piano|robo_buddy|sound_jar]
 //                 [--seconds N] [--seed N] [--frame-ms N] [--shots DIR]
 //   Headless, deterministic simulated clock. Starts on the launcher, taps the
 //   game's tile, then a scripted player plays through the SceneManager.
@@ -19,7 +21,9 @@
 #include <SDL2/SDL.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -29,6 +33,7 @@
 
 #include "little_arcade/arcade.hpp"
 #include "little_arcade/audio/audio_feedback.hpp"
+#include "little_arcade/audio/sampler.hpp"
 #include "lvgl.h"
 
 using namespace little_arcade;
@@ -43,6 +48,7 @@ struct Options {
   uint32_t frame_ms = LV_DEF_REFR_PERIOD;
   int zoom = 3;
   bool mute = false;
+  bool mic = true;      // Sound Jar uses the PC microphone (--no-mic turns it off)
   uint32_t volume = 0;  // parent-saved level stand-in; 0 = muted (default)
   std::string shots;
 };
@@ -85,12 +91,46 @@ class SpeakerFeedback final : public IFeedback {
   void set_scene(uint8_t scene) override { audio.set_scene(scene); }
 };
 
-void sdl_audio_callback(void* user, Uint8* stream, int len) {
-  static_cast<audio::AudioFeedback*>(user)->render(reinterpret_cast<int16_t*>(stream),
-                                                   static_cast<std::size_t>(len) / sizeof(int16_t));
+// Sound Jar on the desktop: the SDL capture callback (producer) hands PC
+// microphone samples to the playback callback (consumer), which feeds the
+// sampler on the same thread that mixes it, like the device audio task.
+// Nothing is kept beyond the sampler's single in-RAM clip.
+struct SimAudio {
+  static constexpr uint32_t kRing = 8192;  // power of two
+  audio::AudioFeedback* feedback = nullptr;
+  audio::Sampler* sampler = nullptr;
+  int16_t ring[kRing]{};
+  std::atomic<uint32_t> head{0};
+  std::atomic<uint32_t> tail{0};
+};
+
+void sdl_capture_callback(void* user, Uint8* stream, int len) {
+  auto* a = static_cast<SimAudio*>(user);
+  const auto* in = reinterpret_cast<const int16_t*>(stream);
+  const std::size_t n = static_cast<std::size_t>(len) / sizeof(int16_t);
+  uint32_t h = a->head.load(std::memory_order_relaxed);
+  const uint32_t t = a->tail.load(std::memory_order_acquire);
+  for (std::size_t i = 0; i < n && h - t < SimAudio::kRing; ++i) a->ring[h++ % SimAudio::kRing] = in[i];
+  a->head.store(h, std::memory_order_release);
 }
 
-bool open_sim_audio(audio::AudioFeedback& fb) {
+void sdl_audio_callback(void* user, Uint8* stream, int len) {
+  auto* a = static_cast<SimAudio*>(user);
+  if (a->sampler) {
+    int16_t block[256];
+    uint32_t t = a->tail.load(std::memory_order_relaxed);
+    const uint32_t h = a->head.load(std::memory_order_acquire);
+    while (t != h) {
+      std::size_t k = 0;
+      while (k < 256 && t != h) block[k++] = a->ring[t++ % SimAudio::kRing];
+      a->sampler->capture(block, k);
+    }
+    a->tail.store(t, std::memory_order_release);
+  }
+  a->feedback->render(reinterpret_cast<int16_t*>(stream), static_cast<std::size_t>(len) / sizeof(int16_t));
+}
+
+bool open_sim_audio(SimAudio& sim, bool want_mic) {
   if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) return false;
   SDL_AudioSpec want{};
   want.freq = static_cast<int>(audio::kSampleRateHz);
@@ -98,9 +138,20 @@ bool open_sim_audio(audio::AudioFeedback& fb) {
   want.channels = 1;
   want.samples = 256;
   want.callback = sdl_audio_callback;
-  want.userdata = &fb;
+  want.userdata = &sim;
   const SDL_AudioDeviceID dev = SDL_OpenAudioDevice(nullptr, 0, &want, nullptr, 0);
   if (dev == 0) return false;
+  if (want_mic && sim.sampler) {
+    SDL_AudioSpec cap = want;
+    cap.callback = sdl_capture_callback;
+    const SDL_AudioDeviceID mic = SDL_OpenAudioDevice(nullptr, 1, &cap, nullptr, 0);
+    if (mic != 0) {
+      sim.sampler->set_mic_hardware(true);
+      SDL_PauseAudioDevice(mic, 0);
+    } else {
+      std::printf("sim microphone unavailable (%s); Sound Jar uses built-in sounds\n", SDL_GetError());
+    }
+  }
   SDL_PauseAudioDevice(dev, 0);
   return true;
 }
@@ -677,6 +728,258 @@ int run_bench(const Options& opt) {
   return progress > 0 ? 0 : 1;
 }
 
+// Scripted Sound Jar session. A real audio::Sampler stands in for the device
+// audio task: mix() runs every frame and a synthetic "voice" (a gliding
+// tone, never a recording) is captured while the jar is listening.
+class SoundJarPlayer {
+ public:
+  enum Step : int {
+    WAIT_PLAY, RECORD, LISTEN, STOP, CELEBRATE, CAUGHT, TAP_PAD, BACKWARDS, ECHO_ROBOT, BEND_HOLD, BEND_SLIDE,
+    BEND_RELEASE, DONE
+  };
+  int step() const { return step_; }
+  uint32_t in_step(uint32_t now) const { return now - step_at_; }
+
+  void tick(Arcade& a, uint32_t now) {
+    using sound_jar::Phase;
+    using sound_jar::SoundJarGame;
+    const auto& g = a.sound_jar();
+    if (holding_) a.pointer(true, hold_x_, hold_y_, now);  // a finger keeps reporting
+    // Queued taps go out one per 150 ms (SceneManager debounces faster taps)
+    // and hold the script until they have all landed.
+    if (queued_ > 0) {
+      if (now - last_tap_ >= 150) {
+        press(a, taps_[0], now);
+        release(a, now);
+        last_tap_ = now;
+        for (std::size_t i = 1; i < queued_; ++i) taps_[i - 1] = taps_[i];
+        --queued_;
+      }
+      return;
+    }
+    const uint32_t t = in_step(now);
+    switch (step_) {
+      case WAIT_PLAY: if (g.phase() == Phase::PLAY && t >= 1600) next(now); break;
+      case RECORD: press(a, SoundJarGame::kRecordButton, now); release(a, now); next(now); break;
+      case LISTEN: if (g.phase() == Phase::RECORDING && t >= 1300) next(now); break;
+      case STOP: press(a, SoundJarGame::kRecordButton, now); release(a, now); next(now); break;
+      case CELEBRATE: if (g.phase() == Phase::CELEBRATE) next(now); break;
+      case CAUGHT:
+        if (g.phase() != Phase::PLAY) {
+          play_at_ = 0;
+        } else if (play_at_ == 0) {
+          play_at_ = now;
+        } else if (now - play_at_ >= 600) {
+          next(now);
+        }
+        break;
+      case TAP_PAD:
+        if (t == 0 || !holding_) press(a, SoundJarGame::kPads[3], now);
+        if (t >= 150) { release(a, now); next(now); }
+        break;
+      case BACKWARDS:
+        if (t >= 500) { queue(SoundJarGame::kEffects[0]); queue(SoundJarGame::kJar); next(now); }
+        break;
+      case ECHO_ROBOT:
+        if (t >= 900) {
+          queue(SoundJarGame::kEffects[0]);  // backwards off again
+          queue(SoundJarGame::kEffects[1]);
+          queue(SoundJarGame::kEffects[2]);
+          queue(SoundJarGame::kJar);
+          next(now);
+        }
+        break;
+      case BEND_HOLD:
+        if (t >= 1000 && !holding_) press(a, SoundJarGame::kPads[0], now);
+        if (t >= 1400) next(now);
+        break;
+      case BEND_SLIDE: {
+        const Rect& from = SoundJarGame::kPads[0];
+        const Rect& to = SoundJarGame::kPads[4];
+        const uint32_t k = std::min<uint32_t>(t, 800);
+        hold_x_ = static_cast<int16_t>(mid_x(from) + (mid_x(to) - mid_x(from)) * static_cast<int>(k) / 800);
+        if (t >= 1100) next(now);
+        break;
+      }
+      case BEND_RELEASE: release(a, now); next(now); break;
+      default: break;
+    }
+  }
+
+ private:
+  void next(uint32_t now) { ++step_; step_at_ = now; }
+  void queue(const Rect& r) {
+    if (queued_ < 8) taps_[queued_++] = r;
+  }
+  void press(Arcade& a, const Rect& r, uint32_t now) {
+    hold_x_ = mid_x(r);
+    hold_y_ = mid_y(r);
+    holding_ = true;
+    a.pointer(true, hold_x_, hold_y_, now);
+  }
+  void release(Arcade& a, uint32_t now) {
+    if (!holding_) return;
+    holding_ = false;
+    a.pointer(false, hold_x_, hold_y_, now);
+  }
+  int step_ = WAIT_PLAY;
+  uint32_t step_at_ = 0;
+  uint32_t play_at_ = 0;
+  Rect taps_[8]{};
+  std::size_t queued_ = 0;
+  uint32_t last_tap_ = 0;
+  bool holding_ = false;
+  int16_t hold_x_ = 0, hold_y_ = 0;
+};
+
+int run_sound_jar_bench(const Options& opt) {
+  static BenchState state{};
+  g_bench = &state;
+  lv_tick_set_cb(sim_tick);
+  lv_display_t* disp = lv_display_create(kW, kH);
+  lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565);
+  lv_display_set_buffers(disp, state.buf1, state.buf2, sizeof(state.buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
+  lv_display_set_flush_cb(disp, bench_flush);
+
+  static std::vector<int16_t> clip(audio::Sampler::kMaxSamples), record(audio::Sampler::kMaxSamples),
+      echo(audio::Sampler::kEchoSamples);
+  static audio::Sampler sampler(clip.data(), record.data(), echo.data());
+  sampler.set_mic_hardware(true);
+  const uint32_t seed = opt.seed ? opt.seed : 1234;
+  static ConsoleFeedback feedback;
+  feedback.quiet = true;
+  static Arcade arcade(feedback, seed);
+  arcade.attach_sampler(&sampler);
+  arcade.create(lv_screen_active());
+  SoundJarPlayer player;
+
+  ShotPlan plan;
+  plan.dir = opt.shots;
+  plan.prefix = "sound_jar_";
+  plan.shots = {{"00_menu", false},      {"01_intro", false},      {"02_empty_jar", false},
+                {"03_recording", false}, {"04_celebrate", false},  {"05_caught", false},
+                {"06_pad_glow", false},  {"07_backwards", false},  {"08_echo_robot", false},
+                {"09_bend", false}};
+
+  const uint32_t launch_at = 600;
+  const uint32_t frames = opt.seconds * 1000 / opt.frame_ms;
+  const std::size_t block = static_cast<std::size_t>(opt.frame_ms) * audio::kSampleRateHz / 1000u;
+  std::vector<int16_t> mic(block), out(block);
+  std::vector<double> render_us, sync_us, mix_us;
+  std::vector<uint64_t> pixels;
+  bool paged = false, launched = false;
+  double voice_phase = 0.0;
+  uint32_t voice_n = 0;
+  int32_t peak_out = 0;
+  int max_bend = -1;
+  int last_phase = -1;
+  uint32_t phase_start = 0;
+
+  using clock = std::chrono::steady_clock;
+  for (uint32_t f = 0; f < frames; ++f) {
+    g_sim_now += opt.frame_ms;
+    if (!paged && g_sim_now >= launch_at / 2) {
+      tap(arcade, SceneManager::kNextPageButton, g_sim_now);
+      paged = true;
+    }
+    if (!launched && g_sim_now >= launch_at) {
+      tap(arcade, SceneManager::kTileRects[3], g_sim_now);
+      launched = true;
+    }
+    const auto t0 = clock::now();
+    if (arcade.layer() == Arcade::Layer::SOUND_JAR) player.tick(arcade, g_sim_now);
+    arcade.tick(g_sim_now);
+    const auto t1 = clock::now();
+    // Audio task stand-in: synthetic gliding "voice" with a soft envelope.
+    if (sampler.recording()) {
+      for (std::size_t i = 0; i < block; ++i, ++voice_n) {
+        const double s = static_cast<double>(voice_n) / audio::kSampleRateHz;
+        const double hz = 180.0 + 120.0 * std::sin(6.2831853 * 1.5 * s);
+        voice_phase += 6.2831853 * hz / audio::kSampleRateHz;
+        const double env = std::min(1.0, s * 8.0) * (0.6 + 0.4 * std::sin(6.2831853 * 3.0 * s));
+        mic[i] = static_cast<int16_t>(9000.0 * env * (std::sin(voice_phase) + 0.3 * std::sin(2.0 * voice_phase)));
+      }
+      sampler.capture(mic.data(), block);
+    }
+    std::fill(out.begin(), out.end(), int16_t{0});
+    const auto m0 = clock::now();
+    sampler.mix(out.data(), block);
+    mix_us.push_back(std::chrono::duration<double, std::micro>(clock::now() - m0).count());
+    for (int16_t v : out) peak_out = std::max<int32_t>(peak_out, v < 0 ? -v : v);
+    max_bend = std::max(max_bend, arcade.sound_jar().bend_position());
+    state.frame_pixels = 0;
+    lv_timer_handler();
+    const auto t2 = clock::now();
+    sync_us.push_back(std::chrono::duration<double, std::micro>(t1 - t0).count());
+    if (state.frame_pixels > 0) {
+      render_us.push_back(std::chrono::duration<double, std::micro>(t2 - t1).count());
+      pixels.push_back(state.frame_pixels);
+    }
+
+    if (plan.dir.empty()) continue;
+    using sound_jar::Phase;
+    using S = SoundJarPlayer;
+    const auto& g = arcade.sound_jar();
+    plan.maybe(0, arcade.layer() == Arcade::Layer::MENU && g_sim_now >= launch_at - 2 * opt.frame_ms, state.frame);
+    if (arcade.layer() != Arcade::Layer::SOUND_JAR) continue;
+    if (static_cast<int>(g.phase()) != last_phase) {
+      last_phase = static_cast<int>(g.phase());
+      phase_start = g_sim_now;
+    }
+    const uint32_t in_phase = g_sim_now - phase_start;
+    const uint32_t in_step = player.in_step(g_sim_now);
+    plan.maybe(1, g.phase() == Phase::INTRO && in_phase >= 300, state.frame);
+    plan.maybe(2, player.step() == S::WAIT_PLAY && g.phase() == Phase::PLAY && in_step >= 1200, state.frame);
+    plan.maybe(3, g.phase() == Phase::RECORDING && in_phase >= 800, state.frame);
+    plan.maybe(4, g.phase() == Phase::CELEBRATE && in_phase >= 300, state.frame);
+    plan.maybe(5, player.step() == S::CAUGHT && g.phase() == Phase::PLAY && in_phase >= 300, state.frame);
+    plan.maybe(6, player.step() == S::TAP_PAD && in_step >= 100, state.frame);
+    plan.maybe(7, player.step() == S::ECHO_ROBOT && in_step >= 200, state.frame);
+    plan.maybe(8, player.step() == S::BEND_HOLD && in_step >= 700, state.frame);
+    plan.maybe(9, player.step() == S::BEND_SLIDE && in_step >= 600, state.frame);
+  }
+
+  lv_mem_monitor_t mem;
+  lv_mem_monitor(&mem);
+  double render_sum = 0;
+  for (double v : render_us) render_sum += v;
+  uint64_t px_sum = 0, px_max = 0;
+  for (uint64_t v : pixels) {
+    px_sum += v;
+    px_max = std::max(px_max, v);
+  }
+  const std::size_t rendered = render_us.size();
+  const double avg_px = rendered ? static_cast<double>(px_sum) / static_cast<double>(rendered) : 0.0;
+  const double render_avg = rendered ? render_sum / static_cast<double>(rendered) : 0.0;
+  const auto& g = arcade.sound_jar();
+  const uint32_t progress = g.sounds_caught();
+  std::printf("\nsound_jar LVGL benchmark via Arcade (HOST DESKTOP, not device; synthetic tone, no microphone)\n");
+  std::printf("  seed=%u frame_ms=%u sim_seconds=%u frames=%u rendered=%zu sounds_caught=%u plays=%u steps=%d/%d\n",
+              seed, opt.frame_ms, opt.seconds, frames, rendered, progress, g.plays(), player.step(),
+              static_cast<int>(SoundJarPlayer::DONE));
+  std::printf("  clip samples=%u peak_out=%d commands_dropped=%u effects=0x%x max_bend=%d\n", sampler.clip_samples(),
+              static_cast<int>(peak_out), sampler.commands_dropped(), static_cast<unsigned>(g.effects()), max_bend);
+  std::printf("  render us/frame: avg=%.1f p50=%.1f p95=%.1f max=%.1f\n", render_avg, percentile(render_us, 0.5),
+              percentile(render_us, 0.95), percentile(render_us, 1.0));
+  std::printf("  sampler mix us/%zu-sample block: p50=%.1f p95=%.1f max=%.1f\n", block, percentile(mix_us, 0.5),
+              percentile(mix_us, 0.95), percentile(mix_us, 1.0));
+  std::printf("  logic+view sync us/frame: p95=%.2f max=%.2f\n", percentile(sync_us, 0.95), percentile(sync_us, 1.0));
+  std::printf("  pixels/rendered frame: avg=%.0f (%.1f%% of screen) max=%llu\n", avg_px, 100.0 * avg_px / (kW * kH),
+              static_cast<unsigned long long>(px_max));
+  std::printf("  lvgl heap: used=%zu max_used=%zu total=%zu frag=%u%%\n", mem.total_size - mem.free_size,
+              mem.max_used, mem.total_size, static_cast<unsigned>(mem.frag_pct));
+  std::printf("JSON {\"engine\":\"lvgl-9.5.0\",\"platform\":\"host-desktop\",\"game\":\"sound_jar\",\"seed\":%u,"
+              "\"frame_ms\":%u,\"frames\":%u,\"rendered\":%zu,\"render_us_avg\":%.1f,\"render_us_p95\":%.1f,"
+              "\"render_us_max\":%.1f,\"sync_us_max\":%.1f,\"mix_us_max\":%.1f,\"px_avg\":%.0f,\"px_max\":%llu,"
+              "\"heap_max_used\":%zu,\"progress\":%u,\"plays\":%u}\n",
+              seed, opt.frame_ms, frames, rendered, render_avg, percentile(render_us, 0.95),
+              percentile(render_us, 1.0), percentile(sync_us, 1.0), percentile(mix_us, 1.0), avg_px,
+              static_cast<unsigned long long>(px_max), mem.max_used, progress, g.plays());
+  const bool ok = progress > 0 && player.step() == SoundJarPlayer::DONE && peak_out > 0 &&
+                  g.effects() == (ISampler::kFxEcho | ISampler::kFxRobot) && max_bend >= 300;
+  return ok ? 0 : 1;
+}
+
 // -------------------------------------------------------------- interactive
 int run_interactive(const Options& opt) {
   lv_display_t* disp = lv_sdl_window_create(kW, kH);
@@ -685,12 +988,20 @@ int run_interactive(const Options& opt) {
   lv_tick_set_cb(SDL_GetTicks);
 
   static SpeakerFeedback feedback;
-  const bool audio_ok = !opt.mute && open_sim_audio(feedback.audio);
+  static std::vector<int16_t> clip(audio::Sampler::kMaxSamples), record(audio::Sampler::kMaxSamples),
+      echo(audio::Sampler::kEchoSamples);
+  static audio::Sampler sampler(clip.data(), record.data(), echo.data());
+  static SimAudio sim;
+  sim.feedback = &feedback.audio;
+  sim.sampler = &sampler;
+  feedback.audio.attach_sampler(&sampler);
+  const bool audio_ok = !opt.mute && open_sim_audio(sim, opt.mic);
   if (!audio_ok) {
     std::printf("sim audio off (%s)\n", opt.mute ? "--mute" : SDL_GetError());
   }
   const uint32_t seed = opt.seed ? opt.seed : static_cast<uint32_t>(SDL_GetTicks() ^ 0xA5A5u) | 1u;
   static Arcade arcade(feedback, seed, static_cast<uint8_t>(opt.volume));
+  arcade.attach_sampler(audio_ok ? &sampler : nullptr);
   arcade.create(lv_screen_active());
   int applied_level = -1;
   std::printf(
@@ -721,6 +1032,11 @@ int run_interactive(const Options& opt) {
       std::printf("[audio] volume level %d%s\n", applied_level, applied_level ? "" : " (muted)");
     }
     if (arcade.take_volume_changed()) std::printf("[settings] parent chose level %u (not persisted in the sim)\n", static_cast<unsigned>(arcade.volume_level()));
+    if (arcade.take_mic_changed()) {
+      sampler.set_mic_allowed(arcade.mic_enabled());
+      std::printf("[settings] parent turned the Sound Jar mic %s (not persisted in the sim)\n",
+                  arcade.mic_enabled() ? "on" : "off");
+    }
     arcade.tick(now);
     const uint32_t idle = lv_timer_handler();  // also pumps SDL events
     const Uint8* ks = SDL_GetKeyboardState(nullptr);
@@ -763,6 +1079,8 @@ bool parse(int argc, char** argv, Options& opt) {
         opt.game = GameId::ROBO_BUDDY;
       } else if (g == "animal_sounds") {
         opt.game = GameId::ANIMAL_SOUNDS;
+      } else if (g == "sound_jar") {
+        opt.game = GameId::SOUND_JAR;
       } else {
         return false;
       }
@@ -779,6 +1097,8 @@ bool parse(int argc, char** argv, Options& opt) {
       if (!next(opt.volume) || opt.volume > 6) return false;
     } else if (a == "--mute") {
       opt.mute = true;
+    } else if (a == "--no-mic") {
+      opt.mic = false;
     } else if (a == "--shots" && i + 1 < argc) {
       opt.shots = argv[++i];
     } else {
@@ -794,13 +1114,14 @@ int main(int argc, char** argv) {
   Options opt;
   if (!parse(argc, argv, opt)) {
     std::printf(
-        "usage: little_arcade_sim [--zoom N] [--seed N] [--mute] [--volume 0..6]\n"
-        "       little_arcade_sim --bench [--game animal_sounds|color_pop|feed_monster|hatch_a_pet|rainbow_piano|robo_buddy] [--seconds N] [--seed N]\n"
+        "usage: little_arcade_sim [--zoom N] [--seed N] [--mute] [--no-mic] [--volume 0..6]\n"
+        "       little_arcade_sim --bench [--game animal_sounds|color_pop|feed_monster|hatch_a_pet|rainbow_piano|robo_buddy|sound_jar] [--seconds N] [--seed N]\n"
         "                         [--frame-ms N] [--shots DIR]\n");
     return 2;
   }
   SDL_SetMainReady();
   std::setvbuf(stdout, nullptr, _IONBF, 0);
   lv_init();
-  return opt.bench ? run_bench(opt) : run_interactive(opt);
+  if (opt.bench) return opt.game == GameId::SOUND_JAR ? run_sound_jar_bench(opt) : run_bench(opt);
+  return run_interactive(opt);
 }

@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "little_arcade/audio/sampler.hpp"
 #include "little_arcade/audio/synth.hpp"
 #include "little_arcade/feedback.hpp"
 #include "little_arcade/volume.hpp"
@@ -32,6 +33,9 @@ class AudioFeedback final : public IFeedback {
   void set_scene(uint8_t scene) override;
   void set_level(uint8_t level) { level_.store(level, std::memory_order_relaxed); }
   void set_parent_cap(uint8_t cap) { cap_.store(cap, std::memory_order_relaxed); }
+  // Optional Sound Jar sampler, mixed before the limiter. Attach before the
+  // audio task starts; it is then owned by the audio task.
+  void attach_sampler(Sampler* sampler) { sampler_ = sampler; }
 
   // ---- audio task ----
   // Fills out[0..n) with limited mono PCM at kSampleRateHz.
@@ -70,6 +74,7 @@ class AudioFeedback final : public IFeedback {
 
   // consumer side
   Synth synth_;
+  Sampler* sampler_ = nullptr;
   VolumeLimiter limiter_;
   uint32_t samples_ = 0;
   uint8_t requested_level_ = 0;

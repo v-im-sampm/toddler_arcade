@@ -33,9 +33,12 @@ class ParentGate {
   static constexpr int kLevelCount = kMaxLevel + 1;  // 0 (off) .. 6
   static constexpr Rect level_rect(int level) { return Rect{static_cast<int16_t>(6 + level * 44), 84, 40, 64}; }
   static constexpr Rect kDoneRect{100, 172, 120, 52};
+  // Sound Jar microphone on/off (on by default; nothing is ever stored).
+  static constexpr Rect kMicToggleRect{12, 172, 76, 52};
 
-  // `level` is the saved volume (0 = muted, the factory default).
-  ParentGate(uint32_t seed, uint8_t level);
+  // `level` is the saved volume (0 = muted, the factory default);
+  // `mic_enabled` is the saved Sound Jar microphone setting.
+  ParentGate(uint32_t seed, uint8_t level, bool mic_enabled = true);
 
   // Raw pointer state, called every UI loop with the current touch sample.
   // Returns true when the caller should forward this press edge at (x, y) to
@@ -46,6 +49,7 @@ class ParentGate {
   State state() const { return state_; }
   bool open() const { return state_ != State::CLOSED; }
   uint8_t level() const { return level_; }
+  bool mic_enabled() const { return mic_enabled_; }
   // Milliseconds of the current hotspot hold (0 when not holding).
   uint32_t hold_ms() const { return holding_ ? hold_ms_ : 0; }
   uint8_t sum_a() const { return a_; }
@@ -54,6 +58,9 @@ class ParentGate {
   // True once after the settings screen closes with a different level than
   // when it opened: the caller should persist level().
   bool take_level_changed();
+  // True once after the settings screen closes with a different microphone
+  // setting than when it opened: the caller should persist mic_enabled().
+  bool take_mic_changed();
   // True once after a level button was tapped (caller may play a preview).
   bool take_preview();
 
@@ -65,6 +72,8 @@ class ParentGate {
   State state_ = State::CLOSED;
   uint8_t level_;
   uint8_t level_at_open_ = 0;
+  bool mic_enabled_;
+  bool mic_at_open_ = true;
   uint8_t a_ = 0, b_ = 0;
   uint8_t choices_[kChoiceCount]{};
   uint8_t answer_index_ = 0;
@@ -76,6 +85,7 @@ class ParentGate {
   uint32_t release_ms_ = 0;
   uint32_t last_input_ms_ = 0;
   bool level_changed_ = false;
+  bool mic_changed_ = false;
   bool preview_ = false;
 };
 

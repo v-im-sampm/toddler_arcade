@@ -10,6 +10,7 @@ namespace {
 constexpr const char* kTag = "settings";
 constexpr const char* kNamespace = "la_settings";
 constexpr const char* kVolumeKey = "volume";
+constexpr const char* kMicKey = "mic";
 bool g_ready = false;
 }  // namespace
 
@@ -42,6 +43,27 @@ bool save_volume_level(uint8_t level) {
   if (err == ESP_OK) err = nvs_commit(h);
   nvs_close(h);
   ESP_LOGI(kTag, "volume level %u saved: %s", static_cast<unsigned>(level), esp_err_to_name(err));
+  return err == ESP_OK;
+}
+
+bool load_mic_enabled() {
+  if (!g_ready) return true;
+  nvs_handle_t h;
+  if (nvs_open(kNamespace, NVS_READONLY, &h) != ESP_OK) return true;
+  uint8_t on = 1;
+  if (nvs_get_u8(h, kMicKey, &on) != ESP_OK) on = 1;
+  nvs_close(h);
+  return on != 0;
+}
+
+bool save_mic_enabled(bool enabled) {
+  if (!g_ready) return false;
+  nvs_handle_t h;
+  if (nvs_open(kNamespace, NVS_READWRITE, &h) != ESP_OK) return false;
+  esp_err_t err = nvs_set_u8(h, kMicKey, enabled ? 1 : 0);
+  if (err == ESP_OK) err = nvs_commit(h);
+  nvs_close(h);
+  ESP_LOGI(kTag, "sound jar mic %s saved: %s", enabled ? "on" : "off", esp_err_to_name(err));
   return err == ESP_OK;
 }
 

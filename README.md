@@ -12,7 +12,7 @@
 - Never invent display, touch, mic or amplifier pins. Makerfabs examples/schematic are authoritative and must be inspected.
 - Audio hardware is **not included** in the board specification. The owner-wired external INMP441/MAX98357A mic and speaker are functionally confirmed audible on the prototype; wiring pins remain owner-reported, and calibrated SPL, power-on pop, current and regulator thermal measurements are not recorded. See `docs/hardware.md`.
 - Espressif ESP-SR WakeNet/MultiNet is the intended offline stack. Verify **current model language support, model sizes, licensing, ESP-IDF compatibility and toddler voice accuracy** before choosing a model. Some commands may need constrained phrasing or custom models; fallback to touch is mandatory.
-- No microphone streaming, recording, account, ads, analytics, or Wi-Fi needed in release 1.
+- No microphone streaming, account, ads, analytics, or Wi-Fi needed in release 1. No child speech is persisted or transmitted. Sound Jar may hold one ≤ 3 s clip in RAM while open (parent Mic toggle, default on; see `docs/prd/sound_jar.md` §7).
 - All source assets must be original, permissively licensed, or generated in-project with recorded provenance.
 
 ## Contents
@@ -27,4 +27,4 @@
 - `tools/validate_specs.py`: validates command manifest and all ten game specs
 
 ## Definition of done
-One ESP-IDF image boots, calibrates touch, plays audio, recognizes supported offline commands in quiet conditions, runs all ten games without network access, recovers from errors, and passes on-device memory/latency/child-safety checks. See `docs/acceptance.md`.
+One ESP-IDF image boots, calibrates touch, plays audio, recognizes supported offline commands in quiet conditions, runs all eleven games without network access, recovers from errors, and passes on-device memory/latency/child-safety checks. See `docs/acceptance.md`.

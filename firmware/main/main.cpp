@@ -17,6 +17,7 @@
 #include "little_arcade/arcade.hpp"
 #include "little_arcade/audio/audio_feedback.hpp"
 #include "little_arcade/audio/i2s_audio.hpp"
+#include "little_arcade/audio/sampler.hpp"
 #include "little_arcade/board_io.hpp"
 #include "little_arcade/board_pins.hpp"
 #include "little_arcade/intent.hpp"
@@ -85,6 +86,7 @@ const char* layer_name(Arcade::Layer l) {
     case Arcade::Layer::ROBO_BUDDY: return "robo_buddy";
     case Arcade::Layer::SHAPE_GARAGE: return "shape_garage";
     case Arcade::Layer::FEED_MONSTER: return "feed_monster";
+    case Arcade::Layer::SOUND_JAR: return "sound_jar";
     case Arcade::Layer::NONE: break;
   }
   return "none";
@@ -92,6 +94,25 @@ const char* layer_name(Arcade::Layer l) {
 
 audio::AudioFeedback g_feedback;
 Arcade* g_arcade = nullptr;
+
+// Sound Jar's sample buffers live in PSRAM (about 200 KB). They hold at most
+// one short clip, only in RAM, and are zeroed on wipe; never written anywhere.
+audio::Sampler* make_sampler() {
+  constexpr std::size_t kClipBytes = audio::Sampler::kMaxSamples * sizeof(int16_t);
+  constexpr std::size_t kEchoBytes = audio::Sampler::kEchoSamples * sizeof(int16_t);
+  auto* clip = static_cast<int16_t*>(heap_caps_malloc(kClipBytes, MALLOC_CAP_SPIRAM));
+  auto* record = static_cast<int16_t*>(heap_caps_malloc(kClipBytes, MALLOC_CAP_SPIRAM));
+  auto* echo = static_cast<int16_t*>(heap_caps_malloc(kEchoBytes, MALLOC_CAP_SPIRAM));
+  if (!clip || !record || !echo) {
+    heap_caps_free(clip);
+    heap_caps_free(record);
+    heap_caps_free(echo);
+    ESP_LOGE(kTag, "sound jar buffers unavailable; Sound Jar runs without sound");
+    return nullptr;
+  }
+  static audio::Sampler sampler(clip, record, echo);
+  return &sampler;
+}
 esp_lcd_panel_handle_t g_panel = nullptr;
 uint64_t g_frame_pixels = 0;
 bool g_was_pressed = false;
@@ -170,7 +191,8 @@ void ui_task(void*) {
   const uint8_t saved_level = settings::load_volume_level();
   ESP_LOGI(kTag, "parent volume level=%u (%s)", static_cast<unsigned>(saved_level),
            saved_level ? "saved by parent" : "muted until a parent opts in");
-  static Arcade arcade(g_feedback, esp_random() | 1u, saved_level);
+  const bool saved_mic = settings::load_mic_enabled();
+  static Arcade arcade(g_feedback, esp_random() | 1u, saved_level, saved_mic);
   g_arcade = &arcade;
   const int64_t create_t0 = esp_timer_get_time();
   arcade.create(lv_screen_active());
@@ -182,10 +204,20 @@ void ui_task(void*) {
   board::backlight_set(true);
   log_memory("ui_ready");
 
+  audio::Sampler* sampler = make_sampler();
+  if (sampler) {
+    sampler->set_mic_allowed(saved_mic);
+    g_feedback.attach_sampler(sampler);  // before the audio task starts mixing
+  }
   audio::I2sAudioOptions audio_opts;
   audio_opts.mic_level_probe = kMicLevelProbe;
+  audio_opts.sampler = sampler;
   const bool audio_ok = audio::start_i2s_audio(g_feedback, audio_opts);
   if (!audio_ok) ESP_LOGE(kTag, "audio unavailable; games stay fully playable with visual cues");
+  // Without a running audio task nothing would service the sampler.
+  arcade.attach_sampler(audio_ok ? sampler : nullptr);
+  ESP_LOGI(kTag, "sound jar: sampler=%s mic=%s (parent switch %s)", sampler ? "yes" : "no",
+           sampler && sampler->mic_available() ? "available" : "off", saved_mic ? "on" : "off");
   int applied_level = -1;
   log_memory("audio_ready");
 
@@ -202,6 +234,10 @@ void ui_task(void*) {
       ESP_LOGI("audio", "volume level %d applied", applied_level);
     }
     if (arcade.take_volume_changed()) settings::save_volume_level(arcade.volume_level());
+    if (arcade.take_mic_changed()) {
+      if (sampler) sampler->set_mic_allowed(arcade.mic_enabled());
+      settings::save_mic_enabled(arcade.mic_enabled());
+    }
     if (kAudioLoopbackSelfTest) audio_loopback_self_test(now);
     const int64_t t_tick = esp_timer_get_time();
     arcade.tick(now);  // game logic + view sync (+ lazy Hatch-a-Pet art rasters)

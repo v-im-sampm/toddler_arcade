@@ -23,7 +23,8 @@ constexpr uint8_t kScenes[] = {IFeedback::kSceneMenu, static_cast<uint8_t>(GameI
                                static_cast<uint8_t>(GameId::ANIMAL_SOUNDS),
                                static_cast<uint8_t>(GameId::RAINBOW_PIANO),
                                static_cast<uint8_t>(GameId::ROBO_BUDDY),
-                               static_cast<uint8_t>(GameId::SHAPE_GARAGE)};
+                               static_cast<uint8_t>(GameId::SHAPE_GARAGE),
+                               static_cast<uint8_t>(GameId::SOUND_JAR)};
 
 std::size_t ms_samples(uint32_t ms) { return static_cast<std::size_t>(ms) * kSampleRateHz / 1000u; }
 

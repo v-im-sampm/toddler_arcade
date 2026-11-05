@@ -137,6 +137,35 @@ void test_level_buttons_fit_screen() {
   EXPECT(ParentGate::kDoneRect.on_screen());
 }
 
+void test_mic_toggle_defaults_on_and_reports_change_once() {
+  ParentGate g(9, 0);
+  EXPECT(g.mic_enabled());
+  EXPECT(!ParentGate(9, 0, false).mic_enabled());
+  uint32_t now = 0;
+  // Not reachable while the gate is closed.
+  tap(g, ParentGate::kMicToggleRect, now);
+  EXPECT(g.mic_enabled());
+  open_settings(g, now);
+  tap(g, ParentGate::kMicToggleRect, now);
+  EXPECT(!g.mic_enabled());
+  EXPECT(!g.take_mic_changed());  // only reported on close
+  tap(g, ParentGate::kDoneRect, now);
+  EXPECT(g.take_mic_changed());
+  EXPECT(!g.take_mic_changed());
+  EXPECT(!g.take_level_changed());
+  // Toggling twice is no change.
+  open_settings(g, now);
+  tap(g, ParentGate::kMicToggleRect, now);
+  tap(g, ParentGate::kMicToggleRect, now);
+  tap(g, ParentGate::kDoneRect, now);
+  EXPECT(!g.mic_enabled() && !g.take_mic_changed());
+  // The toggle sits clear of the level and Done buttons.
+  const Rect& m = ParentGate::kMicToggleRect;
+  EXPECT(m.on_screen());
+  EXPECT(m.x + m.w <= ParentGate::kDoneRect.x);
+  EXPECT(m.y >= ParentGate::level_rect(0).y + ParentGate::level_rect(0).h);
+}
+
 void test_hold_survives_touch_dropouts_and_drift() {
   ParentGate g(1, 0);
   const int16_t x = hx(ParentGate::kHotspot), y = hy(ParentGate::kHotspot);
@@ -184,6 +213,7 @@ int main() {
   test_parent_sets_level_and_it_is_reported_once();
   test_idle_settings_close_after_timeout();
   test_level_buttons_fit_screen();
+  test_mic_toggle_defaults_on_and_reports_change_once();
   test_hold_survives_touch_dropouts_and_drift();
   test_real_release_cancels_hold_and_progress_is_reported();
   test_hold_area_fits_screen();

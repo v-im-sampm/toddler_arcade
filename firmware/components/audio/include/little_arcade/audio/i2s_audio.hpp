@@ -10,6 +10,10 @@ struct I2sAudioOptions {
   // RMS/peak numbers every few seconds. No samples are stored or sent.
   bool mic_level_probe = false;
   uint32_t log_period_ms = 5000;
+  // Sound Jar: when set (and the mic pin is known) the INMP441 is read every
+  // block and handed to sampler->capture(); the sampler keeps at most one
+  // short clip in RAM and only while the child is recording.
+  Sampler* sampler = nullptr;
 };
 
 // Starts I2S0 (TX to the MAX98357A, optional RX from the INMP441 on the same

@@ -70,6 +70,7 @@ void AudioFeedback::render(int16_t* out, std::size_t n) {
   }
 
   synth_.render(out, n);
+  if (sampler_) sampler_->mix(out, n);  // silences the block while recording
   limiter_.process(out, n);
 
   int32_t peak = 0;

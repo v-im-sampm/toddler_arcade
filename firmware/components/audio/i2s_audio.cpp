@@ -24,6 +24,7 @@ AudioFeedback* g_feedback = nullptr;
 I2sAudioOptions g_options;
 
 int16_t g_mono[kFrames];
+int16_t g_mic[kFrames];
 int32_t g_tx_frames[kFrames * 2];
 int32_t g_rx_frames[kFrames * 2];
 
@@ -54,18 +55,21 @@ void audio_task(void*) {
       const std::size_t frames = got / (2 * sizeof(int32_t));
       for (std::size_t i = 0; i < frames; ++i) {
         const int32_t s = g_rx_frames[2 * i] >> 16;  // INMP441 L/R=GND -> left slot, 24-bit MSB-first
+        g_mic[i] = static_cast<int16_t>(s);
+        if (!g_options.mic_level_probe) continue;
         const int32_t a = s < 0 ? -s : s;
         if (a > mic_peak) mic_peak = a;
         mic_sumsq += static_cast<uint64_t>(static_cast<int64_t>(s) * s);
         ++mic_count;
       }
+      if (g_options.sampler && frames > 0) g_options.sampler->capture(g_mic, frames);
     }
 
     const int64_t now = esp_timer_get_time();
     if (now - last_log_us >= static_cast<int64_t>(g_options.log_period_ms) * 1000) {
       last_log_us = now;
       const int32_t out_peak = g_feedback->peak_since_reset();
-      if (g_rx) {
+      if (g_rx && g_options.mic_level_probe) {
         const unsigned rms = mic_count ? static_cast<unsigned>(std::sqrt(static_cast<double>(mic_sumsq) / mic_count)) : 0u;
         ESP_LOGI(kTag,
                  "[audio] level=%u cues=%" PRIu32 " merged=%" PRIu32 " dropped=%" PRIu32
@@ -99,12 +103,14 @@ bool start_i2s_audio(AudioFeedback& feedback, const I2sAudioOptions& options) {
   if (g_tx) return true;
   g_feedback = &feedback;
   g_options = options;
+  // The Sound Jar mic is optional: an unknown pin just means built-in sounds.
+  const bool want_rx = options.mic_level_probe || (options.sampler && pins::kMicDataIn != board::kPinTbd);
 
   i2s_chan_config_t chan = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
   chan.dma_desc_num = 4;
   chan.dma_frame_num = kFrames;
   chan.auto_clear = true;  // underrun sends silence, not stale audio
-  esp_err_t err = i2s_new_channel(&chan, &g_tx, options.mic_level_probe ? &g_rx : nullptr);
+  esp_err_t err = i2s_new_channel(&chan, &g_tx, want_rx ? &g_rx : nullptr);
   if (err != ESP_OK) {
     ESP_LOGE(kTag, "i2s_new_channel failed: %s", esp_err_to_name(err));
     return false;
@@ -122,7 +128,7 @@ bool start_i2s_audio(AudioFeedback& feedback, const I2sAudioOptions& options) {
               .bclk = static_cast<gpio_num_t>(pins::kBclk),
               .ws = static_cast<gpio_num_t>(pins::kWs),
               .dout = static_cast<gpio_num_t>(pins::kAmpDataOut),
-              .din = options.mic_level_probe ? static_cast<gpio_num_t>(pins::kMicDataIn) : I2S_GPIO_UNUSED,
+              .din = want_rx ? static_cast<gpio_num_t>(pins::kMicDataIn) : I2S_GPIO_UNUSED,
               .invert_flags = {.mclk_inv = false, .bclk_inv = false, .ws_inv = false},
           },
   };
@@ -139,8 +145,9 @@ bool start_i2s_audio(AudioFeedback& feedback, const I2sAudioOptions& options) {
     ESP_LOGE(kTag, "audio task create failed");
     return false;
   }
+  if (options.sampler) options.sampler->set_mic_hardware(g_rx != nullptr);
   ESP_LOGI(kTag, "I2S0 %" PRIu32 " Hz bclk=%d ws=%d dout=%d din=%d (wiring: %s, bench verified: %s)", kSampleRateHz,
-           pins::kBclk, pins::kWs, pins::kAmpDataOut, options.mic_level_probe ? pins::kMicDataIn : -1,
+           pins::kBclk, pins::kWs, pins::kAmpDataOut, want_rx ? pins::kMicDataIn : -1,
            pins::kWiringSource, pins::kWiringBenchVerified ? "yes" : "no");
   return true;
 }

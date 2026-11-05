@@ -21,6 +21,7 @@ enum class GameId : uint8_t {
   SILLY_FACES,
   FEED_MONSTER,
   BUBBLE_AQUARIUM,
+  SOUND_JAR,
 };
 
 struct GameEntry {

@@ -15,6 +15,8 @@
 #include "little_arcade/games/robo_buddy_view.hpp"
 #include "little_arcade/games/shape_garage.hpp"
 #include "little_arcade/games/shape_garage_view.hpp"
+#include "little_arcade/games/sound_jar.hpp"
+#include "little_arcade/games/sound_jar_view.hpp"
 #include "little_arcade/parent_view.hpp"
 #include "little_arcade/scene_manager.hpp"
 #include "little_arcade/settings/parent_gate.hpp"
@@ -38,13 +40,19 @@ class Arcade {
     ROBO_BUDDY,
     SHAPE_GARAGE,
     ANIMAL_SOUNDS,
-    FEED_MONSTER
+    FEED_MONSTER,
+    SOUND_JAR
   };
 
-  // `volume_level` is the parent-saved level (0 = muted, the default).
-  Arcade(IFeedback& feedback, uint32_t seed, uint8_t volume_level = 0);
+  // `volume_level` is the parent-saved level (0 = muted, the default);
+  // `mic_enabled` is the parent-saved Sound Jar microphone switch.
+  Arcade(IFeedback& feedback, uint32_t seed, uint8_t volume_level = 0, bool mic_enabled = true);
   Arcade(const Arcade&) = delete;
   Arcade& operator=(const Arcade&) = delete;
+
+  // Sound Jar's sampler (owned by the audio component). Attach before the
+  // first tick; without one Sound Jar still runs with picture-only pads.
+  void attach_sampler(ISampler* sampler) { sound_jar_.attach_sampler(sampler); }
 
   // Builds every scene's objects once on `screen`.
   void create(lv_obj_t* screen);
@@ -62,6 +70,10 @@ class Arcade {
   uint8_t volume_level() const { return gate_.level(); }
   bool take_volume_changed() { return gate_.take_level_changed(); }
   bool parent_gate_open() const { return gate_.open(); }
+  // Parent Sound Jar microphone switch. The caller applies it to the sampler
+  // and persists it when take_mic_changed() returns true.
+  bool mic_enabled() const { return gate_.mic_enabled(); }
+  bool take_mic_changed() { return gate_.take_mic_changed(); }
 
   const SceneManager& scenes() const { return scenes_; }
   Layer layer() const { return shown_; }
@@ -74,9 +86,10 @@ class Arcade {
   const rainbow_piano::RainbowPianoGame& rainbow_piano() const { return rainbow_piano_; }
   const robo_buddy::RoboBuddyGame& robo_buddy() const { return robo_buddy_; }
   const shape_garage::ShapeGarageGame& shape_garage() const { return shape_garage_; }
+  const sound_jar::SoundJarGame& sound_jar() const { return sound_jar_; }
 
  private:
-  static constexpr std::size_t kGameCount = 7;
+  static constexpr std::size_t kGameCount = 8;
 
   Layer wanted_layer() const;
   void show_layer(Layer layer);
@@ -88,6 +101,7 @@ class Arcade {
   robo_buddy::RoboBuddyGame robo_buddy_;
   shape_garage::ShapeGarageGame shape_garage_;
   feed_monster::FeedMonsterGame feed_monster_;
+  sound_jar::SoundJarGame sound_jar_;
   GameEntry entries_[kGameCount];
   IFeedback& feedback_;
   SceneManager scenes_;
@@ -102,11 +116,13 @@ class Arcade {
   robo_buddy::RoboBuddyView robo_buddy_view_;
   shape_garage::ShapeGarageView shape_garage_view_;
   feed_monster::FeedMonsterView feed_monster_view_;
+  sound_jar::SoundJarView sound_jar_view_;
   ui::ChromeView chrome_;
-  lv_obj_t* layers_[9]{};
+  lv_obj_t* layers_[10]{};
   lv_obj_t* sleep_overlay_ = nullptr;
   Layer shown_ = Layer::NONE;
   bool sleeping_ = false;
+  bool gate_was_open_ = false;
   bool have_tick_ = false;
   uint32_t last_ms_ = 0;
 };

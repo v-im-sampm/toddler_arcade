@@ -4,8 +4,8 @@
 
 namespace little_arcade {
 
-// Adult-only overlay for ParentGate: the sum challenge and the volume levels
-// (0 = off .. 6). Uses digits/text because only a parent sees it. Built once,
+// Adult-only overlay for ParentGate: the sum challenge, the volume levels
+// (0 = off .. 6) and the Sound Jar microphone switch. Uses digits/text because only a parent sees it. Built once,
 // hidden while the gate is closed; drawn above every scene layer. While the
 // Mic corner is held, a bar under it fills so a parent knows to keep holding.
 class ParentView {
@@ -25,9 +25,12 @@ class ParentView {
   lv_obj_t* question_ = nullptr;
   lv_obj_t* choice_labels_[settings::ParentGate::kChoiceCount]{};
   lv_obj_t* level_buttons_[settings::ParentGate::kLevelCount]{};
+  lv_obj_t* mic_button_ = nullptr;
+  lv_obj_t* mic_label_ = nullptr;
   settings::ParentGate::State shown_ = settings::ParentGate::State::CLOSED;
   uint8_t shown_a_ = 0, shown_b_ = 0;
   int shown_level_ = -1;
+  int shown_mic_ = -1;
 };
 
 }  // namespace little_arcade
