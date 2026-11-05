@@ -23,9 +23,27 @@ of the file.
   sides. They are part of the shell geometry. `part="bumpers"` exports only
   the pads, so they can be loaded as a color-modifier volume (Bambu Studio /
   OrcaSlicer) for a two-color print.
-- **Speaker grille:** four horizontal slots to the viewer's right of the screen,
-  with a retainer for the 15 x 10 mm speaker behind them. The mockup's mic dot
-  is omitted because the parts list includes no microphone module.
+- **Speaker port (viewer's right):** a small 1 W speaker cannot be made much
+  louder by a printed horn, because its wavelengths are far larger than any
+  shape that fits here. The port aims for the gains that are actually
+  available:
+  - **Sealed front.** The 15 x 10 mm oval sits portrait in a stadium
+    retainer, and a 0.5 mm double-sided foam gasket (`speaker_gasket_thickness`)
+    seals its rim to the skin. The sealed case interior becomes the speaker's
+    back box. This stops the rear wave from cancelling the front wave, which
+    is the main source of lost bass and volume in small toys.
+  - **Open grille.** A 0.6 mm front chamber spans the whole cone. Three
+    1.6 mm slots with 1.0 mm bars (`speaker_grille_*`) give at least 45%
+    open area, which an assert enforces. The slots are narrow enough to keep
+    fingers and pencils off the cone.
+  - **Flared mouth.** A 0.8 mm-deep stadium dish flares 3 mm per side into
+    the face (`speaker_dish_*`). It acts as a short waveguide and a visual
+    cue for where the sound comes from.
+
+  The speaker's tab points to +y. The 80 mm lead exits through a 5 mm notch
+  at the -y end; run a bead of hot glue or sealant around the notch so the
+  back box stays sealed.
+- **Mic port (viewer's left):** see the INMP441 entry under Internal layout.
 - **Case screws:** four M2 x 12 self-tapping screws. They go in from the back
   through counterbored bosses and thread 6 mm into pilot holes in the
   front-shell bosses at (+/-48, +/-30).
@@ -60,10 +78,26 @@ handle points to +y. Seen from the front, +x is on the viewer's **left**.
   wall opening hugs the receptacle (8.94 x 3.26 mm plus clearance). An outer
   12.8 x 7.2 mm recess leaves a 0.8 mm lip so common cable overmolds seat
   fully. **This is the only external USB-C.**
-- **MAX98357A and INA boards:** these mount on rear-shell standoffs in the
-  free area behind the display, between the speaker side and the battery tray:
-  MAX at (-15, 20), INA at (-15, -6). Board outlines are the hole pitch plus
-  `pcb_board_margin` on each side (placeholder).
+- **MAX98357A:** mounts on rear-shell standoffs in the free area behind the
+  display, between the speaker side and the battery tray, at (-15, 20). The
+  board outline is the hole pitch plus `pcb_board_margin` on each side
+  (placeholder).
+- **INMP441 mic (the "INA" board, `config/board_pins.json`):** a 14 mm round
+  board with flats 12 mm apart, in a front-shell pocket at `mic_center` =
+  (45, 0), on the viewer's left, mirroring the speaker. The INMP441 is **bottom-ported**: its sound hole goes through the
+  PCB under the mic can. Mount it as follows:
+  - Seat it with the **bare pinhole side facing the front skin**, so the mic
+    can and header face into the case.
+  - Put a foam gasket ring between the board and the skin, with the ring's
+    hole over the port. `mic_underside_clearance` = 1.6 mm leaves room for
+    the gasket and trimmed pin stubs.
+  - The board rests on a ledge (`mic_ledge_inner_diameter`). Glue it at the
+    rim.
+  - A pry/wire notch faces the display.
+  - The front face has a 2 mm acoustic hole in a 5 mm countersunk "mic dot".
+
+  Check which side your board's port is on before assembly. The gasket keeps
+  case-internal noise, including the speaker's back wave, out of the mic.
 - **Power switch:** a KCD1 snap-in rocker sits in a **recessed well on the
   back face**, speaker side, centered at `switch_center` = (-41, 0). The rocker
   stays below the well rim, so a parent can reach it with a fingertip, but
@@ -79,8 +113,13 @@ The model's asserts fail the render if any of these happen:
 - A battery rib overlaps the display footprint or its mount bosses.
 - The USB-C recess leaves the flat wall band or crosses the seam.
 - The case is too shallow for the battery stack.
-- The MAX or INA board hits the battery tray, charger, switch well, the other
-  board, or the display stack (`display_stack_depth`).
+- The MAX board hits the battery tray, charger, switch well, or the display
+  stack (`display_stack_depth`).
+- The mic pocket leaves the flat face or hits the display, a case boss, or a
+  battery rib. The mic ledge is not narrower than the board.
+- The speaker dish leaves the flat face or reaches the bezel. Grille bars are
+  thinner than 0.8 mm, there are fewer than two slots, or the open area is
+  below 45% of the cone. The retainer hits a case boss.
 - The switch well leaves the flat back face, or hits the battery tray or a
   case boss.
 - The switch body hits the display footprint or the speaker.
@@ -109,15 +148,46 @@ as `"preview"` to see the assembled enclosure with ghosted components. Use
 layout and section renders. Always pass `-D 'part="none"'` so the model's own
 preview isn't drawn too:
 
+Three scripts regenerate everything in `exports/`. Run them from the
+repository root:
+
 ```powershell
-$v = "hardware\enclosures\yellow_handle_views.scad"
-& $scad --backend=manifold -D 'part="none"' -D 'view="layout_iso"' --camera=0,0,0,70,0,-20,0 --viewall --autocenter --imgsize=1400,1050 -o layout_back.png $v
-& $scad --backend=manifold -D 'part="none"' -D 'view="plan"' --camera=0,0,0,0,180,0,0 --projection=o --viewall --autocenter --imgsize=1400,1200 -o layout_plan.png $v
-& $scad --backend=manifold --render -D 'part="none"' -D 'view="section_y"' --camera=0,0,0,90,0,180,0 --projection=o --viewall --autocenter --imgsize=1400,700 -o section_y0.png $v
-& $scad --backend=manifold --render -D 'part="none"' -D 'view="section_x"' --camera=0,0,0,90,0,90,0 --projection=o --viewall --autocenter --imgsize=1400,700 -o section_x0.png $v
+# All PNG renders, each with a fixed camera.
+powershell -File hardware\enclosures\render_exports.ps1
+
+# STEP files: render STLs, then convert them (needs `pip install cadquery-ocp`).
+& $scad --backend=manifold -o front.stl -D 'part="front"' hardware\enclosures\yellow_handle.scad
+& $scad --backend=manifold -o back.stl  -D 'part="back"'  hardware\enclosures\yellow_handle.scad
+python hardware\enclosures\stl_to_step.py front.stl hardware\enclosures\exports\yellow_handle_front.step back.stl hardware\enclosures\exports\yellow_handle_back.step
+
+# 1:1 printable fit-check PDF (needs `pip install reportlab`).
+python hardware\enclosures\make_fit_check_pdf.py
 ```
 
-Other views: `front_layout`, `back_out`, `back_in`, `assembled`.
+Views in `yellow_handle_views.scad`: `assembled`, `front_out`, `front_in`,
+`back_out`, `back_in`, `layout_iso`, `front_layout`, `plan`, `section_y`,
+`section_x`.
+
+## Printable fit check
+
+`exports/yellow_handle_fit_check.pdf` is a six-page US Letter set drawn at
+**exactly 1:1** from the model's own 2D sections. Print it at **100% /
+Actual size** with "fit to page" turned off. Then measure the 100 mm and
+4 in bars on every page; if they are off, the printer scaled the page.
+
+1. Front face, outside: overall outline, screen window, speaker dish and
+   slots, mic hole, and the bezel.
+2. Front shell, inside: lay the MaTouch, speaker, and INMP441 on their
+   outlines and the display-hole crosshairs.
+3. Back shell, inside: battery tray, TP4057 cradle, MAX98357A standoffs, and
+   the KCD1 cutout.
+4. Back face, outside: switch well and screw counterbores.
+5. Bottom-wall section with the USB-C opening, and the side profile.
+6. Component templates for every assumed part size, labeled with the
+   parameter to change if the real part doesn't match.
+
+Paper checks outlines and hole patterns only, not depths. Print a thin test
+slice of the shell before printing it in full.
 
 ## Printing notes
 
@@ -149,6 +219,7 @@ current SCAD parameters:
   cross-sections showing component depths
 - `yellow_handle_front.step`, `yellow_handle_back.step`,
   `yellow_handle_bezel.step`
+- `yellow_handle_fit_check.pdf`: 1:1 printable fit check (see above)
 
 OpenSCAD cannot write STEP files. These were converted from the rendered STL
 meshes with OpenCascade (`cadquery-ocp`):
@@ -179,7 +250,7 @@ battery to TP4057 B+/B-, and verify the pad labels on the board in hand.
 ## Fit status and measurements to replace
 
 The repository has no dimensioned mechanical drawing for the MaTouch PCB,
-and the MAX, INA, charger, and battery dimensions are not established. The
+and the MAX, charger, and battery dimensions are not established. The
 interfaces use editable placeholder values. Do not print a fit-critical
 enclosure until the parts are measured and the parameters are updated.
 
@@ -198,7 +269,7 @@ Measure and update:
   the solder joints underneath.
 - **503450 battery:** the bay uses seller dimensions (34 x 50 x 5). Confirm
   the fit, including the protection-circuit end and the lead bend radius.
-- **MAX and INA boards:** mounting-hole pitch, board outline
+- **MAX98357A board:** mounting-hole pitch, board outline
   (`pcb_board_margin`), and component height. The standoffs assume the
   display stack is no deeper than `display_stack_depth` (placeholder 8 mm).
 - **KCD1 switch:** KCD1 dimensions vary by maker. The model uses typical
@@ -209,7 +280,15 @@ Measure and update:
 - **Display inserts:** choose an M3 heat-set insert, then measure its pilot
   diameter and length. Confirm the 8 mm screw length and adjust engagement
   after measuring the PCB thickness and mount height.
-- **Speaker:** housing depth (placeholder 4 mm) and wire exit direction.
+- **Speaker:** housing depth (`speaker_depth`, placeholder 4 mm), the tab
+  size (`speaker_tab_*`), and the frame width around the cone
+  (`speaker_cone_inset`). The 15 x 10 mm oval and the tab on one end come
+  from the supplied photo.
+- **INMP441:** port position relative to the board center (`mic_port_offset`,
+  placeholder [0, 0]), the gasket and pin-stub stack
+  (`mic_underside_clearance`), and the solder-pad ring that the ledge may
+  touch (`mic_ledge_inner_diameter`). The 14 mm diameter and 12 mm flats
+  come from the supplied photo.
 - **Envelope and fasteners:** check the overall envelope and handle against a
   child's grip and your print bed, and tune the screw, boss, and clearance
   parameters to your printer and fasteners.

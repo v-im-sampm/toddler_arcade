@@ -109,22 +109,36 @@ usb_c_plug_recess_width = 12.8;
 usb_c_plug_recess_height = 7.2;
 usb_c_lip_thickness = 0.8;
 
-// Speaker mount and grille; the supplied speaker image labels the speaker as 15 x 10 mm.
-// Model x runs toward the viewer's left when facing the screen, so negative x is on the right.
+// Speaker: 15 x 10 mm oval (stadium) micro speaker with a mounting tab on one end and an
+// 80 mm twisted lead, per the supplied image. It faces the front, stood upright (long axis
+// along y). Model x runs toward the viewer's left when facing the screen, so negative x is
+// on the right.
+// Acoustics: a tiny driver loses most of its output when the rear wave leaks around the rim
+// and cancels the front wave. A gasket seals the rim to the front skin so the case interior
+// becomes the back box, a shallow front chamber spans the whole cone, the slots give at
+// least ~50% open area over the cone, and a flared dish on the face acts as a short
+// waveguide that eases the sound out and broadens it toward the child.
 speaker_center_x = -45;
 speaker_center_y = 0;
-speaker_width = 15;
-speaker_height = 10;
+speaker_width = 10; // Short axis, along x.
+speaker_height = 15; // Long axis, along y.
 speaker_depth = 4; // Placeholder: measure the speaker housing including its wire exit.
-speaker_clearance = 0.5;
+speaker_tab_length = 3; // Placeholder: tab beyond the oval at the +y end.
+speaker_tab_width = 5; // Placeholder.
+speaker_tab_thickness = 0.5; // Placeholder.
+speaker_cone_inset = 1; // Placeholder: frame width around the radiating cone.
+speaker_gasket_thickness = 0.5; // Double-sided foam ring that seals the rim and holds it.
+speaker_clearance = 0.3;
 speaker_retainer_thickness = 1.2;
-speaker_retainer_depth = speaker_depth + speaker_clearance;
-speaker_grille_slot_length = 12;
-speaker_grille_slot_width = 1.6;
-speaker_grille_slot_count = 4;
-speaker_grille_pitch = 3;
+speaker_retainer_depth = speaker_gasket_thickness + speaker_depth;
+speaker_wire_notch_width = 5; // Lead exit at the -y end of the retainer.
+speaker_front_chamber_depth = 0.6; // Recess in the skin over the cone, linking every slot.
+speaker_grille_slot_width = 1.6; // Small enough to keep fingers and pencils off the cone.
+speaker_grille_bar_width = 1.0;
+speaker_dish_depth = 0.8; // Flared mouth recessed into the face.
+speaker_dish_flare = 3; // Mouth grows by this much per side from the cone opening.
 
-// Rear-shell board mounts behind the display; board outlines and hole pitches are editable
+// Rear-shell MAX98357A mount behind the display; board outline and hole pitch are editable
 // placeholders. Board outline = hole pitch + 2 * pcb_board_margin.
 pcb_standoff_height = 4.2;
 pcb_standoff_diameter = 5.2;
@@ -133,8 +147,28 @@ pcb_thickness = 1.6;
 pcb_board_margin = 2.5; // Placeholder hole-center-to-edge distance.
 max_board_center = [-15, 20];
 max_hole_pitch = [18, 13];
-ina_board_center = [-15, -6];
-ina_hole_pitch = [20, 15];
+
+// Microphone: INMP441 I2S MEMS breakout (the "INA" module), 14 mm round with flats 12 mm
+// apart and a ~1 mm PCB per the supplied image. The INMP441 is bottom-ported: its sound
+// hole goes through the PCB under the mic can. The board sits flat in a front-shell pocket
+// opposite the speaker (far from it, to limit echo pickup), with the pinhole side facing a
+// small hole in the front face and a foam gasket ring sealing between them.
+mic_center = [45, 0]; // Viewer's left, mirroring the speaker.
+mic_board_diameter = 14;
+mic_board_flat_width = 12;
+mic_pcb_thickness = 1.0;
+mic_port_offset = [0, 0]; // Port (under the mic can) relative to board center. Placeholder.
+mic_underside_clearance = 1.6; // Trimmed pin stubs + compressed foam gasket. Placeholder.
+mic_header_height = 9; // Header pins and wires above the board, for clearance checks.
+mic_hole_diameter = 2.0;
+mic_dot_diameter = 5; // Shallow countersunk "mic dot" around the hole on the front face.
+mic_dot_depth = 0.6;
+mic_pocket_clearance = 0.3;
+mic_pocket_wall = 1.2;
+// Ledge under the board's round edge sets the gasket squeeze; keep it outside the pin pads.
+mic_ledge_inner_diameter = 12.4; // Placeholder: check against the pad ring on the board.
+mic_wire_notch_width = 8;
+mic_wire_notch_angle = 180; // Pry/wire notch direction; 180 points toward the display.
 
 // Power switch: KCD1-101 style snap-in mini rocker. Values are typical listing/datasheet
 // figures that vary by maker; measure the switch in hand. It sits in a recessed well in the
@@ -186,7 +220,7 @@ battery_lead_notch_width = 12;
 // pouch, leaving room for a thin foam pad.
 battery_hold_down_gap = 1.5;
 // Ribs [center x, center y, size x, size y]; they must miss the display board footprint.
-battery_hold_down_ribs = [[37, -6, 2, 12], [37, 18, 2, 12], [37, 29.5, 2, 2]];
+battery_hold_down_ribs = [[37, -13.5, 2, 7], [37, 18, 2, 12], [37, 29.5, 2, 2]];
 
 fuse = 0.4; // Overlap so internal features merge with the shell skin.
 front_skin = wall;
@@ -218,7 +252,21 @@ switch_panel_front_z = switch_panel_back_z - switch_panel_thickness;
 switch_body_front_z = switch_panel_front_z - switch_below_panel_depth;
 pcb_board_back_z = inside_back_z - pcb_standoff_height;
 max_board_size = max_hole_pitch + [2, 2] * pcb_board_margin;
-ina_board_size = ina_hole_pitch + [2, 2] * pcb_board_margin;
+mic_pocket_inner_diameter = mic_board_diameter + 2 * mic_pocket_clearance;
+mic_pocket_outer_diameter = mic_pocket_inner_diameter + 2 * mic_pocket_wall;
+mic_board_front_z = front_skin + mic_underside_clearance;
+mic_pocket_top_z = mic_board_front_z + mic_pcb_thickness;
+mic_port_center = mic_center + mic_port_offset;
+speaker_cone_width = speaker_width - 2 * speaker_cone_inset;
+speaker_cone_height = speaker_height - 2 * speaker_cone_inset;
+speaker_mouth_width = speaker_cone_width + 2 * speaker_dish_flare;
+speaker_mouth_height = speaker_cone_height + 2 * speaker_dish_flare;
+speaker_grille_pitch = speaker_grille_slot_width + speaker_grille_bar_width;
+speaker_grille_slot_count = floor((speaker_cone_width + speaker_grille_bar_width) / speaker_grille_pitch);
+speaker_grille_bar_thickness = front_skin - speaker_dish_depth - speaker_front_chamber_depth;
+speaker_retainer_outer_width = speaker_width + 2 * (speaker_clearance + speaker_retainer_thickness);
+speaker_retainer_outer_height =
+    speaker_height + speaker_tab_length + 2 * (speaker_clearance + speaker_retainer_thickness);
 display_stack_back_z = front_skin + display_lip_depth + display_stack_depth;
 display_mount_top_z = display_stack_back_z - display_pcb_thickness;
 
@@ -437,28 +485,77 @@ module display_lip() {
     }
 }
 
+module stadium_2d(width, height) rounded_rect_2d(width, height, min(width, height) / 2);
+
+// Acoustic opening: flared dish on the face, slotted grille bars, and a front chamber
+// behind the bars that spans the whole cone.
 module speaker_grille() {
-    for (i = [0 : speaker_grille_slot_count - 1]) {
-        y = speaker_center_y + (i - (speaker_grille_slot_count - 1) / 2) * speaker_grille_pitch;
-        translate([speaker_center_x, y, -1])
+    translate([speaker_center_x, speaker_center_y, 0]) {
+        hull() {
+            translate([0, 0, -0.01])
+                linear_extrude(height = 0.01) stadium_2d(speaker_mouth_width, speaker_mouth_height);
+            translate([0, 0, speaker_dish_depth])
+                linear_extrude(height = 0.01) stadium_2d(speaker_cone_width, speaker_cone_height);
+        }
+        translate([0, 0, -1])
             linear_extrude(height = front_skin + 2)
-                rounded_rect_2d(
-                    speaker_grille_slot_length,
-                    speaker_grille_slot_width,
-                    speaker_grille_slot_width / 2
-                );
+                intersection() {
+                    stadium_2d(speaker_cone_width, speaker_cone_height);
+                    for (i = [0 : speaker_grille_slot_count - 1])
+                        translate([(i - (speaker_grille_slot_count - 1) / 2) * speaker_grille_pitch, 0])
+                            square([speaker_grille_slot_width, speaker_cone_height + 2], center = true);
+                }
+        translate([0, 0, front_skin - speaker_front_chamber_depth])
+            linear_extrude(height = speaker_front_chamber_depth + 0.01)
+                stadium_2d(speaker_cone_width, speaker_cone_height);
     }
 }
 
+module speaker_outline_2d(grow) {
+    stadium_2d(speaker_width + 2 * grow, speaker_height + 2 * grow);
+    translate([0, speaker_height / 2 + speaker_tab_length / 2 - 0.5])
+        square([speaker_tab_width + 2 * grow, speaker_tab_length + 1 + 2 * grow], center = true);
+}
+
+// Snug wall around the oval and tab; the gasket under the rim does the sealing.
 module speaker_retainer() {
-    outer_w = speaker_width + 2 * speaker_clearance + 2 * speaker_retainer_thickness;
-    outer_h = speaker_height + 2 * speaker_clearance + 2 * speaker_retainer_thickness;
     translate([speaker_center_x, speaker_center_y, front_skin - fuse])
         linear_extrude(height = speaker_retainer_depth + fuse)
             difference() {
-                square([outer_w, outer_h], center = true);
-                square([outer_w - 2 * speaker_retainer_thickness, outer_h - 2 * speaker_retainer_thickness], center = true);
+                speaker_outline_2d(speaker_clearance + speaker_retainer_thickness);
+                speaker_outline_2d(speaker_clearance);
+                translate([0, -speaker_height / 2])
+                    square([speaker_wire_notch_width, 4 * speaker_retainer_thickness], center = true);
             }
+}
+
+// Locating ring and edge ledge for the mic board, with a pry/wire notch.
+module mic_pocket() {
+    module notch() rotate(mic_wire_notch_angle)
+        translate([0, -mic_wire_notch_width / 2]) square([mic_pocket_outer_diameter, mic_wire_notch_width]);
+    translate([mic_center[0], mic_center[1], front_skin - fuse]) {
+        linear_extrude(height = mic_pocket_top_z - front_skin + fuse)
+            difference() {
+                circle(d = mic_pocket_outer_diameter);
+                circle(d = mic_pocket_inner_diameter);
+                notch();
+            }
+        linear_extrude(height = mic_board_front_z - front_skin + fuse)
+            difference() {
+                circle(d = mic_pocket_inner_diameter + 0.1);
+                circle(d = mic_ledge_inner_diameter);
+                notch();
+            }
+    }
+}
+
+module mic_port_cut() {
+    translate([mic_port_center[0], mic_port_center[1], 0]) {
+        translate([0, 0, -1])
+            cylinder(h = front_skin + 2, d = mic_hole_diameter);
+        translate([0, 0, -0.01])
+            cylinder(h = mic_dot_depth + 0.01, d1 = mic_dot_diameter + 2 * mic_dot_depth, d2 = mic_dot_diameter);
+    }
 }
 
 module usb_c_cutout() {
@@ -670,8 +767,10 @@ module display_module_ghost() {
 }
 
 module speaker_ghost() {
-    translate([speaker_center_x, speaker_center_y, front_skin + speaker_depth / 2])
-        cube([speaker_width, speaker_height, speaker_depth], center = true);
+    translate([speaker_center_x, speaker_center_y, front_skin + speaker_gasket_thickness]) {
+        linear_extrude(height = speaker_depth) stadium_2d(speaker_width, speaker_height);
+        linear_extrude(height = speaker_tab_thickness) speaker_outline_2d(0);
+    }
 }
 
 module board_ghost(center, size) {
@@ -680,7 +779,23 @@ module board_ghost(center, size) {
 }
 
 module max_ghost() board_ghost(max_board_center, max_board_size);
-module ina_ghost() board_ghost(ina_board_center, ina_board_size);
+module mic_ghost() {
+    translate([mic_center[0], mic_center[1], mic_board_front_z])
+        linear_extrude(height = mic_pcb_thickness)
+            intersection() {
+                circle(d = mic_board_diameter);
+                square([mic_board_flat_width, mic_board_diameter], center = true);
+            }
+    // Foam gasket ring between the PCB pinhole side and the front skin.
+    translate([mic_port_center[0], mic_port_center[1], front_skin])
+        linear_extrude(height = mic_underside_clearance)
+            difference() { circle(d = 6); circle(d = 3); }
+    // Mic can (inward side) plus header pins and wires.
+    translate([mic_port_center[0], mic_port_center[1], mic_pocket_top_z + 0.5])
+        cube([4, 3, 1], center = true);
+    translate([mic_center[0] - 4, mic_center[1] - 5, mic_pocket_top_z])
+        cube([8, 10, mic_header_height]);
+}
 
 module switch_ghost() {
     translate([switch_center[0], switch_center[1], 0]) {
@@ -709,7 +824,7 @@ module components() {
     color("#2E8B57") charger_ghost();
     color("#D9534F") speaker_ghost();
     color("#1F77B4") max_ghost();
-    color("#17BECF") ina_ghost();
+    color("#17BECF") mic_ghost();
     color("#E377C2") switch_ghost();
 }
 
@@ -749,6 +864,7 @@ module front_shell(with_bumpers = true) {
                     display_lip();
                     display_mount_bosses();
                     speaker_retainer();
+                    mic_pocket();
                     front_case_bosses();
                     battery_hold_down();
                 }
@@ -759,6 +875,7 @@ module front_shell(with_bumpers = true) {
             linear_extrude(height = front_skin + 2)
                 rounded_rect_2d(screen_window_width, screen_window_height, screen_window_radius);
         speaker_grille();
+        mic_port_cut();
         if (bezel_separate)
             translate([0, 0, -1])
                 linear_extrude(height = 1 + bezel_pocket_depth)
@@ -779,7 +896,6 @@ module back_shell(with_bumpers = true) {
                     seam_lip();
                     back_case_bosses();
                     pcb_standoffs(max_board_center, max_hole_pitch);
-                    pcb_standoffs(ina_board_center, ina_hole_pitch);
                     charger_cradle();
                     battery_tray();
                     switch_well_body();
@@ -862,9 +978,17 @@ assert(
     "Bezel runs onto the rounded front edge"
 );
 assert(
-    abs(speaker_center_x) + speaker_grille_slot_length / 2 < flat_x
-        && abs(speaker_center_x - screen_center_x) - speaker_grille_slot_length / 2 > bezel_outer_width / 2,
-    "Speaker grille overlaps the bezel or the rounded edge"
+    abs(speaker_center_x) + speaker_mouth_width / 2 < flat_x
+        && abs(speaker_center_y) + speaker_mouth_height / 2 < flat_y
+        && abs(speaker_center_x - screen_center_x) - speaker_mouth_width / 2 > bezel_outer_width / 2,
+    "Speaker dish overlaps the bezel or the rounded edge"
+);
+assert(speaker_grille_bar_thickness >= 0.8, "Speaker grille bars are too thin; reduce dish or chamber depth");
+assert(speaker_grille_slot_count >= 2, "Speaker cone is too narrow for the grille slots");
+assert(
+    speaker_grille_slot_count * speaker_grille_slot_width * (speaker_cone_height - 2)
+        >= 0.45 * speaker_cone_width * speaker_cone_height,
+    "Speaker grille open area is too small for the cone"
 );
 assert(
     handle_opening_width + 2 * (handle_flare_radius + handle_edge_radius) < handle_width,
@@ -872,14 +996,23 @@ assert(
 );
 
 max_rect = centered_rect(max_board_center, max_board_size[0], max_board_size[1]);
-ina_rect = centered_rect(ina_board_center, ina_board_size[0], ina_board_size[1]);
 switch_body_rect = centered_rect(switch_center, switch_cutout_x, switch_cutout_y);
 switch_well_rect = centered_rect(
     switch_center,
     switch_well_width + 2 * switch_well_wall,
     switch_well_height + 2 * switch_well_wall
 );
-speaker_rect = centered_rect([speaker_center_x, speaker_center_y], speaker_width, speaker_height);
+speaker_rect = [
+    speaker_center_x - speaker_retainer_outer_width / 2,
+    speaker_center_y - speaker_height / 2 - speaker_clearance - speaker_retainer_thickness,
+    speaker_center_x + speaker_retainer_outer_width / 2,
+    speaker_center_y - speaker_height / 2 - speaker_clearance - speaker_retainer_thickness + speaker_retainer_outer_height
+];
+for (x = fastener_x_positions, y = fastener_y_positions)
+    assert(
+        !rects_overlap(speaker_rect, centered_rect([x, y], case_screw_boss_diameter, case_screw_boss_diameter)),
+        "Speaker retainer hits a case screw boss"
+    );
 display_mount_height = display_mount_top_z - front_skin;
 assert(display_board_edge_margin > 0, "Display board edge margin must be positive");
 assert(
@@ -923,12 +1056,41 @@ for (
             "Display mount overlaps a case screw boss"
         );
 }
-for (b = [max_rect, ina_rect]) {
-    assert(!rects_overlap(b, battery_tray_rect), "MAX/INA board overlaps the battery tray");
-    assert(!rects_overlap(b, charger_rect), "MAX/INA board overlaps the charger cradle");
-    assert(!rects_overlap(b, switch_well_rect), "MAX/INA board overlaps the switch well");
-}
-assert(!rects_overlap(max_rect, ina_rect), "MAX and INA boards overlap");
+assert(!rects_overlap(max_rect, battery_tray_rect), "MAX board overlaps the battery tray");
+assert(!rects_overlap(max_rect, charger_rect), "MAX board overlaps the charger cradle");
+assert(!rects_overlap(max_rect, switch_well_rect), "MAX board overlaps the switch well");
+
+mic_rect = centered_rect(mic_center, mic_pocket_outer_diameter, mic_pocket_outer_diameter);
+assert(
+    abs(mic_port_center[0]) + mic_dot_diameter / 2 + mic_dot_depth < flat_x
+        && abs(mic_port_center[1]) + mic_dot_diameter / 2 + mic_dot_depth < flat_y,
+    "Mic hole runs onto the rounded front edge"
+);
+assert(
+    norm(mic_port_offset) + mic_hole_diameter / 2 < mic_board_diameter / 2 - 1,
+    "Mic port offset puts the hole outside the board"
+);
+assert(
+    mic_ledge_inner_diameter < mic_board_diameter - 1 && mic_ledge_inner_diameter > norm(mic_port_offset) * 2 + 6,
+    "Mic ledge must sit under the board edge and clear the gasket"
+);
+assert(!rects_overlap(mic_rect, display_rect), "Mic pocket hits the display board footprint");
+assert(!rects_overlap(mic_rect, speaker_rect), "Mic pocket hits the speaker");
+for (r = battery_hold_down_ribs)
+    assert(
+        !rects_overlap(mic_rect, centered_rect([r[0], r[1]], r[2], r[3])),
+        "Mic pocket overlaps a battery hold-down rib"
+    );
+for (x = fastener_x_positions, y = fastener_y_positions)
+    assert(
+        !rects_overlap(mic_rect, centered_rect([x, y], case_screw_boss_diameter, case_screw_boss_diameter)),
+        "Mic pocket hits a case screw boss"
+    );
+assert(mic_pocket_top_z < seam_z, "Mic pocket is taller than the front shell");
+assert(
+    mic_pocket_top_z + mic_header_height < battery_top_z - battery_hold_down_gap,
+    "Mic header and wires hit the battery"
+);
 assert(
     pcb_board_back_z - pcb_thickness - 3 > display_stack_back_z,
     "Rear boards (with ~3 mm of parts) hit the display stack"

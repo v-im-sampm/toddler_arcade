@@ -30,4 +30,9 @@ The MaTouch display uses four M3 insert mounts based on the supplied
 dimensioned image (54.5 x 60.3 mm portrait hole pitch, rotated for the
 landscape case). The PCB outline, revision, and insert dimensions still need
 physical confirmation. A 1S cell needs a 5 V boost converter to feed MaTouch
-VBUS; the converter and 5 V entry point are TBD. See the enclosure README.
+VBUS; the converter and 5 V entry point are TBD. The INMP441 mic sits in a
+front-shell pocket behind a 2 mm port. It is bottom-ported, so its pinhole
+side faces the front with a foam gasket. The 1 W speaker is gasket-sealed
+behind a slotted, flared grille so the case acts as its back box. A 1:1
+printable fit-check PDF is in `hardware/enclosures/exports/`. See the
+enclosure README.
