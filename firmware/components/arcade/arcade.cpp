@@ -3,6 +3,7 @@
 #include "little_arcade/games/color_pop_art.hpp"
 #include "little_arcade/games/hatch_a_pet_art.hpp"
 #include "little_arcade/games/rainbow_piano_art.hpp"
+#include "little_arcade/games/robo_buddy_art.hpp"
 #include "little_arcade/ui/palette.hpp"
 
 namespace little_arcade {
@@ -15,6 +16,7 @@ namespace pal = ui::palette;
 ui::ArgbImage g_color_pop_tile;
 ui::ArgbImage g_hatch_a_pet_tile;
 ui::ArgbImage g_rainbow_piano_tile;
+ui::ArgbImage g_robo_buddy_tile;
 
 ui::TileArt tile_art(GameId id) {
   switch (id) {
@@ -24,6 +26,8 @@ ui::TileArt tile_art(GameId id) {
       return {g_hatch_a_pet_tile.ready() ? g_hatch_a_pet_tile.dsc() : nullptr, pal::kTileEgg};
     case GameId::RAINBOW_PIANO:
       return {g_rainbow_piano_tile.ready() ? g_rainbow_piano_tile.dsc() : nullptr, pal::kTilePiano};
+    case GameId::ROBO_BUDDY:
+      return {g_robo_buddy_tile.ready() ? g_robo_buddy_tile.dsc() : nullptr, 0xD4F3F0};
     default:
       return {};
   }
@@ -57,7 +61,8 @@ SceneManager::Config config_for(uint32_t seed) {
 Arcade::Arcade(IFeedback& feedback, uint32_t seed, uint8_t volume_level)
     : entries_{{GameId::COLOR_POP, Intent::COLORS, &color_pop_},
                 {GameId::HATCH_A_PET, Intent::EGGS, &hatch_a_pet_},
-                {GameId::RAINBOW_PIANO, Intent::MUSIC, &rainbow_piano_}},
+                {GameId::RAINBOW_PIANO, Intent::MUSIC, &rainbow_piano_},
+                {GameId::ROBO_BUDDY, Intent::ROBOT, &robo_buddy_}},
       feedback_(feedback),
       scenes_(entries_, kGameCount, feedback, config_for(seed)),
       gate_(seed, volume_level) {
@@ -77,13 +82,18 @@ void Arcade::create(lv_obj_t* screen) {
     ui::Canvas c = g_rainbow_piano_tile.canvas();
     rainbow_piano::art::paint_tile_art(c);
   }
+  if (g_robo_buddy_tile.allocate(robo_buddy::art::kTileW, robo_buddy::art::kTileH)) {
+    ui::Canvas c = g_robo_buddy_tile.canvas();
+    robo_buddy::art::paint_tile_art(c);
+  }
 
   lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
-  for (int i = 1; i < 5; ++i) layers_[i] = full_screen(screen);  // [0] = Layer::NONE
+  for (int i = 1; i < 6; ++i) layers_[i] = full_screen(screen);  // [0] = Layer::NONE
   launcher_.create(layers_[static_cast<int>(Layer::MENU)], tile_art);
   color_view_.create(layers_[static_cast<int>(Layer::COLOR_POP)]);
   hatch_view_.create(layers_[static_cast<int>(Layer::HATCH_A_PET)]);
   rainbow_piano_view_.create(layers_[static_cast<int>(Layer::RAINBOW_PIANO)]);
+  robo_buddy_view_.create(layers_[static_cast<int>(Layer::ROBO_BUDDY)]);
   chrome_.create(screen);  // above every layer
 
   // Sleep: dim everything; the next tap wakes (and is consumed).
@@ -112,6 +122,7 @@ Arcade::Layer Arcade::wanted_layer() const {
     case GameId::COLOR_POP: return Layer::COLOR_POP;
     case GameId::HATCH_A_PET: return Layer::HATCH_A_PET;
     case GameId::RAINBOW_PIANO: return Layer::RAINBOW_PIANO;
+    case GameId::ROBO_BUDDY: return Layer::ROBO_BUDDY;
     default: return Layer::MENU;
   }
 }
@@ -126,6 +137,7 @@ void Arcade::show_layer(Layer layer) {
   if (layer == Layer::COLOR_POP) color_view_.reset();
   if (layer == Layer::HATCH_A_PET) hatch_view_.reset();
   if (layer == Layer::RAINBOW_PIANO) rainbow_piano_view_.reset();
+  if (layer == Layer::ROBO_BUDDY) robo_buddy_view_.reset();
 }
 
 void Arcade::tick(uint32_t now_ms) {
@@ -145,6 +157,7 @@ void Arcade::tick(uint32_t now_ms) {
     case Layer::COLOR_POP: color_view_.sync(color_pop_, now_ms); break;
     case Layer::HATCH_A_PET: hatch_view_.sync(hatch_a_pet_, now_ms); break;
     case Layer::RAINBOW_PIANO: rainbow_piano_view_.sync(rainbow_piano_); break;
+    case Layer::ROBO_BUDDY: robo_buddy_view_.sync(robo_buddy_, now_ms); break;
     case Layer::NONE: break;
   }
   scenes_.set_audio_enabled(gate_.level() > 0);

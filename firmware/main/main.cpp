@@ -81,6 +81,7 @@ const char* layer_name(Arcade::Layer l) {
     case Arcade::Layer::COLOR_POP: return "color_pop";
     case Arcade::Layer::HATCH_A_PET: return "hatch_a_pet";
     case Arcade::Layer::RAINBOW_PIANO: return "rainbow_piano";
+    case Arcade::Layer::ROBO_BUDDY: return "robo_buddy";
     case Arcade::Layer::NONE: break;
   }
   return "none";

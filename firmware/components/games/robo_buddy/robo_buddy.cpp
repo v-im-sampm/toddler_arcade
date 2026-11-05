@@ -145,7 +145,7 @@ void RoboBuddyGame::go_to_sleep() {
   hint_ms_ = 0;
   dancing_ = false;
   ctx_->feedback.play(Cue::REACTION, static_cast<uint8_t>(Mood::SLEEPY));
-  ctx_->feedback.play(Cue::AMBIENT, 0);  // soft snore loop; Z bubbles are the visual
+  ctx_->feedback.play(Cue::AMBIENT, 0);  // one soft snore cue; Z bubbles carry the ongoing sleep visual
 }
 
 void RoboBuddyGame::wake_up() {

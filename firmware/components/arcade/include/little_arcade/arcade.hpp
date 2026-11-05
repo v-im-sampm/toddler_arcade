@@ -7,6 +7,8 @@
 #include "little_arcade/games/hatch_a_pet_view.hpp"
 #include "little_arcade/games/rainbow_piano.hpp"
 #include "little_arcade/games/rainbow_piano_view.hpp"
+#include "little_arcade/games/robo_buddy.hpp"
+#include "little_arcade/games/robo_buddy_view.hpp"
 #include "little_arcade/parent_view.hpp"
 #include "little_arcade/scene_manager.hpp"
 #include "little_arcade/settings/parent_gate.hpp"
@@ -21,7 +23,7 @@ namespace little_arcade {
 // scene. Only the visible layer is synced each frame. Runs on the UI task.
 class Arcade {
  public:
-  enum class Layer : uint8_t { NONE, MENU, COLOR_POP, HATCH_A_PET, RAINBOW_PIANO };
+  enum class Layer : uint8_t { NONE, MENU, COLOR_POP, HATCH_A_PET, RAINBOW_PIANO, ROBO_BUDDY };
 
   // `volume_level` is the parent-saved level (0 = muted, the default).
   Arcade(IFeedback& feedback, uint32_t seed, uint8_t volume_level = 0);
@@ -51,9 +53,10 @@ class Arcade {
   const hatch_a_pet::HatchAPetGame& hatch_a_pet() const { return hatch_a_pet_; }
   const hatch_a_pet::HatchAPetView& hatch_a_pet_view() const { return hatch_view_; }
   const rainbow_piano::RainbowPianoGame& rainbow_piano() const { return rainbow_piano_; }
+  const robo_buddy::RoboBuddyGame& robo_buddy() const { return robo_buddy_; }
 
  private:
-  static constexpr std::size_t kGameCount = 3;
+  static constexpr std::size_t kGameCount = 4;
 
   Layer wanted_layer() const;
   void show_layer(Layer layer);
@@ -61,6 +64,7 @@ class Arcade {
   color_pop::ColorPopGame color_pop_;
   hatch_a_pet::HatchAPetGame hatch_a_pet_;
   rainbow_piano::RainbowPianoGame rainbow_piano_;
+  robo_buddy::RoboBuddyGame robo_buddy_;
   GameEntry entries_[kGameCount];
   IFeedback& feedback_;
   SceneManager scenes_;
@@ -71,8 +75,9 @@ class Arcade {
   color_pop::ColorPopView color_view_;
   hatch_a_pet::HatchAPetView hatch_view_;
   rainbow_piano::RainbowPianoView rainbow_piano_view_;
+  robo_buddy::RoboBuddyView robo_buddy_view_;
   ui::ChromeView chrome_;
-  lv_obj_t* layers_[5]{};
+  lv_obj_t* layers_[6]{};
   lv_obj_t* sleep_overlay_ = nullptr;
   Layer shown_ = Layer::NONE;
   bool sleeping_ = false;

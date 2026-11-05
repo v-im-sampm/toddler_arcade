@@ -40,6 +40,20 @@
       "source": "firmware/components/audio/sound_bank.cpp",
       "status": "implemented"
     },
+    { "id": "common.tap", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "robo_buddy.robot", "kind": "procedural_image", "source": "firmware/components/games/robo_buddy/view/robo_buddy_view.cpp", "status": "implemented" },
+    { "id": "robo_buddy.tile", "kind": "procedural_image", "source": "firmware/components/games/robo_buddy/include/little_arcade/games/robo_buddy_art.hpp", "status": "implemented" },
+    { "id": "robo_buddy.prompt.play", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "robo_buddy.prompt.wake", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "robo_buddy.chirp.happy", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "robo_buddy.chirp.silly", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "robo_buddy.chirp.yummy", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "robo_buddy.chirp.sleepy", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "robo_buddy.chirp.wake", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "robo_buddy.beep.0", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "robo_buddy.beep.1", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "robo_buddy.beep.2", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "robo_buddy.snore", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
     {
       "id": "common.celebrate",
       "kind": "procedural_sound",
@@ -47,5 +61,5 @@
       "status": "implemented"
     }
   ],
-  "note": "Rainbow Piano sounds are original synthesized cues; no recorded samples or network assets."
+  "note": "Rainbow Piano and Robo Buddy sounds and art are original procedural cues; no recorded samples or network assets. Spoken Robo Buddy prompts are not included."
 }

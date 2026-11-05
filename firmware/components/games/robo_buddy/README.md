@@ -1,14 +1,13 @@
 # Robo Buddy (G04)
 
-Spec: [games/robo_buddy.md](../../../../games/robo_buddy.md). Status: **host only: scene logic and host tests**.
-There is no LVGL view yet and there are no assets yet. It has not run on a device.
+Spec: [games/robo_buddy.md](../../../../games/robo_buddy.md). Status: **scene logic, original LVGL view, host tests, and launcher integration implemented**. It has not been validated on physical hardware.
 
 ## Character
-"Bolt" is an original robot design. It has a round teal body, one bendy antenna, two big round screen-eyes, a belly dial and stubby spring arms. It isn't based on any existing character.
+"Bolt" is an original robot design. It has a round teal body, one bendy antenna, two big round screen-eyes, a belly dial and stubby spring arms. It isn't based on any existing character. The view and launcher tile are procedural and use no external assets.
 
 ## Behaviour
 - **States:** INTRO (1.5 s, the robot powers on and waves; any input skips it) → PLAY → CELEBRATE (reaction, 1.2 s, or a dance, 2 s) → PLAY. There is also an in-game **SLEEP** nap state: PLAY → SLEEP → (wake) CELEBRATE → PLAY. The SceneManager handles PAUSED and EXIT. This nap has nothing to do with the system sleep.
-- **Moods:** each mood has a distinct face *shape*, so you can tell them apart without colour or audio:
+- **Moods:** each mood has a distinct face shape, so you can tell them apart without colour or audio:
   - CALM: round eyes and a small smile.
   - HAPPY: crescent eyes and the antenna bobs. Pet the head.
   - SILLY: a wink, a tongue and a wobble. Tickle the belly.
@@ -46,17 +45,19 @@ There is no LVGL view yet and there are no assets yet. It has not run on a devic
 | Hint and replay prompt | tap hello button | HELP |
 | Home | Home button (SceneManager) | BACK (SceneManager) |
 
-## Cue → asset placeholders (to be declared in `assets/manifest.json`)
-| Cue | Variant | Placeholder asset id | Visual counterpart |
+## Cue → asset mapping
+| Cue | Variant | Asset id | Visual counterpart |
 |---|---|---|---|
-| PROMPT | 0 | `robo_buddy.prompt.play` | action icons pulse (hint) |
-| PROMPT | 1 | `robo_buddy.prompt.wake` | robot glows softly (hint) |
-| TAP | 0 | `common.tap` | pressed target squashes |
+| PROMPT | 0 | `robo_buddy.prompt.play` | action buttons outline during a hint |
+| PROMPT | 1 | `robo_buddy.prompt.wake` | sleep controls outline during a hint |
+| TAP | 0 | `common.tap` | tap sound; reaction follows an accepted action |
 | REACTION | 1 / 2 / 3 / 4 | `robo_buddy.chirp.{happy,silly,yummy,sleepy}` | mood face |
-| REACTION | 5 | `robo_buddy.chirp.wake` | stretch animation |
-| NOTE | pose 0–2 | `robo_buddy.beep.{0,1,2}` | pose animation |
+| REACTION | 5 | `robo_buddy.chirp.wake` | wake/stretch reaction |
+| NOTE | pose 0–2 | `robo_buddy.beep.{0,1,2}` | pose variation |
 | CELEBRATE | 0 | `common.celebrate` | dance |
-| AMBIENT | 0 | `robo_buddy.snore_loop` | floating Z bubbles |
+| AMBIENT | 0 | `robo_buddy.snore` | floating Z bubbles |
+
+Sound cues are procedural and remain subject to the shared muted-by-default volume cap. Spoken prompt recordings are not included yet. Asset IDs and procedural sources are listed in [assets/manifest.json](../../../../assets/manifest.json).
 
 ## Tests
 `robo_buddy_test` (host only) covers:
@@ -69,10 +70,10 @@ There is no LVGL view yet and there are no assets yet. It has not run on a devic
 - **Hello and HELP:** the hello button behaves the same as HELP.
 - **Variety:** poses vary and the snack changes.
 - **Dance:** every 5th reaction.
-- **Input safety:**
-  - repeated taps and voice during a reaction
-  - empty taps and unrelated intents
+- **Input safety:** repeated taps and voice during a reaction, empty taps and unrelated intents.
 - **Audio disabled:** play still works with `NullFeedback`.
 - **Lifecycle:** exit mid-reaction and while asleep, then re-enter fresh.
 - **Determinism:** the same seed gives the same results.
 - **SceneManager:** launch with ROBOT, out-of-context voice is filtered, Home at (10,10).
+
+`robo_buddy_art_test` verifies the original launcher tile art. The desktop simulator builds and benchmarks the LVGL view; its output is host-only and is not hardware validation.

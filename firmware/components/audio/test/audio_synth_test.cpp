@@ -18,7 +18,8 @@ constexpr Cue kAllCues[] = {Cue::TAP,       Cue::PROMPT, Cue::SUCCESS,  Cue::TRY
                             Cue::CELEBRATE, Cue::NOTE,   Cue::REACTION, Cue::AMBIENT};
 constexpr uint8_t kScenes[] = {IFeedback::kSceneMenu, static_cast<uint8_t>(GameId::COLOR_POP),
                                static_cast<uint8_t>(GameId::HATCH_A_PET),
-                               static_cast<uint8_t>(GameId::RAINBOW_PIANO)};
+                               static_cast<uint8_t>(GameId::RAINBOW_PIANO),
+                               static_cast<uint8_t>(GameId::ROBO_BUDDY)};
 
 std::size_t ms_samples(uint32_t ms) { return static_cast<std::size_t>(ms) * kSampleRateHz / 1000u; }
 
@@ -105,7 +106,8 @@ void test_bank_covers_every_cue_safely() {
     for (Cue cue : kAllCues) {
       for (uint8_t variant = 0; variant < 12; ++variant) {
         const Sound s = sound_for(scene, cue, variant);
-        EXPECT((s.count == 0) == (cue == Cue::AMBIENT));
+        const bool silent_ambient = cue == Cue::AMBIENT && scene != static_cast<uint8_t>(GameId::ROBO_BUDDY);
+        EXPECT((s.count == 0) == silent_ambient);
         EXPECT(s.count <= Sound::kMaxTones);
         EXPECT(s.duration_ms() <= kMaxSoundMs);
         for (uint8_t i = 0; i < s.count; ++i) {
@@ -143,6 +145,7 @@ void test_game_palettes_are_distinct() {
   const uint8_t pop = static_cast<uint8_t>(GameId::COLOR_POP);
   const uint8_t hatch = static_cast<uint8_t>(GameId::HATCH_A_PET);
   const uint8_t piano = static_cast<uint8_t>(GameId::RAINBOW_PIANO);
+  const uint8_t robo = static_cast<uint8_t>(GameId::ROBO_BUDDY);
   for (uint8_t a = 0; a < 4; ++a) {
     for (uint8_t b = static_cast<uint8_t>(a + 1); b < 4; ++b) {
       EXPECT(!same_sound(sound_for(pop, Cue::PROMPT, a), sound_for(pop, Cue::PROMPT, b)));
@@ -170,6 +173,16 @@ void test_game_palettes_are_distinct() {
   for (Cue cue : {Cue::PROMPT, Cue::TAP, Cue::CELEBRATE}) {
     const Sound piano_sound = sound_for(piano, cue, 0);
     EXPECT(piano_sound.count > 0 && piano_sound.duration_ms() <= kMaxSoundMs);
+  }
+  EXPECT(!same_sound(sound_for(robo, Cue::PROMPT, 0), sound_for(robo, Cue::PROMPT, 1)));
+  EXPECT(sound_for(robo, Cue::AMBIENT, 0).count > 0);
+  for (uint8_t mood = 1; mood <= 5; ++mood) {
+    const Sound reaction = sound_for(robo, Cue::REACTION, mood);
+    EXPECT(reaction.count > 0);
+    EXPECT(reaction.duration_ms() <= kMaxSoundMs);
+    for (uint8_t other = static_cast<uint8_t>(mood + 1); other <= 5; ++other) {
+      EXPECT(!same_sound(reaction, sound_for(robo, Cue::REACTION, other)));
+    }
   }
   EXPECT(scene_change_sound(pop, pop).count == 0);
   EXPECT(scene_change_sound(IFeedback::kSceneMenu, pop).count > 0);

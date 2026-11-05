@@ -233,6 +233,35 @@ Sound hatch_a_pet_sound(Cue cue, uint8_t variant) {
   }
 }
 
+Sound robo_prompt(uint8_t prompt) {
+  if (prompt == 1) {
+    return Sound{}.add(tone(Wave::SINE, 392, 523, 220, 95, 18, 110)).add(bell(659, 180, 95));
+  }
+  return Sound{}.add(pluck(523, 100, 105)).add(rest(35)).add(pluck(659, 100, 110)).add(bell(784, 190, 110));
+}
+
+Sound robo_reaction(uint8_t mood) {
+  switch (mood) {
+    case 1: return Sound{}.add(tone(Wave::SINE, 650, 980, 100, 105, 5, 35)).add(bell(1175, 120, 95));
+    case 2: return Sound{}.add(pluck(784, 55, 100)).add(pluck(988, 55, 100)).add(bell(1175, 130, 95));
+    case 3: return Sound{}.add(tone(Wave::TRIANGLE, 420, 560, 90, 90, 4, 45)).add(bell(659, 140, 90));
+    case 4: return Sound{}.add(tone(Wave::SINE, 480, 340, 300, 75, 35, 150));
+    default: return Sound{}.add(tone(Wave::SINE, 440, 780, 170, 95, 18, 80)).add(bell(1047, 120, 85));
+  }
+}
+
+Sound robo_buddy_sound(Cue cue, uint8_t variant) {
+  switch (cue) {
+    case Cue::PROMPT: return robo_prompt(variant);
+    case Cue::REACTION: return robo_reaction(variant);
+    case Cue::NOTE: return Sound{}.add(pluck(kPenta[variant % 3], 90, 90));
+    case Cue::CELEBRATE: return Sound{}.add(bell(659, 90, 95)).add(bell(784, 90, 100)).add(bell(1047, 180, 100));
+    case Cue::AMBIENT: return Sound{}.add(tone(Wave::SINE, 320, 280, 220, 45, 50, 140));
+    case Cue::TAP: return Sound{}.add(tone(Wave::TRIANGLE, 700, 620, 35, 85, 2, 24));
+    default: return default_sound(cue, variant);
+  }
+}
+
 }  // namespace
 
 Sound sound_for(uint8_t scene, Cue cue, uint8_t variant) {
@@ -240,6 +269,7 @@ Sound sound_for(uint8_t scene, Cue cue, uint8_t variant) {
     case static_cast<uint8_t>(GameId::COLOR_POP): return color_pop_sound(cue, variant);
     case static_cast<uint8_t>(GameId::HATCH_A_PET): return hatch_a_pet_sound(cue, variant);
     case static_cast<uint8_t>(GameId::RAINBOW_PIANO): return rainbow_piano_sound(cue, variant);
+    case static_cast<uint8_t>(GameId::ROBO_BUDDY): return robo_buddy_sound(cue, variant);
     default: return default_sound(cue, variant);
   }
 }
