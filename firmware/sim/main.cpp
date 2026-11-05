@@ -1,5 +1,5 @@
 // Little Arcade desktop simulator: launcher + Home + real game logic and
-// LVGL views, including Color Pop, Hatch-a-Pet, Rainbow Piano and Robo Buddy.
+// LVGL views, including Animal Sounds, Color Pop, Hatch-a-Pet, Rainbow Piano and Robo Buddy.
 //
 // Interactive:  little_arcade_sim [--zoom N] [--seed N] [--mute] [--volume 0..6]
 //   Sounds play through the PC speakers using the device synth. Like the
@@ -9,7 +9,7 @@
 //   Mouse = touch (Home and the launcher work like the device).
 //   Keys = voice intents: R B G Y colours, A AGAIN, H HELP, J YES, N NO,
 //     X NEXT, Backspace BACK, C COLORS, E EGGS, M MUSIC, T ROBOT. Esc quits.
-// Benchmark:    little_arcade_sim --bench [--game color_pop|hatch_a_pet|rainbow_piano|robo_buddy]
+// Benchmark:    little_arcade_sim --bench [--game animal_sounds|color_pop|hatch_a_pet|rainbow_piano|robo_buddy]
 //                 [--seconds N] [--seed N] [--frame-ms N] [--shots DIR]
 //   Headless, deterministic simulated clock. Starts on the launcher, taps the
 //   game's tile, then a scripted player plays through the SceneManager.
@@ -283,6 +283,38 @@ class HatchAPetPlayer {
   int step_ = 0;
 };
 
+class AnimalSoundsPlayer {
+ public:
+  void tick(Arcade& a, uint32_t now) {
+    using animal_sounds::Phase;
+    const auto& g = a.animal_sounds();
+    if (g.phase() != last_) {
+      last_ = g.phase();
+      next_ = now + 500;
+      wrong_tapped_ = false;
+    }
+    if (now < next_ || g.phase() != Phase::PLAY) return;
+    if (!wrong_tapped_) {
+      for (std::size_t i = 0; i < g.card_count(); ++i) {
+        if (static_cast<int>(i) != g.target_index()) {
+          tap(a, g.card(i).rect, now);
+          wrong_tapped_ = true;
+          next_ = now + 650;
+          return;
+        }
+      }
+    }
+    const int target = g.target_index();
+    if (target >= 0) tap(a, g.card(static_cast<std::size_t>(target)).rect, now);
+    next_ = now + 900;
+  }
+
+ private:
+  animal_sounds::Phase last_ = animal_sounds::Phase::INTRO;
+  uint32_t next_ = 0;
+  bool wrong_tapped_ = false;
+};
+
 // ---------------------------------------------------------------- benchmark
 constexpr int kW = kScreenWidth;
 constexpr int kH = kScreenHeight;
@@ -376,6 +408,7 @@ int run_bench(const Options& opt) {
   lv_display_set_buffers(disp, state.buf1, state.buf2, sizeof(state.buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
   lv_display_set_flush_cb(disp, bench_flush);
 
+  const bool animals = opt.game == GameId::ANIMAL_SOUNDS;
   const bool hatch = opt.game == GameId::HATCH_A_PET;
   const bool piano = opt.game == GameId::RAINBOW_PIANO;
   const bool robo = opt.game == GameId::ROBO_BUDDY;
@@ -385,14 +418,18 @@ int run_bench(const Options& opt) {
   static Arcade arcade(feedback, seed);
   arcade.create(lv_screen_active());
   ColorPopPlayer pop_player;
+  AnimalSoundsPlayer animal_player;
   HatchAPetPlayer hatch_player;
   RainbowPianoPlayer piano_player;
   RoboBuddyPlayer robo_player;
 
   ShotPlan plan;
   plan.dir = opt.shots;
-  plan.prefix = hatch ? "hatch_a_pet_" : (piano ? "rainbow_piano_" : (robo ? "robo_buddy_" : "color_pop_"));
-  if (hatch) {
+  plan.prefix = animals ? "animal_sounds_" : (hatch ? "hatch_a_pet_" : (piano ? "rainbow_piano_" : (robo ? "robo_buddy_" : "color_pop_")));
+  if (animals) {
+    plan.shots = {{"00_menu", false}, {"01_intro", false}, {"02_play_two", false},
+                  {"03_wrong_tap_wiggle", false}, {"04_celebrate", false}, {"05_play_four", false}};
+  } else if (hatch) {
     plan.shots = {{"00_menu", false},  {"01_intro", false},     {"02_egg", false},       {"03_egg_cracked", false},
                   {"04_hint", false},  {"05_hatch", false},     {"06_hatch_pop", false}, {"07_pet_hello", false},
                   {"08_pet", false}};
@@ -408,26 +445,34 @@ int run_bench(const Options& opt) {
   }
 
   const uint32_t launch_at = 600;  // let the launcher settle and be captured
-  const Rect tile = SceneManager::kTileRects[robo ? 3 : (piano ? 2 : (hatch ? 1 : 0))];
+  const Rect tile = SceneManager::kTileRects[animals ? 1 : (robo ? 3 : (piano ? 2 : (hatch ? 1 : 0)))];
   const uint32_t frames = opt.seconds * 1000 / opt.frame_ms;
   std::vector<double> render_us, sync_us;
   std::vector<uint64_t> pixels;
   render_us.reserve(frames);
   sync_us.reserve(frames);
   bool launched = false;
+  bool animal_page_selected = false;
   int pop_phase = -1, hatch_phase = -1, piano_phase = -1, robo_phase = -1, last_wiggle = -1;
+  int animal_phase = -1;
   uint32_t phase_start = 0, wiggle_start = 0;
 
   using clock = std::chrono::steady_clock;
   for (uint32_t f = 0; f < frames; ++f) {
     g_sim_now += opt.frame_ms;
+    if (animals && !animal_page_selected && g_sim_now >= launch_at / 2) {
+      tap(arcade, SceneManager::kNextPageButton, g_sim_now);
+      animal_page_selected = true;
+    }
     if (!launched && g_sim_now >= launch_at) {
       tap(arcade, tile, g_sim_now);
       launched = true;
     }
     const auto t0 = clock::now();
     if (arcade.layer() != Arcade::Layer::MENU) {
-      if (hatch) {
+      if (animals) {
+        animal_player.tick(arcade, g_sim_now);
+      } else if (hatch) {
         hatch_player.tick(arcade, g_sim_now);
       } else if (piano) {
         piano_player.tick(arcade, g_sim_now);
@@ -450,7 +495,25 @@ int run_bench(const Options& opt) {
 
     if (plan.dir.empty()) continue;
     plan.maybe(0, arcade.layer() == Arcade::Layer::MENU && g_sim_now >= launch_at - 2 * opt.frame_ms, state.frame);
-    if (hatch) {
+    if (animals) {
+      using animal_sounds::Phase;
+      const auto& g = arcade.animal_sounds();
+      if (arcade.layer() != Arcade::Layer::ANIMAL_SOUNDS) continue;
+      if (static_cast<int>(g.phase()) != animal_phase) {
+        animal_phase = static_cast<int>(g.phase());
+        phase_start = g_sim_now;
+      }
+      const uint32_t in_phase = g_sim_now - phase_start;
+      plan.maybe(1, g.phase() == Phase::INTRO && in_phase >= 100, state.frame);
+      plan.maybe(2, g.phase() == Phase::PLAY &&
+                         g.card_count() == animal_sounds::AnimalSoundsGame::kMinCards && in_phase >= 100,
+                 state.frame);
+      plan.maybe(3, g.wiggling() >= 0 && g.hint_active(), state.frame);
+      plan.maybe(4, g.phase() == Phase::CELEBRATE && in_phase >= 100, state.frame);
+      plan.maybe(5, g.phase() == Phase::PLAY &&
+                         g.card_count() == animal_sounds::AnimalSoundsGame::kMaxCards && in_phase >= 100,
+                 state.frame);
+    } else if (hatch) {
       using hatch_a_pet::Phase;
       const hatch_a_pet::HatchAPetGame& g = arcade.hatch_a_pet();
       if (arcade.layer() != Arcade::Layer::HATCH_A_PET) continue;
@@ -532,16 +595,17 @@ int run_bench(const Options& opt) {
   const std::size_t rendered = render_us.size();
   const double avg_px = rendered ? static_cast<double>(px_sum) / static_cast<double>(rendered) : 0.0;
   const double render_avg = rendered ? render_sum / static_cast<double>(rendered) : 0.0;
-  const char* name = hatch ? "hatch_a_pet" : (piano ? "rainbow_piano" : (robo ? "robo_buddy" : "color_pop"));
-  const uint32_t progress = hatch ? arcade.hatch_a_pet().hatch_count()
+  const char* name = animals ? "animal_sounds" : (hatch ? "hatch_a_pet" : (piano ? "rainbow_piano" : (robo ? "robo_buddy" : "color_pop")));
+  const uint32_t progress = animals ? arcade.animal_sounds().rounds_completed()
+                                  : (hatch ? arcade.hatch_a_pet().hatch_count()
                                   : (piano ? arcade.rainbow_piano().tunes_completed()
                                            : (robo ? arcade.robo_buddy().reactions()
-                                                   : arcade.color_pop().rounds_completed()));
+                                                   : arcade.color_pop().rounds_completed())));
   const hatch_a_pet::HatchAPetView& hv = arcade.hatch_a_pet_view();
 
   std::printf("\n%s LVGL benchmark via Arcade (HOST DESKTOP, not device)\n", name);
   std::printf("  seed=%u frame_ms=%u sim_seconds=%u frames=%u rendered=%zu %s=%u cues=%u\n", seed, opt.frame_ms,
-              opt.seconds, frames, rendered, hatch ? "hatches" : (piano ? "tunes" : (robo ? "reactions" : "rounds")),
+              opt.seconds, frames, rendered, animals ? "rounds" : (hatch ? "hatches" : (piano ? "tunes" : (robo ? "reactions" : "rounds"))),
               progress, feedback.count);
   std::printf("  render us/frame: avg=%.1f p50=%.1f p95=%.1f max=%.1f\n", render_avg, percentile(render_us, 0.5),
               percentile(render_us, 0.95), percentile(render_us, 1.0));
@@ -646,6 +710,8 @@ bool parse(int argc, char** argv, Options& opt) {
         opt.game = GameId::RAINBOW_PIANO;
       } else if (g == "robo_buddy") {
         opt.game = GameId::ROBO_BUDDY;
+      } else if (g == "animal_sounds") {
+        opt.game = GameId::ANIMAL_SOUNDS;
       } else {
         return false;
       }
@@ -678,7 +744,7 @@ int main(int argc, char** argv) {
   if (!parse(argc, argv, opt)) {
     std::printf(
         "usage: little_arcade_sim [--zoom N] [--seed N] [--mute] [--volume 0..6]\n"
-        "       little_arcade_sim --bench [--game color_pop|hatch_a_pet|rainbow_piano|robo_buddy] [--seconds N] [--seed N]\n"
+        "       little_arcade_sim --bench [--game animal_sounds|color_pop|hatch_a_pet|rainbow_piano|robo_buddy] [--seconds N] [--seed N]\n"
         "                         [--frame-ms N] [--shots DIR]\n");
     return 2;
   }

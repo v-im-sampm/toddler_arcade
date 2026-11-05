@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdint>
 
+#include "little_arcade/games/animal_sounds.hpp"
+#include "little_arcade/games/animal_sounds_view.hpp"
 #include "little_arcade/games/color_pop.hpp"
 #include "little_arcade/games/color_pop_view.hpp"
 #include "little_arcade/games/hatch_a_pet.hpp"
@@ -25,7 +27,16 @@ namespace little_arcade {
 // scene. Only the visible layer is synced each frame. Runs on the UI task.
 class Arcade {
  public:
-  enum class Layer : uint8_t { NONE, MENU, COLOR_POP, HATCH_A_PET, RAINBOW_PIANO, ROBO_BUDDY, SHAPE_GARAGE };
+  enum class Layer : uint8_t {
+    NONE,
+    MENU,
+    COLOR_POP,
+    HATCH_A_PET,
+    RAINBOW_PIANO,
+    ROBO_BUDDY,
+    SHAPE_GARAGE,
+    ANIMAL_SOUNDS
+  };
 
   // `volume_level` is the parent-saved level (0 = muted, the default).
   Arcade(IFeedback& feedback, uint32_t seed, uint8_t volume_level = 0);
@@ -51,6 +62,7 @@ class Arcade {
 
   const SceneManager& scenes() const { return scenes_; }
   Layer layer() const { return shown_; }
+  const animal_sounds::AnimalSoundsGame& animal_sounds() const { return animal_sounds_; }
   const color_pop::ColorPopGame& color_pop() const { return color_pop_; }
   const hatch_a_pet::HatchAPetGame& hatch_a_pet() const { return hatch_a_pet_; }
   const hatch_a_pet::HatchAPetView& hatch_a_pet_view() const { return hatch_view_; }
@@ -59,11 +71,12 @@ class Arcade {
   const shape_garage::ShapeGarageGame& shape_garage() const { return shape_garage_; }
 
  private:
-  static constexpr std::size_t kGameCount = 5;
+  static constexpr std::size_t kGameCount = 6;
 
   Layer wanted_layer() const;
   void show_layer(Layer layer);
 
+  animal_sounds::AnimalSoundsGame animal_sounds_;
   color_pop::ColorPopGame color_pop_;
   hatch_a_pet::HatchAPetGame hatch_a_pet_;
   rainbow_piano::RainbowPianoGame rainbow_piano_;
@@ -75,6 +88,7 @@ class Arcade {
   settings::ParentGate gate_;
   ParentView parent_view_;
 
+  animal_sounds::AnimalSoundsView animal_sounds_view_;
   ui::LauncherView launcher_;
   color_pop::ColorPopView color_view_;
   hatch_a_pet::HatchAPetView hatch_view_;
@@ -82,7 +96,7 @@ class Arcade {
   robo_buddy::RoboBuddyView robo_buddy_view_;
   shape_garage::ShapeGarageView shape_garage_view_;
   ui::ChromeView chrome_;
-  lv_obj_t* layers_[7]{};
+  lv_obj_t* layers_[8]{};
   lv_obj_t* sleep_overlay_ = nullptr;
   Layer shown_ = Layer::NONE;
   bool sleeping_ = false;

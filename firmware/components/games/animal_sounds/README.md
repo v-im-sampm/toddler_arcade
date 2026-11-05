@@ -1,13 +1,14 @@
 # Who Made That Sound? / Animal Sounds (G06)
 
-Spec: [games/animal_sounds.md](../../../../games/animal_sounds.md). Status: **scene logic + host tests only**.
-There is no LVGL view yet and no assets yet. It has not run on a device. The host tests are not device validation.
+Spec: [games/animal_sounds.md](../../../../games/animal_sounds.md). The host-testable scene, LVGL view,
+original vector illustrations, synthesized animal-call bank, and launcher tile are implemented.
+It has not been validated on physical hardware. Host and desktop-simulator results are not device validation.
 
 ## Behaviour
 - INTRO (1.5 s, any input skips without counting as an answer) → PLAY → CELEBRATE (1.8 s) → PLAY with a new round.
-- PLAY starts with the spoken prompt ("Who made that sound?"), then plays the target animal's sound. The scene never blocks while audio plays. `sound_playing()` is only a 1.2 s visual sound-wave timer.
+- PLAY starts with a short question motif, then plays the target animal's synthesized call. The scene never blocks while audio plays. `sound_playing()` is only a 1.2 s visual cue timer. Spoken prompt recordings/TTS are not included.
 - There are 8 original cartoon animals: cow, duck, sheep, pig, dog, cat, frog and owl. Each round shows 2 cards, growing to 4. Cards always show distinct animals. Positions are shuffled over 6 fixed 96×80 slots. The target never repeats back-to-back. Card count never shrinks as a penalty.
-- Each animal has a unique visual clue (`clue_for`): hoofprint, webbed foot, wool cloud, curly tail, bone, whiskers, lily pad and feather. The clue shows on the speaker button while the sound plays, so the game works with audio off.
+- Each animal has an original illustrated portrait and a unique visual clue (`clue_for`): hoofprint, webbed foot, wool cloud, curly tail, bone, whiskers, lily pad and feather. The clue shows on the speaker button while the sound plays, so the game remains usable with audio off.
 - A wrong card does a gentle wiggle. The correct card glows as a hint, and the sound replays. There are no timers, no lost progress and no failure state.
 - Input during CELEBRATE is ignored, which makes repeated taps and voice-during-animation safe. `exit()` clears all state. Later `update()`/`handle()` calls do nothing, and `enter()` starts fresh.
 
@@ -18,6 +19,16 @@ There is no LVGL view yet and no assets yet. It has not run on a device. The hos
 | Speaker / replay button | `{132,4,56,56}` (top bar, between x=64 and x=256) |
 | Home / Mic | owned by the SceneManager (`kHomeButton`, `kMicButton`) |
 
+The arcade launcher adds Animal Sounds on page 2. Image assets are painted once at view creation and
+held in ARGB8888 buffers: 8 × 80 × 64 animal portraits, 8 × 20 × 20 clue icons, and one 108 × 68
+tile, approximately **206,016 bytes (201.2 KiB)** total. This is a desktop calculation; actual PSRAM
+availability and minimum heap remain to be measured on the board.
+
+The ESP-IDF integration build produced an **822,032-byte app binary** (`0xC8B10`), with 80% of
+the 4 MiB app partition free. The whole-firmware linker report used 166,071 of 341,760 bytes of
+DIRAM (48.59%), including 91,752 bytes of `.bss`; these are not G06-only deltas. No physical-board
+PSRAM or minimum-heap measurement has been made.
+
 ## Input map
 | Action | Touch | Voice intent |
 |---|---|---|
@@ -27,10 +38,10 @@ There is no LVGL view yet and no assets yet. It has not run on a device. The hos
 
 `active_contexts()` returns `0` because no animal context exists. The SceneManager adds Global.
 
-## Cue → asset placeholders (to be declared in `assets/manifest.json`)
-| Cue | variant | Placeholder asset id |
+## Cue → assets (`assets/manifest.json`)
+| Cue | variant | Asset id |
 |---|---|---|
-| PROMPT | 0 | `animal_sounds.prompt.who_made_that_sound` |
+| PROMPT | 0 | `animal_sounds.prompt.question_motif` (nonverbal) |
 | NOTE | animal index | `animal_sounds.sound.{cow,duck,sheep,pig,dog,cat,frog,owl}` (synthesized, original) |
 | TAP | 0 | `common.tap` |
 | SUCCESS | animal index | `animal_sounds.happy.{animal}` |
@@ -54,3 +65,5 @@ Visual counterparts: PROMPT/NOTE → speaker sound-waves + clue; TAP/SUCCESS/CEL
 - audio disabled (NullFeedback)
 - `exit()` mid-celebration and a fresh re-entry
 - playing through the `SceneManager`: ANIMALS launch, out-of-context intents filtered, AGAIN reaching the game, and Home returning to MENU
+- `animal_sounds_art_test` checks that all eight portraits and clues paint distinct, non-empty images and that launcher tile art is present.
+- `audio_synth_test` checks all eight animal calls are distinct and within the procedural sound safety limits.

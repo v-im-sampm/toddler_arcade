@@ -78,6 +78,7 @@ constexpr bool kAudioLoopbackSelfTest = false;
 const char* layer_name(Arcade::Layer l) {
   switch (l) {
     case Arcade::Layer::MENU: return "menu";
+    case Arcade::Layer::ANIMAL_SOUNDS: return "animal_sounds";
     case Arcade::Layer::COLOR_POP: return "color_pop";
     case Arcade::Layer::HATCH_A_PET: return "hatch_a_pet";
     case Arcade::Layer::RAINBOW_PIANO: return "rainbow_piano";

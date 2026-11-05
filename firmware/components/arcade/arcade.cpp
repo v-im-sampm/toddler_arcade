@@ -1,5 +1,6 @@
 #include "little_arcade/arcade.hpp"
 
+#include "little_arcade/games/animal_sounds_art.hpp"
 #include "little_arcade/games/color_pop_art.hpp"
 #include "little_arcade/games/hatch_a_pet_art.hpp"
 #include "little_arcade/games/rainbow_piano_art.hpp"
@@ -15,6 +16,7 @@ namespace pal = ui::palette;
 // Launcher tile pictures, painted once in create(). TileArtFn is a plain
 // function pointer, so the images live at file scope.
 ui::ArgbImage g_color_pop_tile;
+ui::ArgbImage g_animal_sounds_tile;
 ui::ArgbImage g_hatch_a_pet_tile;
 ui::ArgbImage g_rainbow_piano_tile;
 ui::ArgbImage g_robo_buddy_tile;
@@ -24,6 +26,8 @@ ui::TileArt tile_art(GameId id) {
   switch (id) {
     case GameId::COLOR_POP:
       return {g_color_pop_tile.ready() ? g_color_pop_tile.dsc() : nullptr, pal::kTilePop};
+    case GameId::ANIMAL_SOUNDS:
+      return {g_animal_sounds_tile.ready() ? g_animal_sounds_tile.dsc() : nullptr, 0xDDF3E8};
     case GameId::HATCH_A_PET:
       return {g_hatch_a_pet_tile.ready() ? g_hatch_a_pet_tile.dsc() : nullptr, pal::kTileEgg};
     case GameId::RAINBOW_PIANO:
@@ -67,7 +71,8 @@ Arcade::Arcade(IFeedback& feedback, uint32_t seed, uint8_t volume_level)
                 {GameId::HATCH_A_PET, Intent::EGGS, &hatch_a_pet_},
                 {GameId::RAINBOW_PIANO, Intent::MUSIC, &rainbow_piano_},
                 {GameId::ROBO_BUDDY, Intent::ROBOT, &robo_buddy_},
-                {GameId::SHAPE_GARAGE, Intent::SHAPES, &shape_garage_}},
+                {GameId::SHAPE_GARAGE, Intent::SHAPES, &shape_garage_},
+                {GameId::ANIMAL_SOUNDS, Intent::ANIMALS, &animal_sounds_}},
       feedback_(feedback),
       scenes_(entries_, kGameCount, feedback, config_for(seed)),
       gate_(seed, volume_level) {
@@ -75,6 +80,10 @@ Arcade::Arcade(IFeedback& feedback, uint32_t seed, uint8_t volume_level)
 }
 
 void Arcade::create(lv_obj_t* screen) {
+  if (g_animal_sounds_tile.allocate(animal_sounds::art::kTileW, animal_sounds::art::kTileH)) {
+    ui::Canvas c = g_animal_sounds_tile.canvas();
+    animal_sounds::art::paint_tile_art(c);
+  }
   if (g_color_pop_tile.allocate(color_pop::kTileW, color_pop::kTileH)) {
     ui::Canvas c = g_color_pop_tile.canvas();
     color_pop::paint_tile_art(c);
@@ -97,8 +106,9 @@ void Arcade::create(lv_obj_t* screen) {
   }
 
   lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
-  for (int i = 1; i < 7; ++i) layers_[i] = full_screen(screen);  // [0] = Layer::NONE
+  for (int i = 1; i < 8; ++i) layers_[i] = full_screen(screen);  // [0] = Layer::NONE
   launcher_.create(layers_[static_cast<int>(Layer::MENU)], tile_art);
+  animal_sounds_view_.create(layers_[static_cast<int>(Layer::ANIMAL_SOUNDS)]);
   color_view_.create(layers_[static_cast<int>(Layer::COLOR_POP)]);
   hatch_view_.create(layers_[static_cast<int>(Layer::HATCH_A_PET)]);
   rainbow_piano_view_.create(layers_[static_cast<int>(Layer::RAINBOW_PIANO)]);
@@ -130,6 +140,7 @@ Arcade::Layer Arcade::wanted_layer() const {
   if (scenes_.mode() == SceneManager::Mode::MENU || cur == nullptr) return Layer::MENU;
   switch (cur->id) {
     case GameId::COLOR_POP: return Layer::COLOR_POP;
+    case GameId::ANIMAL_SOUNDS: return Layer::ANIMAL_SOUNDS;
     case GameId::HATCH_A_PET: return Layer::HATCH_A_PET;
     case GameId::RAINBOW_PIANO: return Layer::RAINBOW_PIANO;
     case GameId::ROBO_BUDDY: return Layer::ROBO_BUDDY;
@@ -146,6 +157,7 @@ void Arcade::show_layer(Layer layer) {
   chrome_.set_home_visible(layer != Layer::MENU);
   // A (re)launched game restarts its animation timing.
   if (layer == Layer::COLOR_POP) color_view_.reset();
+  if (layer == Layer::ANIMAL_SOUNDS) animal_sounds_view_.reset();
   if (layer == Layer::HATCH_A_PET) hatch_view_.reset();
   if (layer == Layer::RAINBOW_PIANO) rainbow_piano_view_.reset();
   if (layer == Layer::ROBO_BUDDY) robo_buddy_view_.reset();
@@ -166,6 +178,7 @@ void Arcade::tick(uint32_t now_ms) {
   if (!sleeping) show_layer(wanted_layer());
   switch (shown_) {
     case Layer::MENU: launcher_.sync(scenes_); break;
+    case Layer::ANIMAL_SOUNDS: animal_sounds_view_.sync(animal_sounds_, now_ms); break;
     case Layer::COLOR_POP: color_view_.sync(color_pop_, now_ms); break;
     case Layer::HATCH_A_PET: hatch_view_.sync(hatch_a_pet_, now_ms); break;
     case Layer::RAINBOW_PIANO: rainbow_piano_view_.sync(rainbow_piano_); break;
