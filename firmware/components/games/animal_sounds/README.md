@@ -2,7 +2,9 @@
 
 Spec: [games/animal_sounds.md](../../../../games/animal_sounds.md). The host-testable scene, LVGL view,
 original vector illustrations, recorded animal-call bank (CC0 clips), and launcher tile are implemented.
-It has not been validated on physical hardware. Host and desktop-simulator results are not device validation.
+Status: **done** (accepted by the owner after on-device play-testing on 2026-11-04).
+Formal hardware validation is still pending: no measured PSRAM/minimum-heap figures, speaker level checks or test logs exist yet.
+Host and desktop-simulator results are not device validation.
 
 ## Behaviour
 - INTRO (1.5 s, any input skips without counting as an answer) → PLAY → CELEBRATE (1.8 s) → PLAY with a new round.
