@@ -26,5 +26,8 @@ The editable yellow carry-handle OpenSCAD starting model is in
 dimensions are placeholders, not manufacturer-verified measurements. Measure
 the physical parts and update the model before printing a fit-critical enclosure.
 The enclosure is designed for a 503450 1S LiPo and a TP4057 USB-C charger.
-A 1S cell needs a 5 V boost converter to feed MaTouch VBUS. That converter,
-the power switch, and the 5 V entry point are TBD. See the enclosure README.
+The MaTouch display uses four M3 insert mounts based on the supplied
+dimensioned image (54.5 x 60.3 mm portrait hole pitch, rotated for the
+landscape case). The PCB outline, revision, and insert dimensions still need
+physical confirmation. A 1S cell needs a 5 V boost converter to feed MaTouch
+VBUS; the converter and 5 V entry point are TBD. See the enclosure README.

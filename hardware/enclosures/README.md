@@ -29,6 +29,12 @@ of the file.
 - **Case screws:** four M2 x 12 self-tapping screws. They go in from the back
   through counterbored bosses and thread 6 mm into pilot holes in the
   front-shell bosses at (+/-48, +/-30).
+- **Display mounts:** four M3 screws pass through the MaTouch corner holes
+  into heat-set inserts in bosses on the front shell. The mounts are at a
+  60.3 x 54.5 mm pitch, rotated from the portrait orientation in the supplied
+  dimension image to match the landscape opening. The image suggests the
+  screen is centered on the board, but the PCB outline and board revision are
+  not specified; the 3.1 mm board-edge margin is only an image estimate.
 
 Model coordinates: the front face is at z = 0, the back at z = 36, and the
 handle points to +y. Seen from the front, +x is on the viewer's **left**.
@@ -37,6 +43,10 @@ handle points to +y. Seen from the front, +x is on the viewer's **left**.
 
 - **Display:** the MaTouch sits face-down on a lip around the screen window.
   The display's USB-C is intentionally covered; there is no opening for it.
+  Four M3 screws pass through its corner holes into heat-set inserts in bosses
+  on the front shell. Insert pilot size, insert length, screw length, PCB
+  outline, and board stack depth remain placeholders to verify against the
+  exact board and insert in hand.
 - **Battery:** a 503450 single-cell LiPo pouch lies flat in a rear-shell tray
   directly behind the display, offset left. Front-shell ribs (outside the display
   footprint) stop 1.5 mm (`battery_hold_down_gap`) above the pouch, so it is
@@ -50,14 +60,31 @@ handle points to +y. Seen from the front, +x is on the viewer's **left**.
   wall opening hugs the receptacle (8.94 x 3.26 mm plus clearance). An outer
   12.8 x 7.2 mm recess leaves a 0.8 mm lip so common cable overmolds seat
   fully. **This is the only external USB-C.**
-- **MAX98357A and INA boards:** these mount on rear-shell standoffs on the
-  speaker side, at (-42, 14) and (-41, -14).
+- **MAX98357A and INA boards:** these mount on rear-shell standoffs in the
+  free area behind the display, between the speaker side and the battery tray:
+  MAX at (-15, 20), INA at (-15, -6). Board outlines are the hole pitch plus
+  `pcb_board_margin` on each side (placeholder).
+- **Power switch:** a KCD1 snap-in rocker sits in a **recessed well on the
+  back face**, speaker side, centered at `switch_center` = (-41, 0). The rocker
+  stays below the well rim, so a parent can reach it with a fingertip, but
+  bumps, small hands, or laying the case on its back are unlikely to toggle
+  it. It is a deterrent, not a lock. The switch body hangs inside, over the
+  shallow speaker area, clear of the display. The top and bottom walls were
+  rejected because their flat band is shorter than the 13 x 19 mm cutout.
+  Wire the switch first, then snap it in from outside. It is intended to sit
+  in series between TP4057 OUT+ and the (TBD) 5 V boost input.
 
 The model's asserts fail the render if any of these happen:
 
-- A battery rib overlaps the display footprint.
+- A battery rib overlaps the display footprint or its mount bosses.
 - The USB-C recess leaves the flat wall band or crosses the seam.
 - The case is too shallow for the battery stack.
+- The MAX or INA board hits the battery tray, charger, switch well, the other
+  board, or the display stack (`display_stack_depth`).
+- The switch well leaves the flat back face, or hits the battery tray or a
+  case boss.
+- The switch body hits the display footprint or the speaker.
+- The rocker sticks out above the well rim.
 
 ## Exporting
 
@@ -75,8 +102,22 @@ $scad = "C:\Program Files\OpenSCAD (Nightly)\openscad.com"
 ```
 
 In the GUI, set `part` near the top of the file and render with F6. Leave it
-as `"preview"` to see the assembled enclosure with ghosted display, battery,
-and charger.
+as `"preview"` to see the assembled enclosure with ghosted components. Use
+`part="layout"` to see the back shell with every internal component in color.
+
+[`yellow_handle_views.scad`](yellow_handle_views.scad) produces the labeled
+layout and section renders. Always pass `-D 'part="none"'` so the model's own
+preview isn't drawn too:
+
+```powershell
+$v = "hardware\enclosures\yellow_handle_views.scad"
+& $scad --backend=manifold -D 'part="none"' -D 'view="layout_iso"' --camera=0,0,0,70,0,-20,0 --viewall --autocenter --imgsize=1400,1050 -o layout_back.png $v
+& $scad --backend=manifold -D 'part="none"' -D 'view="plan"' --camera=0,0,0,0,180,0,0 --projection=o --viewall --autocenter --imgsize=1400,1200 -o layout_plan.png $v
+& $scad --backend=manifold --render -D 'part="none"' -D 'view="section_y"' --camera=0,0,0,90,0,180,0 --projection=o --viewall --autocenter --imgsize=1400,700 -o section_y0.png $v
+& $scad --backend=manifold --render -D 'part="none"' -D 'view="section_x"' --camera=0,0,0,90,0,90,0 --projection=o --viewall --autocenter --imgsize=1400,700 -o section_x0.png $v
+```
+
+Other views: `front_layout`, `back_out`, `back_in`, `assembled`.
 
 ## Printing notes
 
@@ -94,10 +135,18 @@ and charger.
 current SCAD parameters:
 
 - `yellow_handle_assembled.png`, `yellow_handle_assembled_back.png`
-- `yellow_handle_front_outside.png`, `yellow_handle_front_inside.png`
+- `yellow_handle_front_outside.png`, `yellow_handle_front_inside.png` (four
+  display insert bosses visible inside)
 - `yellow_handle_back_outside.png`, `yellow_handle_back_inside.png` (the
   back interior, with the battery and charger ghosted)
 - `yellow_handle_bezel.png`
+- `yellow_handle_layout_back.png`, `yellow_handle_layout_front.png`: each
+  shell with its components in color
+- `yellow_handle_layout_plan.png`: labeled plan of every component, seen
+  from the front; projected overlap with the rear components is intentional
+  because the display is mounted on the front shell
+- `yellow_handle_section_y0.png`, `yellow_handle_section_x0.png`: labeled
+  cross-sections showing component depths
 - `yellow_handle_front.step`, `yellow_handle_back.step`,
   `yellow_handle_bezel.step`
 
@@ -120,9 +169,9 @@ fed from VBUS through diode D3 (see `config/board_pins.json`), so it needs
 about 5 V. Its headers expose only 3V3/GND. Two parts are therefore needed:
 
 - A 5 V boost converter between TP4057 OUT+/OUT- and the MaTouch.
-- A power switch (preferred).
+- A power switch: a KCD1 rocker, modeled in the back-face well.
 
-Neither part is chosen or modeled yet. How 5 V reaches the MaTouch is
+The boost converter is not chosen or modeled yet. How 5 V reaches the MaTouch is
 **TBD**: either an internal USB-C pigtail or a VBUS solder point. Do not
 guess. Record the evidence in `docs/hardware.md` once it is decided. Wire the
 battery to TP4057 B+/B-, and verify the pad labels on the board in hand.
@@ -136,17 +185,30 @@ enclosure until the parts are measured and the parameters are updated.
 
 Measure and update:
 
-- **MaTouch PCB:** width and height (placeholder 62 x 46), the active display
-  opening, and the **total stack depth** (glass, PCB, and rear components).
-  Display retention is **TBD**: the lip holds the board, but nothing yet
-  presses it forward from behind. Add standoffs or a foam pad once the stack
-  depth is known.
+- **MaTouch PCB:** the supplied dimension image shows a 54.5 x 60.3 mm
+  corner-hole pitch in portrait orientation and 3.2 mm holes; this model
+  rotates that pattern for landscape and places four M3 insert mounts below
+  the PCB. The outline estimate uses a 3.1 mm edge margin; confirm the pitch,
+  screen offset, PCB outline, board revision, stack depth, and mount fit on
+  the physical board. `display_insert_pilot_diameter`, `display_insert_length`,
+  and `display_mount_screw_length` are placeholders; choose an insert and
+  verify screw engagement before printing.
 - **TP4057 board:** length and width (placeholder 19.5 x 13.8), PCB
   thickness, the USB-C offset from the board centerline, and the height of
   the solder joints underneath.
 - **503450 battery:** the bay uses seller dimensions (34 x 50 x 5). Confirm
   the fit, including the protection-circuit end and the lead bend radius.
-- **MAX and INA boards:** mounting-hole pitch and board positions.
+- **MAX and INA boards:** mounting-hole pitch, board outline
+  (`pcb_board_margin`), and component height. The standoffs assume the
+  display stack is no deeper than `display_stack_depth` (placeholder 8 mm).
+- **KCD1 switch:** KCD1 dimensions vary by maker. The model uses typical
+  listing values: 13 x 19 mm cutout, 15 x 21 mm flange, about 7 mm rocker
+  height, about 18 mm below the panel including tabs, and a 0.6-2 mm snap-in
+  panel (well floor 1.6 mm). Measure the switch in hand and confirm that the
+  snap tabs grip the floor.
+- **Display inserts:** choose an M3 heat-set insert, then measure its pilot
+  diameter and length. Confirm the 8 mm screw length and adjust engagement
+  after measuring the PCB thickness and mount height.
 - **Speaker:** housing depth (placeholder 4 mm) and wire exit direction.
 - **Envelope and fasteners:** check the overall envelope and handle against a
   child's grip and your print bed, and tune the screw, boss, and clearance

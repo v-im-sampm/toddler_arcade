@@ -4,8 +4,9 @@
 
 $fn = 40;
 
-// "preview", "front", "back", "bezel" (separate purple part, print-oriented), or
-// "bumpers" (grip pads only, for use as a color modifier in a multi-material slicer).
+// "preview", "front", "back", "bezel" (separate purple part, print-oriented),
+// "bumpers" (grip pads only, for use as a color modifier in a multi-material slicer), or
+// "layout" (back shell plus colored stand-ins for every internal component).
 part = "preview";
 
 // Overall pillow-shaped body
@@ -39,10 +40,26 @@ screen_center_y = 2;
 screen_window_width = 51.2;
 screen_window_height = 38.4;
 screen_window_radius = 4;
-display_board_width = 62; // Placeholder: measure the MaTouch PCB, not only its active screen.
-display_board_height = 46; // Placeholder.
+// The supplied Makerfabs dimension image shows 54.5 x 60.3 mm hole pitch in portrait.
+// This enclosure keeps the display landscape, so the pitch is rotated 90 degrees.
+// The PCB edge margin is estimated from the image; measure the physical board and inserts.
+display_hole_pitch = [60.3, 54.5];
+display_hole_diameter = 3.2;
+display_board_edge_margin = 3.1; // Image estimate, not dimensioned by Makerfabs.
+display_board_width = display_hole_pitch[0] + 2 * display_board_edge_margin;
+display_board_height = display_hole_pitch[1] + 2 * display_board_edge_margin;
+display_screen_offset = [0, 0]; // Image estimate: active screen is centered on the board.
+display_board_center = [
+    screen_center_x - display_screen_offset[0],
+    screen_center_y - display_screen_offset[1]
+];
 display_lip_depth = 1.4;
 display_lip_overlap = 1.2;
+display_pcb_thickness = 1.6; // Placeholder; measure the board.
+display_mount_boss_diameter = 7.5;
+display_insert_pilot_diameter = 4.2; // Placeholder; match this to the chosen M3 insert.
+display_insert_length = 4.5; // Placeholder; match this to the chosen M3 insert.
+display_mount_screw_length = 8; // Placeholder; confirm engagement with the chosen insert.
 
 // Raised screen bezel. Separate by default so the front shell prints flat on its face;
 // glue it into the shallow pocket. Set false to merge it into the front shell (needs supports).
@@ -107,14 +124,41 @@ speaker_grille_slot_width = 1.6;
 speaker_grille_slot_count = 4;
 speaker_grille_pitch = 3;
 
-// Rear-shell board mounts; board outlines and hole pitches are editable placeholders.
+// Rear-shell board mounts behind the display; board outlines and hole pitches are editable
+// placeholders. Board outline = hole pitch + 2 * pcb_board_margin.
 pcb_standoff_height = 4.2;
 pcb_standoff_diameter = 5.2;
 m2_clearance_diameter = 2.3;
-max_board_center = [-42, 14];
+pcb_thickness = 1.6;
+pcb_board_margin = 2.5; // Placeholder hole-center-to-edge distance.
+max_board_center = [-15, 20];
 max_hole_pitch = [18, 13];
-ina_board_center = [-41, -14];
+ina_board_center = [-15, -6];
 ina_hole_pitch = [20, 15];
+
+// Power switch: KCD1-101 style snap-in mini rocker. Values are typical listing/datasheet
+// figures that vary by maker; measure the switch in hand. It sits in a recessed well in the
+// back face on the speaker side: a parent can reach it, but the rocker stays below the
+// surface so bumps or laying the case on its back cannot toggle it.
+switch_center = [-41, 0];
+switch_cutout_x = 13; // Panel cutout 19 x 13; long side along y so the rocker tips up/down.
+switch_cutout_y = 19;
+switch_flange_x = 15; // Front flange 21 x 15.
+switch_flange_y = 21;
+switch_flange_thickness = 1.5;
+switch_rocker_proud = 7; // Flange plus rocker above the panel face.
+switch_body_depth = 13; // Housing behind the panel.
+switch_below_panel_depth = 18; // Housing plus tabs with soldered wires.
+switch_panel_thickness = 1.6; // Snap-in clips typically grip 0.6-2 mm panels.
+switch_well_clearance = 3; // Fingertip room around the flange.
+switch_well_wall = 1.6;
+switch_well_corner_radius = 4;
+switch_well_depth = switch_rocker_proud + 0.5;
+switch_well_chamfer = 1;
+
+// Display module stack behind the lip (glass + LCD + PCB + parts). Placeholder used only for
+// the layout ghost and clearance asserts; measure the MaTouch board in hand.
+display_stack_depth = 8;
 
 // Case screws: M2 self-tapping, inserted from the back into counterbored bosses so the
 // heads sit below the surface.
@@ -142,7 +186,7 @@ battery_lead_notch_width = 12;
 // pouch, leaving room for a thin foam pad.
 battery_hold_down_gap = 1.5;
 // Ribs [center x, center y, size x, size y]; they must miss the display board footprint.
-battery_hold_down_ribs = [[37, -6, 2, 12], [37, 18, 2, 12], [21, 29.5, 18, 2]];
+battery_hold_down_ribs = [[37, -6, 2, 12], [37, 18, 2, 12], [37, 29.5, 2, 2]];
 
 fuse = 0.4; // Overlap so internal features merge with the shell skin.
 front_skin = wall;
@@ -167,6 +211,16 @@ fastener_y_positions = [-case_screw_y, case_screw_y];
 case_screw_head_z = seam_z - case_screw_engagement + case_screw_length;
 bezel_outer_width = screen_window_width + 2 * bezel_border;
 bezel_outer_height = screen_window_height + 2 * bezel_border;
+switch_well_width = switch_flange_x + 2 * switch_well_clearance;
+switch_well_height = switch_flange_y + 2 * switch_well_clearance;
+switch_panel_back_z = body_depth - switch_well_depth; // Face the flange rests on.
+switch_panel_front_z = switch_panel_back_z - switch_panel_thickness;
+switch_body_front_z = switch_panel_front_z - switch_below_panel_depth;
+pcb_board_back_z = inside_back_z - pcb_standoff_height;
+max_board_size = max_hole_pitch + [2, 2] * pcb_board_margin;
+ina_board_size = ina_hole_pitch + [2, 2] * pcb_board_margin;
+display_stack_back_z = front_skin + display_lip_depth + display_stack_depth;
+display_mount_top_z = display_stack_back_z - display_pcb_thickness;
 
 module rounded_rect_2d(width, height, radius) {
     r = min(radius, min(width, height) / 2 - 0.01);
@@ -369,18 +423,18 @@ module bezel() {
 }
 
 module display_lip() {
-    translate([screen_center_x, screen_center_y, front_skin - fuse])
-        difference() {
+    difference() {
+        translate([display_board_center[0], display_board_center[1], front_skin - fuse])
             linear_extrude(height = display_lip_depth + fuse)
                 rounded_rect_2d(display_board_width, display_board_height, 3);
-            translate([0, 0, -0.05])
+        translate([screen_center_x, screen_center_y, front_skin - fuse - 0.05])
                 linear_extrude(height = display_lip_depth + fuse + 0.1)
                     rounded_rect_2d(
                         screen_window_width + 2 * display_lip_overlap,
                         screen_window_height + 2 * display_lip_overlap,
                         2
                     );
-        }
+    }
 }
 
 module speaker_grille() {
@@ -518,6 +572,26 @@ module pcb_standoffs(center, hole_pitch) {
     }
 }
 
+module display_mount_bosses() {
+    for (
+        x = [
+            display_board_center[0] - display_hole_pitch[0] / 2,
+            display_board_center[0] + display_hole_pitch[0] / 2
+        ],
+        y = [
+            display_board_center[1] - display_hole_pitch[1] / 2,
+            display_board_center[1] + display_hole_pitch[1] / 2
+        ]
+    ) {
+        difference() {
+            translate([x, y, front_skin - fuse])
+                cylinder(h = display_mount_top_z - front_skin + fuse, d = display_mount_boss_diameter);
+            translate([x, y, display_mount_top_z - display_insert_length])
+                cylinder(h = display_insert_length + fuse, d = display_insert_pilot_diameter);
+        }
+    }
+}
+
 battery_pocket_width = battery_pack_width + 2 * battery_tray_clearance;
 battery_pocket_length = battery_pack_length + 2 * battery_tray_clearance;
 battery_tray_outer_width = battery_pocket_width + 2 * battery_tray_wall;
@@ -546,9 +620,97 @@ module battery_hold_down() {
 
 // Stand-in for the screen glass, preview only.
 module display_ghost() {
-    translate([screen_center_x, screen_center_y, front_skin + display_lip_depth])
+    translate([display_board_center[0], display_board_center[1], front_skin + display_lip_depth])
         linear_extrude(height = 1)
             rounded_rect_2d(display_board_width - 2, display_board_height - 2, 2);
+}
+
+// Walls and floor (switch panel) of the recessed switch well, added inside the back shell.
+module switch_well_body() {
+    translate([switch_center[0], switch_center[1], switch_panel_front_z])
+        linear_extrude(height = body_depth - switch_panel_front_z)
+            rounded_rect_2d(
+                switch_well_width + 2 * switch_well_wall,
+                switch_well_height + 2 * switch_well_wall,
+                switch_well_corner_radius + switch_well_wall
+            );
+}
+
+module switch_well_cut() {
+    c = switch_well_chamfer;
+    translate([switch_center[0], switch_center[1], 0]) {
+        translate([0, 0, switch_panel_back_z])
+            linear_extrude(height = switch_well_depth + 1)
+                rounded_rect_2d(switch_well_width, switch_well_height, switch_well_corner_radius);
+        // Softened rim at the back face.
+        hull() {
+            translate([0, 0, body_depth - c])
+                linear_extrude(height = 0.01)
+                    rounded_rect_2d(switch_well_width, switch_well_height, switch_well_corner_radius);
+            translate([0, 0, body_depth + 0.01])
+                linear_extrude(height = 0.01)
+                    rounded_rect_2d(
+                        switch_well_width + 2 * c,
+                        switch_well_height + 2 * c,
+                        switch_well_corner_radius + c
+                    );
+        }
+        // Square-cornered snap-in cutout so the clips seat fully.
+        translate([0, 0, switch_panel_front_z - 1])
+            linear_extrude(height = switch_panel_thickness + 2)
+                square([switch_cutout_x, switch_cutout_y], center = true);
+    }
+}
+
+// Component stand-ins in assembly position, for layout views and clearance checks.
+module display_module_ghost() {
+    translate([display_board_center[0], display_board_center[1], front_skin + display_lip_depth])
+        linear_extrude(height = display_stack_depth)
+            rounded_rect_2d(display_board_width, display_board_height, 2);
+}
+
+module speaker_ghost() {
+    translate([speaker_center_x, speaker_center_y, front_skin + speaker_depth / 2])
+        cube([speaker_width, speaker_height, speaker_depth], center = true);
+}
+
+module board_ghost(center, size) {
+    translate([center[0], center[1], pcb_board_back_z - pcb_thickness / 2])
+        cube([size[0], size[1], pcb_thickness], center = true);
+}
+
+module max_ghost() board_ghost(max_board_center, max_board_size);
+module ina_ghost() board_ghost(ina_board_center, ina_board_size);
+
+module switch_ghost() {
+    translate([switch_center[0], switch_center[1], 0]) {
+        translate([0, 0, switch_panel_front_z - switch_body_depth / 2])
+            cube([switch_cutout_x - 0.4, switch_cutout_y - 0.4, switch_body_depth], center = true);
+        for (dy = [-4, 4])
+            translate([0, dy, (switch_body_front_z + switch_panel_front_z - switch_body_depth) / 2])
+                cube([0.8, 4.8, switch_below_panel_depth - switch_body_depth], center = true);
+        translate([0, 0, switch_panel_back_z + switch_flange_thickness / 2])
+            cube([switch_flange_x, switch_flange_y, switch_flange_thickness], center = true);
+        // Rocker shown in the "on" (top end pressed) position.
+        hull() {
+            translate([0, 0, switch_panel_back_z + switch_flange_thickness])
+                cube([switch_flange_x - 4, switch_flange_y - 5, 0.01], center = true);
+            translate([0, -(switch_flange_y - 5) / 2 + 1, switch_panel_back_z + switch_rocker_proud - 0.5])
+                cube([switch_flange_x - 4, 2, 1], center = true);
+            translate([0, (switch_flange_y - 5) / 2 - 1, switch_panel_back_z + switch_rocker_proud - 3])
+                cube([switch_flange_x - 4, 2, 1], center = true);
+        }
+    }
+}
+
+module components() {
+    color("#1E2A5A") display_module_ghost();
+    color("#C0C0C0") battery_ghost();
+    color("#2E8B57") charger_ghost();
+    color("#D9534F") speaker_ghost();
+    color("#1F77B4") max_ghost();
+    color("#17BECF") ina_ghost();
+    color("#E377C2") switch_ghost();
 }
 
 module battery_ghost() {
@@ -585,6 +747,7 @@ module front_shell(with_bumpers = true) {
             intersection() {
                 union() {
                     display_lip();
+                    display_mount_bosses();
                     speaker_retainer();
                     front_case_bosses();
                     battery_hold_down();
@@ -619,12 +782,14 @@ module back_shell(with_bumpers = true) {
                     pcb_standoffs(ina_board_center, ina_hole_pitch);
                     charger_cradle();
                     battery_tray();
+                    switch_well_body();
                 }
                 body_outer();
             }
         }
         case_screw_holes();
         usb_c_cutout();
+        switch_well_cut();
     }
 }
 
@@ -645,14 +810,17 @@ if (part == "front") {
     color("#7B4FC9") bumper_pads();
     color("#7B4FC9") bezel();
     color("#1E2A5A") display_ghost();
-    %battery_ghost();
-    %charger_ghost();
+    %components();
+} else if (part == "layout") {
+    // Back shell with every internal component in place (front shell removed).
+    color("#EDB700") back_shell(false);
+    components();
 }
 
 function rects_overlap(a, b) = a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
 function centered_rect(c, w, h) = [c[0] - w / 2, c[1] - h / 2, c[0] + w / 2, c[1] + h / 2];
 
-display_rect = centered_rect([screen_center_x, screen_center_y], display_board_width + 2, display_board_height + 2);
+display_rect = centered_rect(display_board_center, display_board_width + 2, display_board_height + 2);
 battery_rect = centered_rect(battery_center, battery_pack_width, battery_pack_length);
 battery_tray_rect = centered_rect(battery_center, battery_tray_outer_width, battery_tray_outer_length);
 charger_rect = [
@@ -702,3 +870,83 @@ assert(
     handle_opening_width + 2 * (handle_flare_radius + handle_edge_radius) < handle_width,
     "Handle posts are too thin for the opening and edge rounding"
 );
+
+max_rect = centered_rect(max_board_center, max_board_size[0], max_board_size[1]);
+ina_rect = centered_rect(ina_board_center, ina_board_size[0], ina_board_size[1]);
+switch_body_rect = centered_rect(switch_center, switch_cutout_x, switch_cutout_y);
+switch_well_rect = centered_rect(
+    switch_center,
+    switch_well_width + 2 * switch_well_wall,
+    switch_well_height + 2 * switch_well_wall
+);
+speaker_rect = centered_rect([speaker_center_x, speaker_center_y], speaker_width, speaker_height);
+display_mount_height = display_mount_top_z - front_skin;
+assert(display_board_edge_margin > 0, "Display board edge margin must be positive");
+assert(
+    display_board_width >= display_hole_pitch[0] + display_hole_diameter
+        && display_board_height >= display_hole_pitch[1] + display_hole_diameter,
+    "Display board outline is too small for the hole pattern"
+);
+assert(
+    abs(display_board_center[0]) + display_board_width / 2 < flat_x
+        && abs(display_board_center[1]) + display_board_height / 2 < flat_y,
+    "Display PCB outline runs onto the rounded front edge"
+);
+assert(
+    display_mount_height > display_insert_length && display_mount_top_z < seam_z,
+    "Display inserts do not fit in the front-shell mounts"
+);
+assert(
+    display_insert_pilot_diameter > 0 && display_insert_pilot_diameter < display_mount_boss_diameter,
+    "Display insert pilot must fit inside the mount boss"
+);
+for (
+    x = [
+        display_board_center[0] - display_hole_pitch[0] / 2,
+        display_board_center[0] + display_hole_pitch[0] / 2
+    ],
+    y = [
+        display_board_center[1] - display_hole_pitch[1] / 2,
+        display_board_center[1] + display_hole_pitch[1] / 2
+    ]
+) {
+    display_mount_rect = centered_rect([x, y], display_mount_boss_diameter, display_mount_boss_diameter);
+    assert(!rects_overlap(display_mount_rect, speaker_rect), "Display mount overlaps the speaker");
+    for (r = battery_hold_down_ribs)
+        assert(
+            !rects_overlap(display_mount_rect, centered_rect([r[0], r[1]], r[2], r[3])),
+            "Display mount overlaps a battery hold-down rib"
+        );
+    for (cx = fastener_x_positions, cy = fastener_y_positions)
+        assert(
+            !rects_overlap(display_mount_rect, centered_rect([cx, cy], case_screw_boss_diameter, case_screw_boss_diameter)),
+            "Display mount overlaps a case screw boss"
+        );
+}
+for (b = [max_rect, ina_rect]) {
+    assert(!rects_overlap(b, battery_tray_rect), "MAX/INA board overlaps the battery tray");
+    assert(!rects_overlap(b, charger_rect), "MAX/INA board overlaps the charger cradle");
+    assert(!rects_overlap(b, switch_well_rect), "MAX/INA board overlaps the switch well");
+}
+assert(!rects_overlap(max_rect, ina_rect), "MAX and INA boards overlap");
+assert(
+    pcb_board_back_z - pcb_thickness - 3 > display_stack_back_z,
+    "Rear boards (with ~3 mm of parts) hit the display stack"
+);
+assert(
+    abs(switch_center[0]) + switch_well_width / 2 + switch_well_chamfer < flat_x
+        && abs(switch_center[1]) + switch_well_height / 2 + switch_well_chamfer < flat_y,
+    "Switch well runs onto the rounded back edge"
+);
+assert(!rects_overlap(switch_body_rect, display_rect), "Switch body hits the display board footprint");
+assert(!rects_overlap(switch_well_rect, battery_tray_rect), "Switch well overlaps the battery tray");
+assert(
+    !rects_overlap(switch_body_rect, speaker_rect) || switch_body_front_z > front_skin + speaker_retainer_depth,
+    "Switch terminals hit the speaker"
+);
+for (x = fastener_x_positions, y = fastener_y_positions)
+    assert(
+        !rects_overlap(switch_well_rect, centered_rect([x, y], case_screw_boss_diameter, case_screw_boss_diameter)),
+        "Switch well hits a case screw boss"
+    );
+assert(switch_rocker_proud < switch_well_depth, "Rocker sticks out of the switch well");
