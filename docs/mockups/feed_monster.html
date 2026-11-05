@@ -1,0 +1,240 @@
+<!doctype html>
+<!-- Browser-only mockup. Geometry follows feed_monster.hpp and scene_manager.hpp. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feed the Monster mockup</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 32px 20px; font-family: system-ui, sans-serif; color: #25334b; background: #f3f7fb; }
+  .shell { max-width: 1040px; margin: 0 auto; }
+  .eyebrow { margin: 0 0 8px; color: #59718c; font-size: 12px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+  h1 { margin: 0; font-size: clamp(30px, 5vw, 42px); line-height: 1.05; color: #2f3d57; }
+  .lede { max-width: 680px; margin: 12px 0 26px; color: #536780; font-size: 16px; line-height: 1.5; }
+  .layout { display: grid; grid-template-columns: minmax(0, 640px) minmax(240px, 1fr); align-items: start; gap: 22px; }
+  .device, .guide { border: 1px solid #d6e0e9; border-radius: 18px; background: #fff; box-shadow: 0 12px 28px rgba(49, 72, 99, .08); }
+  .device { overflow: hidden; }
+  .device-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; }
+  h2 { margin: 0; color: #33425d; font-size: 17px; }
+  .live-pill { border-radius: 99px; padding: 5px 9px; color: #29734b; background: #e6f6ed; font-size: 11px; font-weight: 750; }
+  .screen { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; image-rendering: pixelated; cursor: pointer; background: #bfe8ff; }
+  .status { min-height: 46px; margin: 0; padding: 12px 18px; border-top: 1px solid #e8edf2; color: #4b607a; font-size: 14px; }
+  .guide { padding: 20px; }
+  .guide h2 { margin-bottom: 16px; }
+  .steps { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+  .steps li { display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start; color: #52657d; font-size: 14px; line-height: 1.45; }
+  .step { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 50%; color: #fff; background: #607da4; font-weight: 800; }
+  .guide strong { color: #354660; }
+  .note { margin: 18px 0 0; padding-top: 14px; border-top: 1px solid #e8edf2; color: #657990; font-size: 12px; line-height: 1.5; }
+  .tools { margin-top: 16px; color: #677b91; font-size: 12px; line-height: 1.55; }
+  .tools label { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 6px; }
+  kbd { padding: 2px 5px; border: 1px solid #d4dee8; border-radius: 4px; background: #f7f9fb; font: inherit; }
+  @media (max-width: 850px) { body { padding: 22px 14px; } .layout { grid-template-columns: 1fr; } .guide { max-width: none; } }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header>
+    <p class="eyebrow">Little Arcade · counting game</p>
+    <h1>Feed the Monster</h1>
+    <p class="lede">He shows how many snacks he wants. Tap the bowl once for each bite and watch his tummy fill. You can also tap a matching group of snacks to feed that many at once.</p>
+  </header>
+  <div class="layout">
+    <section class="device" aria-label="Interactive game screen">
+      <div class="device-head"><h2>Try a round</h2><span class="live-pill">Live game</span></div>
+      <canvas class="screen" id="live" width="320" height="240" aria-label="Feed the Monster game screen"></canvas>
+      <p class="status" id="status" aria-live="polite"></p>
+    </section>
+    <aside class="guide">
+      <h2>How a round works</h2>
+      <ol class="steps">
+        <li><span class="step">1</span><span><strong>Look at the snack bubble.</strong> It shows how many bites the monster wants.</span></li>
+        <li><span class="step">2</span><span><strong>Feed that many.</strong> Tap the bowl once per bite, or tap the matching snack group below.</span></li>
+        <li><span class="step">3</span><span><strong>Watch the tummy.</strong> Each filled dot is one bite. When they match, the monster celebrates.</span></li>
+      </ol>
+      <p class="note">No score and no wrong answer. The game uses pictures and sounds, and the same round is playable by touch with voice off.</p>
+      <div class="tools">
+        <label><input type="checkbox" id="grid"> Show tap areas</label>
+        <div>Keyboard test: <kbd>1</kbd>–<kbd>3</kbd> count · <kbd>A</kbd>/<kbd>H</kbd> repeat · <kbd>C</kbd> start · <kbd>Backspace</kbd> home</div>
+      </div>
+    </aside>
+  </div>
+</main>
+<script>
+const W = 320, H = 240;
+const P = {
+  sky: '#BFE8FF', skyDark: '#9FD4F5', ground: '#A8E6A1', white: '#fff',
+  ink: '#33415C', edge: '#5B6B8C', purple: '#9B6BD6', lilac: '#C9A8EF',
+  pink: '#F27BA6', orange: '#F28C28', yellow: '#F7C631', green: '#3FB24A', blue: '#3A7BE0',
+  bowl: '#F4A261', darkBowl: '#D9762A',
+};
+const HOME = [0, 0, 56, 56], MIC = [264, 0, 56, 56];
+const FOOD = [8, 72, 112, 96], MONSTER = [136, 72, 176, 96];
+const NUMS = [[8, 176, 96, 56], [112, 176, 96, 56], [216, 176, 96, 56]];
+const BADGE = [104, 4, 112, 56], TILES = [[8,68,120,80],[136,68,120,80],[8,156,120,80],[136,156,120,80]];
+const dot = (g,x,y,r,c,edge=null,lw=2) => {
+  g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.fillStyle=c; g.fill();
+  if(edge){g.lineWidth=lw;g.strokeStyle=edge;g.stroke();}
+};
+function card(g,r,fill) {
+  g.beginPath(); g.roundRect(r[0]+3,r[1]+3,r[2]-6,r[3]-6,11);
+  g.fillStyle=fill; g.fill(); g.lineWidth=2; g.strokeStyle=P.edge; g.stroke();
+}
+function snack(g,x,y,r=8) {
+  dot(g,x,y+2,r,P.orange,P.ink,1.3);
+  g.beginPath(); g.moveTo(x,y-r+3); g.lineTo(x+1,y-r-2);
+  g.strokeStyle=P.ink; g.lineWidth=1.5; g.lineCap='round'; g.stroke();
+  g.beginPath(); g.ellipse(x+4,y-r+1,4,2,-.4,0,Math.PI*2);
+  g.fillStyle=P.green; g.fill(); g.strokeStyle=P.ink; g.lineWidth=1; g.stroke();
+}
+function homeIcon(g) {
+  g.beginPath(); g.moveTo(17,29); g.lineTo(28,19); g.lineTo(39,29);
+  g.moveTo(21,27); g.lineTo(21,39); g.lineTo(35,39); g.lineTo(35,27);
+  g.strokeStyle=P.ink; g.lineWidth=3; g.lineJoin='round'; g.lineCap='round'; g.stroke();
+}
+function micIcon(g) {
+  g.beginPath(); g.roundRect(286,14,12,22,6); g.fillStyle=P.ink; g.fill();
+  g.beginPath(); g.arc(292,32,12,0,Math.PI); g.strokeStyle=P.ink; g.lineWidth=3; g.stroke();
+  g.beginPath(); g.moveTo(292,44); g.lineTo(292,48); g.moveTo(286,48); g.lineTo(298,48);
+  g.stroke();
+}
+function face(g,cx,cy,s=1,mouth=true) {
+  for(const dx of [-13,13]) {
+    dot(g,cx+dx*s,cy,7*s,P.white,P.ink,1.5);
+    dot(g,cx+dx*s+1,cy+1,3.8*s,P.ink);
+    dot(g,cx+dx*s+2,cy-1,1.4*s,P.white);
+  }
+  dot(g,cx-29*s,cy+12*s,5*s,'#FF9BB0'); dot(g,cx+29*s,cy+12*s,5*s,'#FF9BB0');
+  g.beginPath(); g.arc(cx,cy+8*s,8*s,.2,Math.PI-.2);
+  g.strokeStyle=P.ink; g.lineWidth=2*s; g.lineCap='round'; g.stroke();
+  if(!mouth) dot(g,cx,cy+14*s,4*s,'#B5384B');
+}
+function monster(g,cx=218,cy=119,s=1,cheer=false) {
+  g.save(); g.translate(cx,cy); g.scale(s,s);
+  g.fillStyle='rgba(40,60,90,.18)'; g.beginPath(); g.ellipse(2,53,52,8,0,0,Math.PI*2); g.fill();
+  g.fillStyle=P.purple; g.strokeStyle=P.ink; g.lineWidth=2;
+  g.beginPath(); g.moveTo(-34,-26); g.lineTo(-43,-47); g.quadraticCurveTo(-26,-42,-20,-31);
+  g.quadraticCurveTo(0,-47,20,-31); g.quadraticCurveTo(27,-43,43,-47); g.lineTo(34,-24);
+  g.quadraticCurveTo(52,-8,48,21); g.quadraticCurveTo(44,49,0,51);
+  g.quadraticCurveTo(-46,49,-49,17); g.quadraticCurveTo(-54,-8,-34,-26); g.closePath(); g.fill(); g.stroke();
+  dot(g,-31,-32,5,P.yellow,P.ink,1.5); dot(g,31,-32,5,P.yellow,P.ink,1.5);
+  face(g,0,-6,1,!cheer);
+  g.fillStyle=P.lilac; g.beginPath(); g.ellipse(0,30,28,14,0,0,Math.PI*2); g.fill();
+  g.strokeStyle=P.ink; g.lineWidth=1.5; g.stroke();
+  for(let i=0;i<3;i++) {
+    if(i<state.requested) dot(g,(i-(state.requested-1)/2)*16,30,5,i<(state.fed)?P.orange:'#fff',P.ink,1);
+  }
+  if(cheer) { dot(g,-56,-4,4,P.yellow); dot(g,54,-13,5,P.pink); dot(g,0,-59,4,P.blue); }
+  g.restore();
+}
+function bowl(g) {
+  card(g,FOOD,'#FFF4DC');
+  g.fillStyle=P.bowl; g.strokeStyle=P.ink; g.lineWidth=2;
+  g.beginPath(); g.moveTo(20,124); g.quadraticCurveTo(22,158,64,158); g.quadraticCurveTo(106,158,108,124); g.closePath(); g.fill(); g.stroke();
+  g.beginPath(); g.ellipse(64,124,44,10,0,0,Math.PI*2); g.fillStyle='#FFD1A8'; g.fill(); g.stroke();
+  g.beginPath(); g.ellipse(64,124,36,6,0,0,Math.PI*2); g.fillStyle=P.darkBowl; g.fill();
+  snack(g,43,113,8); snack(g,64,108,8); snack(g,85,113,8);
+}
+function topbar(g) {
+  g.fillStyle=P.skyDark; g.fillRect(0,0,W,62);
+  if(!state.menu) card(g,HOME,P.white);
+  card(g,MIC,P.white);
+  if(!state.menu) homeIcon(g);
+  micIcon(g);
+  if(!state.menu) {
+    card(g,BADGE,P.white);
+    g.beginPath(); g.moveTo(190,57); g.lineTo(201,68); g.lineTo(207,57);
+    g.closePath(); g.fillStyle=P.white; g.fill();
+    g.beginPath(); g.moveTo(190,57); g.lineTo(201,68); g.lineTo(207,57);
+    g.strokeStyle=P.edge; g.lineWidth=2; g.stroke();
+    for(let i=0;i<state.requested;i++) snack(g,160+(i-(state.requested-1)/2)*22,32,6);
+  }
+}
+function screen(g,now=performance.now()) {
+  g.clearRect(0,0,W,H); g.fillStyle=P.sky; g.fillRect(0,0,W,H);
+  g.fillStyle=P.green; g.fillRect(0,230,W,10); topbar(g);
+  if(state.hintUntil>now) {
+    g.strokeStyle='#fff'; g.lineWidth=3; g.beginPath();
+    g.roundRect(BADGE[0],BADGE[1],BADGE[2],BADGE[3],13); g.stroke();
+  }
+  if(state.menu) {
+    TILES.forEach((r,i)=>card(g,r,['#DDF1FF','#FFE9D6','#E7DDFB','#DDF3E8'][i]));
+    dot(g,37,194,9,P.orange,P.ink,1.5);
+    monster(g,84,193,.42);
+    return;
+  }
+  bowl(g); monster(g,218,119,1,state.phase==='CELEBRATE');
+  for(let n=1;n<=3;n++) {
+    const r=NUMS[n-1]; card(g,r,n===state.requested?'#FFF4DC':P.white);
+    for(let i=0;i<n;i++) snack(g,r[0]+r[2]/2+(i-(n-1)/2)*20,r[1]+r[3]/2-2,6);
+  }
+  if(state.phase==='CELEBRATE') {
+    for(let i=0;i<7;i++) dot(g,145+(i*37)%120,76+(i*23)%74,3+(i%2),[P.yellow,P.pink,P.blue][i%3]);
+  }
+  if(state.flightUntil>now && state.phase==='PLAY') {
+    const t=1-(state.flightUntil-now)/350;
+    snack(g,62+(218-62)*t,121+32*t-18*Math.sin(Math.PI*t),8);
+  }
+  if(document.getElementById('grid').checked) {
+    g.strokeStyle='rgba(30,40,60,.55)'; g.lineWidth=1;
+    for(const r of [FOOD,MONSTER,...NUMS,BADGE]) g.strokeRect(...r);
+  }
+}
+let state={menu:false,phase:'PLAY',requested:2,fed:0,flightUntil:0,roundTimer:0,introTimer:0,hintUntil:0};
+const live=document.getElementById('live'),g=live.getContext('2d');
+function nextRound(){state.phase='PLAY';state.fed=0;let n=1+Math.floor(Math.random()*3);if(n===state.requested)n=n%3+1;state.requested=n;draw();}
+function scheduleIntro(){
+  clearTimeout(state.introTimer);
+  state.introTimer=setTimeout(()=>{if(!state.menu&&state.phase==='INTRO'){state.phase='PLAY';draw();}},1200);
+}
+function startGame(){state.menu=false;state.phase='INTRO';state.fed=0;draw();scheduleIntro();}
+function draw(){
+  const now=performance.now();
+  screen(g,now);
+  const count=state.requested+' snack'+(state.requested===1?'':'s');
+  document.getElementById('status').textContent=state.menu?'Tap the monster picture to start.':
+    'Monster wants '+count+' · '+state.fed+' eaten'+(state.phase==='CELEBRATE'?' · happy wiggle!':'');
+  if(state.flightUntil>now) requestAnimationFrame(draw);
+  if(state.hintUntil>now) setTimeout(()=>{if(state.hintUntil<=performance.now())draw();},state.hintUntil-now);
+}
+function skipIntro(){if(state.phase==='INTRO')state.phase='PLAY';}
+function replayPrompt(){state.hintUntil=performance.now()+800;draw();}
+function feedTo(n){
+  if(state.phase==='INTRO'){state.phase='PLAY';draw();return;}
+  if(state.phase==='CELEBRATE')return;
+  const before=state.fed;
+  state.fed=Math.min(state.requested,Math.max(state.fed,n));
+  if(state.fed>before)state.flightUntil=performance.now()+350;
+  if(state.fed>=state.requested){
+    state.phase='CELEBRATE';
+    clearTimeout(state.roundTimer);
+    state.roundTimer=setTimeout(nextRound,1800);
+  }
+  draw();
+}
+live.addEventListener('click',e=>{
+  const r=live.getBoundingClientRect(),x=(e.clientX-r.left)*W/r.width,y=(e.clientY-r.top)*H/r.height;
+  if(state.menu){const t=TILES[0];if(x>=t[0]&&x<t[0]+t[2]&&y>=t[1]&&y<t[1]+t[3])startGame();return;}
+  const inside=a=>x>=a[0]&&x<a[0]+a[2]&&y>=a[1]&&y<a[1]+a[3];
+  if(inside(HOME)){clearTimeout(state.roundTimer);clearTimeout(state.introTimer);state.menu=true;draw();return;}
+  if(state.phase==='INTRO'){skipIntro();draw();return;}
+  if(state.phase==='CELEBRATE'){if(inside(FOOD))state.giggles++;draw();return;}
+  if(inside(FOOD)){feedTo(state.fed+1);}
+  else if(inside(MONSTER)||inside(BADGE)){replayPrompt();}
+  else {for(let i=0;i<3;i++)if(inside(NUMS[i])){feedTo(i+1);break;}}
+  draw();
+});
+document.getElementById('grid').addEventListener('change',draw);
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape')return;
+  if(e.key==='Backspace'){clearTimeout(state.roundTimer);clearTimeout(state.introTimer);state.menu=true;draw();return;}
+  if(state.menu&&e.key.toLowerCase()==='c'){startGame();return;}
+  if(e.key==='1'||e.key==='2'||e.key==='3')feedTo(Number(e.key));
+  else if(['a','h'].includes(e.key.toLowerCase()))state.phase==='INTRO'?skipIntro():replayPrompt();
+  draw();
+});
+draw();
+</script>
+</body>
+</html>

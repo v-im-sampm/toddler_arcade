@@ -30,8 +30,8 @@ class FeedMonsterGame final : public IGame {
   static constexpr std::size_t kNumberButtonCount = 3;
   static constexpr Rect kNumberButtons[kNumberButtonCount] = {
       {8, 176, 96, 56}, {112, 176, 96, 56}, {216, 176, 96, 56}};
-  // Top-bar badge showing N dots (works with audio off); tap also replays the request.
-  static constexpr Rect kRequestBadge{132, 4, 56, 56};
+  // Top-bar snack bubble showing N snacks (works with audio off); tap replays the request.
+  static constexpr Rect kRequestBadge{104, 4, 112, 56};
 
   static constexpr uint32_t kIntroMs = 1200;
   static constexpr uint32_t kCelebrateMs = 1800;

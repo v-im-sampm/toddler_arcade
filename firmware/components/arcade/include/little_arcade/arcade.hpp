@@ -5,6 +5,8 @@
 #include "little_arcade/games/animal_sounds_view.hpp"
 #include "little_arcade/games/color_pop.hpp"
 #include "little_arcade/games/color_pop_view.hpp"
+#include "little_arcade/games/feed_monster.hpp"
+#include "little_arcade/games/feed_monster_view.hpp"
 #include "little_arcade/games/hatch_a_pet.hpp"
 #include "little_arcade/games/hatch_a_pet_view.hpp"
 #include "little_arcade/games/rainbow_piano.hpp"
@@ -35,7 +37,8 @@ class Arcade {
     RAINBOW_PIANO,
     ROBO_BUDDY,
     SHAPE_GARAGE,
-    ANIMAL_SOUNDS
+    ANIMAL_SOUNDS,
+    FEED_MONSTER
   };
 
   // `volume_level` is the parent-saved level (0 = muted, the default).
@@ -64,6 +67,8 @@ class Arcade {
   Layer layer() const { return shown_; }
   const animal_sounds::AnimalSoundsGame& animal_sounds() const { return animal_sounds_; }
   const color_pop::ColorPopGame& color_pop() const { return color_pop_; }
+  const feed_monster::FeedMonsterGame& feed_monster() const { return feed_monster_; }
+  const feed_monster::FeedMonsterView& feed_monster_view() const { return feed_monster_view_; }
   const hatch_a_pet::HatchAPetGame& hatch_a_pet() const { return hatch_a_pet_; }
   const hatch_a_pet::HatchAPetView& hatch_a_pet_view() const { return hatch_view_; }
   const rainbow_piano::RainbowPianoGame& rainbow_piano() const { return rainbow_piano_; }
@@ -71,7 +76,7 @@ class Arcade {
   const shape_garage::ShapeGarageGame& shape_garage() const { return shape_garage_; }
 
  private:
-  static constexpr std::size_t kGameCount = 6;
+  static constexpr std::size_t kGameCount = 7;
 
   Layer wanted_layer() const;
   void show_layer(Layer layer);
@@ -82,6 +87,7 @@ class Arcade {
   rainbow_piano::RainbowPianoGame rainbow_piano_;
   robo_buddy::RoboBuddyGame robo_buddy_;
   shape_garage::ShapeGarageGame shape_garage_;
+  feed_monster::FeedMonsterGame feed_monster_;
   GameEntry entries_[kGameCount];
   IFeedback& feedback_;
   SceneManager scenes_;
@@ -95,8 +101,9 @@ class Arcade {
   rainbow_piano::RainbowPianoView rainbow_piano_view_;
   robo_buddy::RoboBuddyView robo_buddy_view_;
   shape_garage::ShapeGarageView shape_garage_view_;
+  feed_monster::FeedMonsterView feed_monster_view_;
   ui::ChromeView chrome_;
-  lv_obj_t* layers_[8]{};
+  lv_obj_t* layers_[9]{};
   lv_obj_t* sleep_overlay_ = nullptr;
   Layer shown_ = Layer::NONE;
   bool sleeping_ = false;

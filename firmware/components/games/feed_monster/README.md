@@ -1,15 +1,19 @@
 # Feed the Monster (G09)
 
-Spec: [games/feed_monster.md](../../../../games/feed_monster.md). Status: **scene logic + host tests only**.
-There's no LVGL view yet and no assets yet. This code hasn't run on a device. Host tests don't count as device validation.
+Spec: [games/feed_monster.md](../../../../games/feed_monster.md). The scene logic, LVGL view, procedural art,
+launcher tile and synthesized sound bank are implemented. The browser mockup is
+[docs/mockups/feed_monster.html](../../../../docs/mockups/feed_monster.html). This code has not been validated
+on a device; host tests and the desktop simulator are not device validation.
 
 ## Behaviour
 - INTRO (1.2 s, any input skips without feeding) → PLAY → CELEBRATE (1.8 s) → PLAY with a new request.
 - A friendly original monster asks for **1–3 snacks**. The request is chosen through `ctx.rng` (deterministic per seed) and never repeats back-to-back, so 1, 2 and 3 all appear.
 - Visual count works with audio off:
-  - the top-bar request badge shows N dots
-  - the monster's tummy lights one dot per snack eaten
-- Each snack plays a `SUCCESS` cue with variant = running count, so the voice counts "one… two… three" aloud.
+  - the top-bar request bubble shows N snack pictures
+  - only N tummy dots are shown, and one fills per snack eaten
+  - the matching count button is highlighted with the same snack pictures
+- Each snack plays a `SUCCESS` cue with variant = running count; the sound bank uses a distinct soft count motif
+  and munch sound. Spoken prompts are not included in this implementation.
 - When the tummy count reaches the request, the monster celebrates.
 - Extra taps are never penalised:
   - Food taps during CELEBRATE make the monster giggle (`REACTION`, `extra_snacks()`). The count stays correct.
@@ -23,37 +27,37 @@ There's no LVGL view yet and no assets yet. This code hasn't run on a device. Ho
 |---|---|---|
 | Food bowl | `{8,72,112,96}` | feed one snack |
 | Monster | `{136,72,176,96}` | replay request |
-| Number buttons 1/2/3 (dots) | `{8,176,96,56}` `{112,176,96,56}` `{216,176,96,56}` | count along to N |
-| Request badge (top bar) | `{132,4,56,56}` | shows N dots; tap replays request |
+| Number buttons 1/2/3 (snacks) | `{8,176,96,56}` `{112,176,96,56}` `{216,176,96,56}` | count along to N |
+| Request bubble (top bar) | `{104,4,112,56}` | shows N snack pictures; tap replays request |
 
 ## Input map (contexts: `Counting`; SceneManager adds `Global`)
 | Action | Touch | Voice intent |
 |---|---|---|
 | Feed one snack | tap food bowl | — |
 | Count along to N | tap number button N | ONE / TWO / THREE |
-| Hear/see request again + hint | tap monster or request badge | AGAIN, HELP |
+| Hear/see request again + hint | tap monster or request bubble | AGAIN, HELP |
 | Home | Home button (SceneManager) | BACK (SceneManager) |
 
-## Cue → asset placeholders (to be declared in `assets/manifest.json`)
+## Cue → asset IDs (declared in `assets/manifest.json`)
 | Cue | variant | Placeholder asset id |
 |---|---|---|
-| PROMPT | requested count 1–3 | `feed_monster.prompt.{one,two,three}` ("Feed me N!") |
+| PROMPT | requested count 1–3 | `feed_monster.prompt.{one,two,three}` (count motif) |
 | TAP | 0 | `common.tap` |
 | SUCCESS | running count 1–3 | `feed_monster.count.{one,two,three}` + munch |
 | CELEBRATE | 0 | `common.celebrate` |
 | REACTION | 0 | `feed_monster.giggle` |
 
 ## Tests
-`feed_monster_test` (host only) covers:
+`feed_monster_test` and `feed_monster_art_test` (host only) cover:
 - layout safety
 - intro timing and intro-skip without feeding
-- counts 1–3 with variety, visual and spoken count, and no back-to-back repeat
+- counts 1–3 with variety, visual and distinct sound cues, and no back-to-back repeat
 - excess taps never penalised
 - voice/food/number-button equivalence
 - counting along by voice
 - overshoot number
 - input and voice during celebration
-- AGAIN/HELP/monster/badge replay
+- AGAIN/HELP/monster/bubble replay
 - one-shot idle hint
 - harmless empty taps and unrelated intents
 - chew animation not dropping taps

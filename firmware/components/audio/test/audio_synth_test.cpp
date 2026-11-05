@@ -18,6 +18,7 @@ constexpr Cue kAllCues[] = {Cue::TAP,       Cue::PROMPT, Cue::SUCCESS,  Cue::TRY
                             Cue::CELEBRATE, Cue::NOTE,   Cue::REACTION, Cue::AMBIENT};
 constexpr uint8_t kScenes[] = {IFeedback::kSceneMenu, static_cast<uint8_t>(GameId::COLOR_POP),
                                static_cast<uint8_t>(GameId::HATCH_A_PET),
+                               static_cast<uint8_t>(GameId::FEED_MONSTER),
                                static_cast<uint8_t>(GameId::ANIMAL_SOUNDS),
                                static_cast<uint8_t>(GameId::RAINBOW_PIANO),
                                static_cast<uint8_t>(GameId::ROBO_BUDDY),
@@ -147,6 +148,7 @@ void test_game_palettes_are_distinct() {
   const uint8_t pop = static_cast<uint8_t>(GameId::COLOR_POP);
   const uint8_t hatch = static_cast<uint8_t>(GameId::HATCH_A_PET);
   const uint8_t piano = static_cast<uint8_t>(GameId::RAINBOW_PIANO);
+  const uint8_t feed = static_cast<uint8_t>(GameId::FEED_MONSTER);
   const uint8_t robo = static_cast<uint8_t>(GameId::ROBO_BUDDY);
   const uint8_t shapes = static_cast<uint8_t>(GameId::SHAPE_GARAGE);
   const uint8_t animals = static_cast<uint8_t>(GameId::ANIMAL_SOUNDS);
@@ -165,6 +167,17 @@ void test_game_palettes_are_distinct() {
     EXPECT(sound_for(hatch, Cue::NOTE, c).tones[1].f0_hz < sound_for(hatch, Cue::NOTE, static_cast<uint8_t>(c + 1)).tones[1].f0_hz);
   }
   EXPECT(!same_sound(sound_for(hatch, Cue::PROMPT, 0), sound_for(pop, Cue::PROMPT, 0)));
+  for (uint8_t count = 1; count <= 3; ++count) {
+    EXPECT(sound_for(feed, Cue::PROMPT, count).count > 0);
+    EXPECT(sound_for(feed, Cue::SUCCESS, count).count > 0);
+    EXPECT(sound_for(feed, Cue::PROMPT, count).duration_ms() <= kMaxSoundMs);
+    EXPECT(sound_for(feed, Cue::SUCCESS, count).duration_ms() <= kMaxSoundMs);
+    for (uint8_t other = static_cast<uint8_t>(count + 1); other <= 3; ++other) {
+      EXPECT(!same_sound(sound_for(feed, Cue::PROMPT, count), sound_for(feed, Cue::PROMPT, other)));
+    }
+  }
+  EXPECT(sound_for(feed, Cue::REACTION, 0).count > 0);
+  EXPECT(sound_for(feed, Cue::CELEBRATE, 0).count > 0);
   constexpr uint16_t notes[] = {523, 587, 659, 784, 880};
   for (uint8_t key = 0; key < 5; ++key) {
     const Sound bells = sound_for(piano, Cue::NOTE, key);

@@ -233,6 +233,36 @@ Sound hatch_a_pet_sound(Cue cue, uint8_t variant) {
   }
 }
 
+Sound feed_prompt(uint8_t requested) {
+  Sound s;
+  const uint8_t count = requested < 1 ? 1 : (requested > 3 ? 3 : requested);
+  for (uint8_t i = 0; i < count; ++i) {
+    s.add(bell(kPenta[2 + i], 105, 105)).add(rest(55));
+  }
+  return s;
+}
+
+Sound feed_count(uint8_t count) {
+  const uint8_t n = count < 1 ? 1 : (count > 3 ? 3 : count);
+  return Sound{}
+      .add(tone(Wave::NOISE, 2200, 1300, 28, 38, 1, 18))
+      .add(pluck(kPenta[1 + n], 105, 105))
+      .add(bell(kPenta[3 + n], 145, 105));
+}
+
+Sound feed_monster_sound(Cue cue, uint8_t variant) {
+  switch (cue) {
+    case Cue::PROMPT: return feed_prompt(variant);
+    case Cue::SUCCESS: return feed_count(variant);
+    case Cue::CELEBRATE:
+      return Sound{}.add(bell(659, 100, 105)).add(bell(784, 100, 110)).add(bell(1047, 230, 115));
+    case Cue::REACTION:
+      return Sound{}.add(pluck(784, 70, 95)).add(pluck(988, 70, 100)).add(pluck(1175, 120, 100));
+    case Cue::TAP: return Sound{}.add(tone(Wave::TRIANGLE, 580, 460, 36, 90, 2, 24));
+    default: return default_sound(cue, variant);
+  }
+}
+
 Sound robo_prompt(uint8_t prompt) {
   if (prompt == 1) {
     return Sound{}.add(tone(Wave::SINE, 392, 523, 220, 95, 18, 110)).add(bell(659, 180, 95));
@@ -349,6 +379,7 @@ Sound sound_for(uint8_t scene, Cue cue, uint8_t variant) {
     case static_cast<uint8_t>(GameId::COLOR_POP): return color_pop_sound(cue, variant);
     case static_cast<uint8_t>(GameId::ANIMAL_SOUNDS): return animal_sounds_sound(cue, variant);
     case static_cast<uint8_t>(GameId::HATCH_A_PET): return hatch_a_pet_sound(cue, variant);
+    case static_cast<uint8_t>(GameId::FEED_MONSTER): return feed_monster_sound(cue, variant);
     case static_cast<uint8_t>(GameId::RAINBOW_PIANO): return rainbow_piano_sound(cue, variant);
     case static_cast<uint8_t>(GameId::ROBO_BUDDY): return robo_buddy_sound(cue, variant);
     case static_cast<uint8_t>(GameId::SHAPE_GARAGE): return shape_garage_sound(cue, variant);
