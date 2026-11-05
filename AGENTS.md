@@ -11,3 +11,4 @@
 9. Protect speaker output: conservative default gain, volume cap, no unexpected loud startup sounds.
 10. If model compatibility, pins or RAM fail, create a blocking issue rather than silently changing requirements.
 11. Run containers with WSL containers (`wslc`), never Docker. Use `tools/idf_wslc_build.ps1` for ESP-IDF builds.
+12. When a game or feature is done (build and host tests pass), commit it to `main` and push `main` to its remote. Stage only the files you changed; never commit unrelated user edits, secrets, or build outputs. If no remote is configured, commit and report that the push was skipped.

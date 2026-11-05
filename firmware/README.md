@@ -9,7 +9,7 @@ external INMP441/MAX98357A over full-duplex I2S; the owner confirmed audible aud
 
 | Item | Version | Where pinned |
 | --- | --- | --- |
-| ESP-IDF | v5.5.6 (container `espressif/idf:v5.5.6`) | `main/idf_component.yml`, `tools/idf_wslc_build.ps1` |
+| ESP-IDF | v5.5.6 (project image based on `espressif/idf:v5.5.6`) | `tools/Containerfile.idf`, `tools/idf_wslc_build.ps1` |
 | LVGL | 9.5.0 | `main/idf_component.yml` |
 | esp_lvgl_port | 2.9.0 | `main/idf_component.yml` |
 | esp-sr | 2.6.1 (resolved, not yet called; V01 decides) | `main/idf_component.yml` |
@@ -44,30 +44,64 @@ python tools/gen_firmware_headers.py          # regenerate
 python tools/gen_firmware_headers.py --check  # CI drift check (also run by tools/validate_specs.py)
 ```
 
-## Build
+## Build, test and deploy
 
-ESP-IDF build in the pinned container via WSL containers (`wslc`; do not use Docker), with no local IDF install needed, plus size reports and GCC host tests:
+The supported firmware build runs in a locally cached WSL containers (`wslc`) image; Docker and a
+local ESP-IDF installation are not used. Windows prerequisites are PowerShell 7 (`pwsh`), WSL with
+`wslc`, Git, and Python available as `python` for the generated-header check. The container holds
+ESP-IDF and its compiler/CMake/Ninja toolchain. Component-manager dependencies and build outputs
+live under `firmware/` on the host, so ordinary builds are incremental.
 
+Prepare the image once per machine (the first normal build also prepares it automatically):
+
+```powershell
+pwsh tools/idf_wslc_build.ps1 -Prepare
 ```
-pwsh tools/idf_wslc_build.ps1          # add -Clean for a from-scratch build
+
+Build firmware, write size reports, and run the GCC host tests:
+
+```powershell
+pwsh tools/idf_wslc_build.ps1
 ```
 
-Host tests with a local compiler:
+The image is reused; each invocation starts a disposable build container with the repository mounted.
+Use `-Clean` for a clean firmware build (also removes the component-manager cache), or
+`-RebuildImage` to recreate the local image. `-Memory 3G -Jobs 2` can reduce peak resource use.
+The build checks generated headers before invoking ESP-IDF. To run host tests with a local compiler:
 
-```
+```powershell
 cmake -S firmware/host_test -B build-host
 cmake --build build-host --config Debug
 ctest --test-dir build-host -C Debug --output-on-failure
 ```
 
 To build a single game in isolation, pass `-DLA_ONLY_GAME=<folder>`, e.g. `-DLA_ONLY_GAME=color_pop`.
-Flash with esptool from `firmware/build` (the board used for H02 enumerates as a USB serial port, e.g. `COM15`):
 
+### Flash a board
+
+Build first, connect the board, and verify its serial port and hardware configuration. Flashing is a
+separate, explicit Windows-host operation; the container is not given access to a serial device.
+The first invocation creates the ignored `.venv` and installs the pinned host-only esptool
+dependency; later invocations reuse it:
+
+```powershell
+pwsh tools/flash_firmware.ps1 -Port COM15
 ```
-python -m esptool --chip esp32s3 -p COM15 -b 921600 --before default_reset --after hard_reset write_flash \
-  --flash_mode dio --flash_size 16MB --flash_freq 80m 0x0 bootloader/bootloader.bin \
-  0x8000 partition_table/partition-table.bin 0x10000 little_arcade.bin 0x410000 srmodels/srmodels.bin
+
+The script defaults to 460800 baud, checks that all four build images exist, writes the bootloader,
+partition table, app and model partition at the offsets from `partitions.csv`, and fails unless
+esptool verifies the written data. Override the baud rate only if needed with `-Baud`.
+`esptool==5.6.0` and its serial dependency are pinned in `tools/requirements-flash.txt`.
+
+For a serial boot log, open a terminal after flashing and reset the board:
+
+```powershell
+& .\.venv\Scripts\python.exe -m serial.tools.miniterm COM15 115200
 ```
+
+Close the monitor with `Ctrl+]`. Confirm display, touch, and audio on the physical board; a successful
+build or flash is not proof of device behavior. The current `srmodels.bin` is a 4-byte empty/default
+model image (no WakeNet/MultiNet model selected), so this build does not provide speech recognition.
 
 `CONFIG_SPIRAM_MODE_OCT` assumes an N16R8 module; the H02 board reported 16 MB flash and 8 MB octal PSRAM.
 
