@@ -1,8 +1,11 @@
 // Little Arcade desktop simulator: the full Arcade shell (launcher + Home +
 // Color Pop + Hatch-a-Pet) with the real game logic and real LVGL views.
 //
-// Interactive:  little_arcade_sim [--zoom N] [--seed N] [--mute]
-//   Sounds play through the PC speakers using the device synth (level 4).
+// Interactive:  little_arcade_sim [--zoom N] [--seed N] [--mute] [--volume 0..6]
+//   Sounds play through the PC speakers using the device synth. Like the
+//   device, sound starts muted until a parent opts in: hold the Mic corner
+//   (top-right) for 5 s, answer the sum, pick a level. --volume N stands in
+//   for a level a parent already saved (the sim does not persist settings).
 //   Mouse = touch (Home and the launcher work like the device).
 //   Keys = voice intents: R B G Y colours, A AGAIN, H HELP, J YES, N NO,
 //   X NEXT, Backspace BACK, C COLORS, E EGGS. Esc quits.
@@ -40,6 +43,7 @@ struct Options {
   uint32_t frame_ms = LV_DEF_REFR_PERIOD;
   int zoom = 3;
   bool mute = false;
+  uint32_t volume = 0;  // parent-saved level stand-in; 0 = muted (default)
   std::string shots;
 };
 
@@ -458,17 +462,17 @@ int run_interactive(const Options& opt) {
   lv_tick_set_cb(SDL_GetTicks);
 
   static SpeakerFeedback feedback;
-  if (!opt.mute && open_sim_audio(feedback.audio)) {
-    feedback.audio.set_level(4);  // same provisional level as the device
-  } else {
+  const bool audio_ok = !opt.mute && open_sim_audio(feedback.audio);
+  if (!audio_ok) {
     std::printf("sim audio off (%s)\n", opt.mute ? "--mute" : SDL_GetError());
   }
   const uint32_t seed = opt.seed ? opt.seed : static_cast<uint32_t>(SDL_GetTicks() ^ 0xA5A5u) | 1u;
-  static Arcade arcade(feedback, seed);
+  static Arcade arcade(feedback, seed, static_cast<uint8_t>(opt.volume));
   arcade.create(lv_screen_active());
+  int applied_level = -1;
   std::printf(
       "Little Arcade sim: click = touch. Keys: R/B/G/Y colours, A again, H help, J yes, N no, X next,\n"
-      "  Backspace back, C colors, E eggs, Esc quit.\n");
+      "  Backspace back, C colors, E eggs, Esc quit. Sound is muted: hold the Mic corner 5 s for parent settings.\n");
 
   struct Key {
     SDL_Scancode code;
@@ -480,9 +484,18 @@ int run_interactive(const Options& opt) {
               {SDL_SCANCODE_J, Intent::YES, false},       {SDL_SCANCODE_N, Intent::NO, false},
               {SDL_SCANCODE_X, Intent::NEXT, false},      {SDL_SCANCODE_BACKSPACE, Intent::BACK, false},
               {SDL_SCANCODE_C, Intent::COLORS, false},    {SDL_SCANCODE_E, Intent::EGGS, false}};
-  bool mouse_down = false;
   for (;;) {
     const uint32_t now = SDL_GetTicks();
+    // Every sample goes to the Arcade (parent-gate hold + press edges), like the device.
+    int mx = 0, my = 0;
+    const bool mouse_down = (SDL_GetMouseState(&mx, &my) & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
+    arcade.pointer(mouse_down, static_cast<int16_t>(mx / opt.zoom), static_cast<int16_t>(my / opt.zoom), now);
+    if (audio_ok && arcade.volume_level() != applied_level) {
+      applied_level = arcade.volume_level();
+      feedback.audio.set_level(static_cast<uint8_t>(applied_level));
+      std::printf("[audio] volume level %d%s\n", applied_level, applied_level ? "" : " (muted)");
+    }
+    if (arcade.take_volume_changed()) std::printf("[settings] parent chose level %u (not persisted in the sim)\n", static_cast<unsigned>(arcade.volume_level()));
     arcade.tick(now);
     const uint32_t idle = lv_timer_handler();  // also pumps SDL events
     const Uint8* ks = SDL_GetKeyboardState(nullptr);
@@ -495,18 +508,6 @@ int run_interactive(const Options& opt) {
       }
       k.down = down;
     }
-    // Press edges become touch events, exactly like the device touch task.
-    int mx = 0, my = 0;
-    const bool down = (SDL_GetMouseState(&mx, &my) & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
-    if (down && !mouse_down) {
-      const auto x = static_cast<int16_t>(mx / opt.zoom), y = static_cast<int16_t>(my / opt.zoom);
-      if (kMicButton.contains(x, y)) {
-        std::printf("[mic] push-to-talk is simulated with the keyboard\n");
-      } else {
-        arcade.touch(x, y, now);
-      }
-    }
-    mouse_down = down;
     SDL_Delay(std::min<uint32_t>(idle, 5));
   }
   return 0;
@@ -541,6 +542,8 @@ bool parse(int argc, char** argv, Options& opt) {
     } else if (a == "--zoom") {
       if (!next(zoom) || zoom == 0 || zoom > 8) return false;
       opt.zoom = static_cast<int>(zoom);
+    } else if (a == "--volume") {
+      if (!next(opt.volume) || opt.volume > 6) return false;
     } else if (a == "--mute") {
       opt.mute = true;
     } else if (a == "--shots" && i + 1 < argc) {
@@ -558,7 +561,7 @@ int main(int argc, char** argv) {
   Options opt;
   if (!parse(argc, argv, opt)) {
     std::printf(
-        "usage: little_arcade_sim [--zoom N] [--seed N] [--mute]\n"
+        "usage: little_arcade_sim [--zoom N] [--seed N] [--mute] [--volume 0..6]\n"
         "       little_arcade_sim --bench [--game color_pop|hatch_a_pet] [--seconds N] [--seed N]\n"
         "                         [--frame-ms N] [--shots DIR]\n");
     return 2;

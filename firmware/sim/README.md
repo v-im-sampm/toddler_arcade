@@ -38,10 +38,11 @@ build-sim\Release\little_arcade_sim.exe [--zoom 3] [--seed N]
 | `J` / `N` / `X` | voice intent YES / NO / NEXT |
 | `Backspace` | voice intent BACK (to the launcher) |
 | `C` / `E` | voice intent COLORS / EGGS (launch from the menu) |
-| Mic button | logs only; push-to-talk is simulated by the keys above |
+| Mic button (tap) | does nothing yet; push-to-talk is simulated by the keys above |
+| Mic button (hold 5 s) | opens the hidden parent gate: answer the sum, pick volume 0–6, tap ✓ |
 | `Esc` | quit |
 
-Audio cues are printed to the console (`[audio] PROMPT 0`) and played through the PC speakers with the same synth and sound bank as the device (SDL audio, 16 kHz mono, level 4). Pass `--mute` to silence them. Bench mode stays silent.
+Audio cues are printed to the console (`[audio] PROMPT 0`). Like the device, sound **starts muted** until a parent opts in through the parent gate; after that, cues play through the PC speakers with the same synth and sound bank as the device (SDL audio, 16 kHz mono). `--volume N` (0–6) stands in for a level a parent already saved; the sim does not persist settings. `--mute` disables sim audio entirely. Bench mode stays silent.
 
 ## Headless benchmark
 

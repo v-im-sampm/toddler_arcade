@@ -24,6 +24,7 @@ audio yet; that waits on H03 (see `docs/hardware.md`).
   - `SceneManager`, which handles launcher paging, Home/BACK, pause, debounce, idle sleep and voice context filtering.
 - `components/speech/`: push-to-talk session timing and `VoiceIntentFilter`. Pure logic; ESP-SR is not called yet.
 - `components/audio/`: `VolumeLimiter`, which provides muted startup, a parent cap, ramping and a hard peak limit. Pure logic; there is no I2S driver yet.
+- `components/settings/`: `ParentGate`, the hidden parent settings gate (pure logic, host-tested), plus an NVS store on the device that persists only the volume level (namespace `la_settings`, key `volume`).
 - `components/games/<name>/`: one component per game, holding scene logic, a README and host tests.
   - The IDF project and the host tests discover these folders automatically.
   - Each folder is owned by its game; don't edit across games without review.
@@ -68,6 +69,21 @@ python -m esptool --chip esp32s3 -p COM15 -b 921600 --before default_reset --aft
 ```
 
 `CONFIG_SPIRAM_MODE_OCT` assumes an N16R8 module; the H02 board reported 16 MB flash and 8 MB octal PSRAM.
+
+## Sound and parent settings
+
+Sound is **muted from the factory** and stays muted until a parent opts in (`docs/acceptance.md` G4, `docs/parental-safety.md`):
+
+1. Hold the Mic corner (top-right) for 5 seconds. A short tap on the Mic corner does nothing to the games.
+2. Answer the sum by tapping the right number. A wrong answer, or 30 s with no touch, closes the screen.
+3. Pick a volume from 0 (off) to 6 (the parent cap). Each non-zero tap plays a short preview chime.
+4. Tap ✓.
+
+The level is saved in NVS and applied after the first frame on later boots, ramping up over 300 ms, so there is no startup sound. To restore the factory default, erase NVS:
+
+```
+python -m esptool --chip esp32s3 -p COM15 erase_region 0x9000 0x6000
+```
 
 ## H02 device evidence (one physical board)
 

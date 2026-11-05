@@ -50,9 +50,13 @@ SceneManager::Config config_for(uint32_t seed) {
 }
 }  // namespace
 
-Arcade::Arcade(IFeedback& feedback, uint32_t seed)
+Arcade::Arcade(IFeedback& feedback, uint32_t seed, uint8_t volume_level)
     : entries_{{GameId::COLOR_POP, Intent::COLORS, &color_pop_}, {GameId::HATCH_A_PET, Intent::EGGS, &hatch_a_pet_}},
-      scenes_(entries_, kGameCount, feedback, config_for(seed)) {}
+      feedback_(feedback),
+      scenes_(entries_, kGameCount, feedback, config_for(seed)),
+      gate_(seed, volume_level) {
+  scenes_.set_audio_enabled(gate_.level() > 0);
+}
 
 void Arcade::create(lv_obj_t* screen) {
   if (g_color_pop_tile.allocate(color_pop::kTileW, color_pop::kTileH)) {
@@ -75,10 +79,15 @@ void Arcade::create(lv_obj_t* screen) {
   sleep_overlay_ = full_screen(screen);
   lv_obj_set_style_bg_color(sleep_overlay_, ui::to_lv(pal::kInk), 0);
   lv_obj_set_style_bg_opa(sleep_overlay_, LV_OPA_70, 0);
+  parent_view_.create(screen);  // topmost
 
   shown_ = Layer::NONE;
   sleeping_ = false;
   show_layer(wanted_layer());
+}
+
+void Arcade::pointer(bool pressed, int16_t x, int16_t y, uint32_t now_ms) {
+  if (gate_.pointer(pressed, x, y, now_ms)) touch(x, y, now_ms);
 }
 
 void Arcade::touch(int16_t x, int16_t y, uint32_t now_ms) { scenes_.handle(make_touch_event(x, y, now_ms)); }
@@ -124,6 +133,10 @@ void Arcade::tick(uint32_t now_ms) {
     case Layer::HATCH_A_PET: hatch_view_.sync(hatch_a_pet_, now_ms); break;
     case Layer::NONE: break;
   }
+  scenes_.set_audio_enabled(gate_.level() > 0);
+  // Let the parent hear the level just chosen (the caller has applied it).
+  if (gate_.take_preview()) feedback_.play(Cue::SUCCESS, 0);
+  parent_view_.sync(gate_);
 }
 
 }  // namespace little_arcade

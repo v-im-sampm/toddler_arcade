@@ -1,6 +1,6 @@
 // Little Arcade firmware: launcher + Color Pop + Hatch-a-Pet on the H02 display/touch.
-// Single UI task owns LVGL (docs/architecture.md). No audio yet (H03 blocked):
-// cues are logged. Touch presses are logged raw + mapped for calibration checks.
+// Single UI task owns LVGL (docs/architecture.md). Sound is muted until a parent
+// opts in (parent gate). Touch presses are logged raw + mapped for calibration checks.
 #include <cinttypes>
 
 #include "esp_app_desc.h"
@@ -20,6 +20,7 @@
 #include "little_arcade/board_io.hpp"
 #include "little_arcade/board_pins.hpp"
 #include "little_arcade/intent.hpp"
+#include "little_arcade/settings/settings_store.hpp"
 #include "lvgl.h"
 
 namespace {
@@ -62,16 +63,15 @@ void log_board() {
   }
 }
 
-// Provisional bring-up volume (0..10, clamped to the VolumeLimiter parent cap
-// of 6). Output stays muted until this is applied after the first frame, then
-// ramps over 300 ms; there is no startup sound. A parent-settings screen will
-// replace this constant (P03/settings); tune only with H03 level measurements.
-constexpr uint8_t kStartupVolumeLevel = 4;
+// Volume policy (docs/acceptance.md G4, AGENTS.md rule 9): output is muted
+// until a parent opts in through the hidden parent gate (hold the Mic corner
+// 5 s, answer a sum, pick 0..6). The chosen level is saved in NVS and applied
+// only after the first frame, ramping over 300 ms: no startup sound.
 // H03 bring-up: log INMP441 RMS/peak numbers only (no samples kept or sent).
 constexpr bool kMicLevelProbe = true;
 // H03 diagnostic only, keep false in normal builds: ~10 s after boot plays six
-// soft menu chimes (level kStartupVolumeLevel) so the [audio] mic RMS log can
-// show acoustic loopback from the speaker to the INMP441.
+// soft menu chimes at the parent-saved level (silent while muted) so the
+// [audio] mic RMS log can show acoustic loopback from the speaker to the INMP441.
 constexpr bool kAudioLoopbackSelfTest = false;
 
 
@@ -120,17 +120,17 @@ void poll_touch(uint32_t now) {
   board::TouchSample s{};
   if (board::touch_read(&s) != ESP_OK || !s.pressed) {
     g_was_pressed = false;
+    g_arcade->pointer(false, 0, 0, now);
     return;
   }
-  if (g_was_pressed) return;
-  g_was_pressed = true;
   const board::ScreenPoint p = board::ns2009_to_screen(s.raw_x, s.raw_y);
-  ESP_LOGI("touch", "down raw=(%u,%u) z=%u -> screen=(%d,%d)", s.raw_x, s.raw_y, s.raw_z, p.x, p.y);
-  if (kMicButton.contains(p.x, p.y)) {
-    ESP_LOGI(kTag, "[nav] Mic pressed (voice needs H03/V01)");
-    return;
+  if (!g_was_pressed) {
+    ESP_LOGI("touch", "down raw=(%u,%u) z=%u -> screen=(%d,%d)", s.raw_x, s.raw_y, s.raw_z, p.x, p.y);
   }
-  g_arcade->touch(p.x, p.y, now);
+  g_was_pressed = true;
+  // Every sample goes to the Arcade: it needs held presses for the parent
+  // gate and forwards only new presses to the launcher/games.
+  g_arcade->pointer(true, p.x, p.y, now);
 }
 lv_display_t* start_display() {
   lv_display_t* disp = lv_display_create(kScreenWidth, kScreenHeight);
@@ -161,7 +161,11 @@ void ui_task(void*) {
   const esp_err_t touch_err = board::touch_init();
   if (touch_err != ESP_OK) ESP_LOGE(kTag, "touch init failed (%s); display only", esp_err_to_name(touch_err));
 
-  static Arcade arcade(g_feedback, esp_random() | 1u);
+  settings::init_store();
+  const uint8_t saved_level = settings::load_volume_level();
+  ESP_LOGI(kTag, "parent volume level=%u (%s)", static_cast<unsigned>(saved_level),
+           saved_level ? "saved by parent" : "muted until a parent opts in");
+  static Arcade arcade(g_feedback, esp_random() | 1u, saved_level);
   g_arcade = &arcade;
   const int64_t create_t0 = esp_timer_get_time();
   arcade.create(lv_screen_active());
@@ -175,11 +179,9 @@ void ui_task(void*) {
 
   audio::I2sAudioOptions audio_opts;
   audio_opts.mic_level_probe = kMicLevelProbe;
-  if (audio::start_i2s_audio(g_feedback, audio_opts)) {
-    g_feedback.set_level(kStartupVolumeLevel);
-  } else {
-    ESP_LOGE(kTag, "audio unavailable; games stay fully playable with visual cues");
-  }
+  const bool audio_ok = audio::start_i2s_audio(g_feedback, audio_opts);
+  if (!audio_ok) ESP_LOGE(kTag, "audio unavailable; games stay fully playable with visual cues");
+  int applied_level = -1;
   log_memory("audio_ready");
 
   uint32_t stats_start = tick_ms(), frames = 0;
@@ -189,6 +191,12 @@ void ui_task(void*) {
   for (;;) {
     const uint32_t now = tick_ms();
     if (touch_err == ESP_OK) poll_touch(now);
+    if (audio_ok && arcade.volume_level() != applied_level) {
+      applied_level = arcade.volume_level();
+      g_feedback.set_level(static_cast<uint8_t>(applied_level));  // ramps; 0 = muted
+      ESP_LOGI("audio", "volume level %d applied", applied_level);
+    }
+    if (arcade.take_volume_changed()) settings::save_volume_level(arcade.volume_level());
     if (kAudioLoopbackSelfTest) audio_loopback_self_test(now);
     const int64_t t_tick = esp_timer_get_time();
     arcade.tick(now);  // game logic + view sync (+ lazy Hatch-a-Pet art rasters)

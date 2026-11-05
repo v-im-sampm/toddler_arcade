@@ -36,6 +36,7 @@ la_host_test(volume_test volume_test.cpp)
 la_host_test(audio_synth_test ${LA_COMPONENTS}/audio/test/audio_synth_test.cpp)
 la_host_test(touch_calibration_test touch_calibration_test.cpp)
 add_subdirectory(${LA_COMPONENTS}/ui ui)
+add_subdirectory(${LA_COMPONENTS}/settings settings)
 
 # Each game owns components/games/<name>/ and registers its own library + tests.
 # -DLA_ONLY_GAME=<name> builds a single game (used for isolated parallel work).
