@@ -83,8 +83,8 @@ handle points to +y. Seen from the front, +x is on the viewer's **left**.
   board is 17.8 mm along the 7-pin header and 18.8 mm from the header edge to
   the terminal block (`max_board_size`). It has only two holes (about 2.5 mm),
   one on each side of the speaker terminal block, 13.0 mm apart and 2.4 mm in
-  from the terminal edge (`max_hole_pitch`, `max_hole_inset`, measured from the
-  Adafruit top photo). In the case, that end faces the handle. These take M2 screws
+  from the terminal edge (`max_hole_pitch`, `max_hole_inset`, estimated from the
+  Adafruit top photo; caliper-check before printing). In the case, that end faces the handle. These take M2 screws
   into 4.2 mm standoffs. Two solid rest posts (`max_rest_inset`) support the
   header end. **Solder the header (11.2 mm, `max_header_height`) and the
   terminal block on the component side, facing the display**, or wire directly
@@ -281,8 +281,10 @@ Measure and update:
 - **503450 battery:** the bay uses seller dimensions (34 x 50 x 5). Confirm
   the fit, including the protection-circuit end and the lead bend radius.
 - **MAX98357A board:** the outline (17.8 x 18.8) comes from the supplied
-  drawing. The hole pitch (13.0) and inset (2.4) are measured from the Adafruit
-  photo; the terminal-block
+  drawing. The hole placement (both holes flanking the terminal block, at the
+  handle end) is confirmed by the Adafruit top photo, but the hole pitch (13.0),
+  inset (2.4), and hole size (~2.5) are photo-scaled estimates (about +/-0.2 mm);
+  measure them with calipers before printing. The terminal-block
   height and depth (`max_terminal_height`, `max_terminal_size`) and the rest-post
   positions are placeholders. The standoffs assume the
   display stack is no deeper than `display_stack_depth` (placeholder 8 mm).
