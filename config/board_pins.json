@@ -88,12 +88,17 @@
     "budget_note": "LD1117 headroom for an external amplifier is unmeasured. The owner has wired MAX98357A Vin to header +3V3 (user-reported); keep digital output capped and measure current/brownout before raising volume (H03)."
   },
   "audio": {
-    "status": "External INMP441 mic + MAX98357A amp wired by the owner (user-reported wiring table, 2026-11-04). Not bench-verified: no scope capture, current or acoustic level measurement yet (H03).",
+    "status": "External INMP441 mic + MAX98357A amp wired by the owner (user-reported wiring table, 2026-11-04). Owner confirms the mic and speaker are working and audio is audible (H03 functional validation). Wiring pins remain owner-reported; no scope capture, calibrated SPL, current, LD1117 thermal, or power-on-pop measurement is recorded.",
     "candidate_pool_gpios": [4, 5, 6, 7],
     "wiring_evidence": {
       "source": "user_reported",
       "description": "Owner-supplied wiring table. Shared I2S clocks: INMP441 SCK + MAX98357A BCLK -> GPIO4 (J1); INMP441 WS + MAX98357A LRC -> GPIO5 (J1); INMP441 SD -> GPIO6 (J2); MAX98357A DIN -> GPIO7 (J2). INMP441 VDD 3V3, L/R -> GND (left slot). MAX98357A Vin 3V3, GAIN unconnected (~9 dB), SD -> 3V3 via 10 kOhm (always enabled; selects left channel per datasheet SD_MODE thresholds, so firmware writes the same sample to both slots).",
-      "bench_tests": []
+      "bench_tests": [],
+      "owner_validation": {
+        "date": "2026-11-04",
+        "firmware_commit": "6035b0e",
+        "result": "Owner confirms the wired mic and speaker work and game audio is audible on the physical board. Functional audio validation passed; this is qualitative and does not establish SPL, power-on-pop, current draw, or regulator thermal margin."
+      }
     },
     "amp_shutdown": "No GPIO: SD_MODE hard-wired high through 10 kOhm (amp always enabled). Startup pop and mute behaviour rely on I2S clocks being idle until firmware starts them.",
     "amp_gain": "GAIN pin floating (datasheet default 9 dB)",

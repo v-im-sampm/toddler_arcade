@@ -1,6 +1,6 @@
 # Little Arcade — Copilot Agent Handoff
 
-**Status: specification and scaffolding, not functioning firmware.** Target: Makerfabs MaTouch Lite ESP32-S3 2.4-inch ST7789 320×240 / NS2009 resistive touch, 16 MB flash, 8 MB PSRAM. Ten offline toddler games plus **predefined offline voice commands**.
+**Status: prototype firmware runs on the physical board.** Display/touch playthrough is confirmed; the owner has wired the external I2S mic and speaker and confirmed audible audio (H03 functional validation). H02 calibration/board details and quantitative audio power/acoustic measurements remain open. Target: Makerfabs MaTouch Lite ESP32-S3 2.4-inch ST7789 320×240 / NS2009 resistive touch, 16 MB flash, 8 MB PSRAM. Ten offline toddler games plus **predefined offline voice commands**.
 
 ## Start here
 1. Read `AGENTS.md`, `docs/architecture.md`, `docs/hardware.md`, `docs/voice.md`, `docs/acceptance.md`.
@@ -10,7 +10,7 @@
 
 ## Boundaries
 - Never invent display, touch, mic or amplifier pins. Makerfabs examples/schematic are authoritative and must be inspected.
-- Audio hardware is **not included** in the board specification. Proposed external I2S MEMS microphone and MAX98357A amplifier with a speaker; validate accessible pins, voltage, amplifier gain/enable and power budget.
+- Audio hardware is **not included** in the board specification. The owner-wired external INMP441/MAX98357A mic and speaker are functionally confirmed audible on the prototype; wiring pins remain owner-reported, and calibrated SPL, power-on pop, current and regulator thermal measurements are not recorded. See `docs/hardware.md`.
 - Espressif ESP-SR WakeNet/MultiNet is the intended offline stack. Verify **current model language support, model sizes, licensing, ESP-IDF compatibility and toddler voice accuracy** before choosing a model. Some commands may need constrained phrasing or custom models; fallback to touch is mandatory.
 - No microphone streaming, recording, account, ads, analytics, or Wi-Fi needed in release 1.
 - All source assets must be original, permissively licensed, or generated in-project with recorded provenance.
@@ -23,7 +23,7 @@
 - `config/commands.json`: canonical voice intent map
 - `config/board_pins.example.json`: unresolved hardware wiring template
 - `backlog/issues.md`: sequential and parallelizable tickets
-- `firmware/`: compilable **host-side C++ contract smoke test only**, not ESP-IDF firmware
+- `firmware/`: ESP-IDF prototype firmware, host-testable game/settings logic, and desktop simulator
 - `tools/validate_specs.py`: validates command manifest and all ten game specs
 
 ## Definition of done

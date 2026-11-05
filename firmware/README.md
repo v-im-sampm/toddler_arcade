@@ -1,8 +1,9 @@
 # Little Arcade firmware (ESP-IDF)
 
 **Status: H02 display + touch bring-up flashed and run on one MaTouch Lite board (N16R8 module).**
-`app_main` starts the ST7789 display, the NS2009 touch controller and an LVGL UI task. It does not drive
-audio yet; that waits on H03 (see `docs/hardware.md`).
+`app_main` starts the ST7789 display, the NS2009 touch controller and an LVGL UI task. It drives the
+external INMP441/MAX98357A over full-duplex I2S; the owner confirmed audible audio on the physical board
+(H03 functional validation). Startup-pop, calibrated SPL and amplifier/regulator power measurements remain unrecorded.
 
 ## Pinned toolchain and dependencies (P01 spike)
 

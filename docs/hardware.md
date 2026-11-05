@@ -3,7 +3,7 @@ Source: https://github.com/Makerfabs/MaTouch_Lite_ESP32-S3-SPI-IPS-with-Touch-2.
 Makerfabs README states ESP32-S3, 320×240 ST7789V SPI, NS2009 resistive touch, 16 MB flash, 8 MB PSRAM, microSD interface, 2× JST 1.25mm 4-pin expansion headers, USB-C power.
 
 ## H01 — source-reviewed pin map (NOT bench-validated)
-Status: **source review only.** `config/board_pins.json` has `"verified": false`. No physical board was inspected, so the PCB revision printed on the board is `TBD`. H02/H03 must confirm every row on hardware before `verified` may become `true`.
+Status: **source review plus partial owner hardware validation.** `config/board_pins.json` has `"verified": false`. The owner has tested display/touch and confirmed the external mic and speaker produce/receive audio on the connected board (H02/H03). The PCB revision printed on the board is still `TBD`; the pin map is not fully board-verified.
 
 Evidence:
 - Schematic `MaTouch Lite ESP32-S3 SPI IPS with Touch 2.4'' ST7789 v1.0.PDF`, upstream commit `2632b6522ee5439ac8bfe9f038fb4d05006a8c57`, git blob `f3eed606b0160e0ff6f497a0e8cfc7df0121d2d3`. The PDF is not committed (upstream has no license file); fetch it from the URL in `config/board_pins.json`.
@@ -36,10 +36,10 @@ Evidence:
 
 Corrections to the earlier uncommitted draft: LCD CS is **GPIO15**, not GPIO5; the TF card is 1-bit, so GPIO12/13/15 are **not** shared with SD data lines; GPIO5 is a free J1 signal, not LCD CS.
 
-### H01 risks escalated to H03 (blocking)
-- **Only four accessible GPIOs.** A mic plus MAX98357A needs BCLK, WS, mic DATA and amp DIN = 4 GPIOs with shared clocks, leaving **no GPIO for amplifier enable/SD_MODE**. **Decision (H03, owner wiring):** SD_MODE is hard-wired on (10 k to 3V3, left channel); firmware keeps the amp silent by streaming zeros, starts muted and ramps up. Owner-reported pins: BCLK GPIO4, WS GPIO5, mic SD GPIO6, amp DIN GPIO7 (`config/board_pins.json`, source `user_reported`, not bench-verified). Startup-pop behaviour still needs a bench check.
+### H01 risks and remaining measurements
+- **Only four accessible GPIOs.** A mic plus MAX98357A needs BCLK, WS, mic DATA and amp DIN = 4 GPIOs with shared clocks, leaving **no GPIO for amplifier enable/SD_MODE**. **Decision (H03, owner wiring):** SD_MODE is hard-wired on (10 k to 3V3, left channel); firmware keeps the amp silent by streaming zeros, starts muted and ramps up. Owner-reported pins: BCLK GPIO4, WS GPIO5, mic SD GPIO6, amp DIN GPIO7 (`config/board_pins.json`, source `user_reported`, not board-measured). The owner confirms audio is audible; startup-pop behaviour remains unmeasured.
 - **Shared I2S clocks for RX and TX** on one ESP32-S3 I2S port (full-duplex) must be validated with the chosen ESP-IDF driver.
-- **Power:** headers provide only +3V3 from an LD1117; 5 V is not broken out. MAX98357A current at 3.3 V and LD1117 thermal headroom are unmeasured.
+- **Power:** headers provide only +3V3 from an LD1117; 5 V is not broken out. MAX98357A current at 3.3 V and LD1117 thermal headroom remain unmeasured; continue to use conservative gain and the firmware volume cap.
 - **PCB revision:** physical revision marking not observed.
 
 ## Hardware discovery task
