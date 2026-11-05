@@ -42,15 +42,15 @@ screen_window_height = 38.4;
 screen_window_radius = 4;
 // MaTouch PCB in landscape (rotated 90 degrees from the Makerfabs portrait drawing), with the
 // board's USB-C/FPC end toward the speaker (-x). The outline is modeled as its bounding
-// rectangle. The 54.5 x 60.3 mm drawing outline measured about 1.5 mm too large on a 1:1
-// print, so the outline is 58.8 x 53.0. Hole pitch and diameter are measured on the board.
-display_board_width = 58.8;
-display_board_height = 53.0;
-display_hole_pitch = [54.2, 48.6]; // Measured.
+// rectangle: 60.3 x 54.5 mm from the Makerfabs drawing (confirmed by the user). Hole centers
+// are 2.8 mm in from each edge and the holes are 2.85 mm (measured on the board).
+display_board_width = 60.3;
+display_board_height = 54.5;
+display_hole_inset = [2.8, 2.8]; // Measured: board edge to hole center.
 display_hole_diameter = 2.85; // Measured; takes M2.5 screws.
-display_hole_inset = [
-    (display_board_width - display_hole_pitch[0]) / 2,
-    (display_board_height - display_hole_pitch[1]) / 2
+display_hole_pitch = [
+    display_board_width - 2 * display_hole_inset[0],
+    display_board_height - 2 * display_hole_inset[1]
 ];
 // Image estimate: the active screen sits 2.6 mm from the board center, away from the USB-C end.
 display_screen_offset = [2.6, 0];
@@ -145,9 +145,10 @@ speaker_dish_flare = 3; // Mouth grows by this much per side from the cone openi
 
 // Rear-shell MAX98357A mount behind the display, components (terminal block and header) facing
 // the front. Outline from the supplied dimension image: 17.8 mm along the header (x) by 18.8 mm
-// from the header edge to the terminal block (y, terminal block toward +y). Two mounting holes
-// sit at the terminal-block end; plain rest posts support the header end. Hole pitch and inset
-// are estimated from the top-view photo at ~18.9 px/mm; confirm them on the board.
+// from the header edge to the terminal block (y, terminal block toward +y). The two mounting
+// holes flank the speaker terminal block at that end; plain rest posts support the header end.
+// Hole pitch 13.0 and inset 2.4 (holes ~2.5 mm) are measured from the Adafruit top photo at
+// ~25 px/mm; confirm them on the board.
 pcb_standoff_height = 4.2;
 pcb_standoff_diameter = 5.2;
 pcb_rest_diameter = 4;
@@ -155,8 +156,8 @@ m2_clearance_diameter = 2.3;
 pcb_thickness = 1.6;
 max_board_center = [-15, 20];
 max_board_size = [17.8, 18.8];
-max_hole_pitch = 13.1; // Image estimate, along x.
-max_hole_inset = 2.3; // Image estimate: terminal-block edge to hole centers.
+max_hole_pitch = 13.0; // Photo measurement, along x.
+max_hole_inset = 2.4; // Photo measurement: terminal-block edge to hole centers.
 max_rest_inset = 5.5; // Header edge to rest posts; clears the header solder stubs.
 max_header_height = 11.2; // Header pins on the terminal-block side (from the dimension image).
 max_terminal_height = 10; // Placeholder: screw terminal height above the PCB.

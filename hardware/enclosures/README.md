@@ -48,10 +48,9 @@ of the file.
   through counterbored bosses and thread 6 mm into pilot holes in the
   front-shell bosses at (+/-48, +/-30).
 - **Display mounts:** four M2.5 screws pass through the MaTouch's 2.85 mm
-  corner holes into heat-set inserts in bosses on the front shell. The hole
-  pitch is measured on the board: 54.2 x 48.6 mm in landscape. The outline is
-  58.8 x 53.0 mm: the 54.5 x 60.3 mm drawing outline printed about 1.5 mm too
-  large in each direction. The board's USB-C end faces the speaker side (-x).
+  corner holes into heat-set inserts in bosses on the front shell. The outline
+  is the drawing's 60.3 x 54.5 mm (landscape) and each hole center is 2.8 mm
+  in from both edges, giving a 54.7 x 48.9 mm pitch. The board's USB-C end faces the speaker side (-x).
   The 2.6 mm screen offset away from the USB-C end (`display_screen_offset`)
   is still an image estimate.
 
@@ -82,9 +81,10 @@ handle points to +y. Seen from the front, +x is on the viewer's **left**.
 - **MAX98357A:** mounts on rear-shell standoffs in the free area behind the
   display, between the speaker side and the battery tray, at (-15, 20). The
   board is 17.8 mm along the 7-pin header and 18.8 mm from the header edge to
-  the terminal block (`max_board_size`). It has only two holes, both at the
-  terminal-block end, about 13.1 mm apart and 2.3 mm in from that edge
-  (`max_hole_pitch`, `max_hole_inset`, photo estimates). These take M2 screws
+  the terminal block (`max_board_size`). It has only two holes (about 2.5 mm),
+  one on each side of the speaker terminal block, 13.0 mm apart and 2.4 mm in
+  from the terminal edge (`max_hole_pitch`, `max_hole_inset`, measured from the
+  Adafruit top photo). In the case, that end faces the handle. These take M2 screws
   into 4.2 mm standoffs. Two solid rest posts (`max_rest_inset`) support the
   header end. **Solder the header (11.2 mm, `max_header_height`) and the
   terminal block on the component side, facing the display**, or wire directly
@@ -267,9 +267,9 @@ enclosure until the parts are measured and the parameters are updated.
 
 Measure and update:
 
-- **MaTouch PCB:** hole pitch 54.2 x 48.6 and hole diameter 2.85 are
-  measured. The 58.8 x 53.0 outline (`display_board_*`) comes from the drawing
-  outline less the ~1.5 mm a print check showed. Confirm the outline, the
+- **MaTouch PCB:** the 60.3 x 54.5 outline (`display_board_*`, from the
+  drawing), the 2.8 mm hole inset from each edge (`display_hole_inset`), and the
+  2.85 mm hole diameter are confirmed. Still confirm the
   screen offset (`display_screen_offset`, 2.6 mm image estimate), the board
   revision, the stack depth, and the mount fit on the physical board.
   `display_insert_pilot_diameter`, `display_insert_length`,
@@ -281,9 +281,10 @@ Measure and update:
 - **503450 battery:** the bay uses seller dimensions (34 x 50 x 5). Confirm
   the fit, including the protection-circuit end and the lead bend radius.
 - **MAX98357A board:** the outline (17.8 x 18.8) comes from the supplied
-  drawing. The hole pitch (13.1), the hole inset (2.3), the terminal-block
-  height and depth (`max_terminal_height`, `max_terminal_size`), and the rest-post
-  positions are estimates or placeholders. The standoffs assume the
+  drawing. The hole pitch (13.0) and inset (2.4) are measured from the Adafruit
+  photo; the terminal-block
+  height and depth (`max_terminal_height`, `max_terminal_size`) and the rest-post
+  positions are placeholders. The standoffs assume the
   display stack is no deeper than `display_stack_depth` (placeholder 8 mm).
 - **KCD1 switch:** KCD1 dimensions vary by maker. The model uses typical
   listing values: 13 x 19 mm cutout, 15 x 21 mm flange, about 7 mm rocker
