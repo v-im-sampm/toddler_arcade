@@ -367,8 +367,8 @@ def page_templates(c, P):
         s.cross(h, 7, BLUE)
     s.label((dc[0], dc[1] + 4), "MaTouch 2.4 (landscape), screen side down", color=BLUE, bold=True)
     pitch = P["display_hole_pitch"]
-    s.label((dc[0], dc[1] - 1), f"outline {dw} x {dh}, holes {pitch[0]:.1f} x {pitch[1]:.1f} (est.)", color=BLUE)
-    s.label((dc[0], dc[1] - 5), "display_board_*, display_hole_inset", color=BLUE, size=5.5)
+    s.label((dc[0], dc[1] - 1), f"outline {dw} x {dh}, holes {pitch[0]:.1f} x {pitch[1]:.1f}, d{P['display_hole_diameter']}", color=BLUE)
+    s.label((dc[0], dc[1] - 5), "display_board_*, display_hole_*", color=BLUE, size=5.5)
     s.label((dc[0] - dw / 2 + 7, dc[1] - 12), "USB-C end", color=BLUE, size=5.5)
 
     bw, bl = P["battery_pack_width"], P["battery_pack_length"]

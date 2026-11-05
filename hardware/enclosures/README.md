@@ -47,14 +47,13 @@ of the file.
 - **Case screws:** four M2 x 12 self-tapping screws. They go in from the back
   through counterbored bosses and thread 6 mm into pilot holes in the
   front-shell bosses at (+/-48, +/-30).
-- **Display mounts:** four M3 screws pass through the MaTouch corner holes
-  into heat-set inserts in bosses on the front shell. The supplied dimension
-  image gives the **overall PCB outline**, 54.5 x 60.3 mm in portrait; the
-  model rotates it to landscape (60.3 x 54.5) with the board's USB-C end toward
-  the speaker side (-x). Hole insets (`display_hole_inset` = 2.95, 2.85 mm),
-  the resulting hole pitch (about 54.4 x 48.8 mm) and the 2.6 mm screen offset
-  away from the USB-C end (`display_screen_offset`) are measured from image
-  pixels, so they are estimates.
+- **Display mounts:** four M2.5 screws pass through the MaTouch's 2.85 mm
+  corner holes into heat-set inserts in bosses on the front shell. The hole
+  pitch is measured on the board: 54.2 x 48.6 mm in landscape. The outline is
+  58.8 x 53.0 mm: the 54.5 x 60.3 mm drawing outline printed about 1.5 mm too
+  large in each direction. The board's USB-C end faces the speaker side (-x).
+  The 2.6 mm screen offset away from the USB-C end (`display_screen_offset`)
+  is still an image estimate.
 
 Model coordinates: the front face is at z = 0, the back at z = 36, and the
 handle points to +y. Seen from the front, +x is on the viewer's **left**.
@@ -63,7 +62,7 @@ handle points to +y. Seen from the front, +x is on the viewer's **left**.
 
 - **Display:** the MaTouch sits face-down on a lip around the screen window.
   The display's USB-C is intentionally covered; there is no opening for it.
-  Four M3 screws pass through its corner holes into heat-set inserts in bosses
+  Four M2.5 screws pass through its corner holes into heat-set inserts in bosses
   on the front shell. Insert pilot size, insert length, screw length, PCB
   outline, and board stack depth remain placeholders to verify against the
   exact board and insert in hand.
@@ -268,12 +267,12 @@ enclosure until the parts are measured and the parameters are updated.
 
 Measure and update:
 
-- **MaTouch PCB:** the supplied dimension image gives a 54.5 x 60.3 mm overall
-  outline (portrait) with 3.2 mm corner holes; the model uses it in landscape.
-  The hole insets (`display_hole_inset`), the derived hole pitch (about
-  54.4 x 48.8) and the screen offset (`display_screen_offset` = 2.6 mm away
-  from the USB-C end) are pixel estimates. Confirm them, along with the board
-  revision, stack depth, and mount fit, on the physical board. `display_insert_pilot_diameter`, `display_insert_length`,
+- **MaTouch PCB:** hole pitch 54.2 x 48.6 and hole diameter 2.85 are
+  measured. The 58.8 x 53.0 outline (`display_board_*`) comes from the drawing
+  outline less the ~1.5 mm a print check showed. Confirm the outline, the
+  screen offset (`display_screen_offset`, 2.6 mm image estimate), the board
+  revision, the stack depth, and the mount fit on the physical board.
+  `display_insert_pilot_diameter`, `display_insert_length`,
   and `display_mount_screw_length` are placeholders; choose an insert and
   verify screw engagement before printing.
 - **TP4057 board:** length and width (placeholder 19.5 x 13.8), PCB
@@ -291,9 +290,10 @@ Measure and update:
   height, about 18 mm below the panel including tabs, and a 0.6-2 mm snap-in
   panel (well floor 1.6 mm). Measure the switch in hand and confirm that the
   snap tabs grip the floor.
-- **Display inserts:** choose an M3 heat-set insert, then measure its pilot
-  diameter and length. Confirm the 8 mm screw length and adjust engagement
-  after measuring the PCB thickness and mount height.
+- **Display inserts:** choose an M2.5 heat-set insert, then measure its pilot
+  diameter (placeholder 3.6) and length (placeholder 4). Confirm the 6 mm screw
+  length and adjust engagement after measuring the PCB thickness and mount
+  height.
 - **Speaker:** housing depth (`speaker_depth`, placeholder 4 mm), the tab
   size (`speaker_tab_*`), and the frame width around the cone
   (`speaker_cone_inset`). The 15 x 10 mm oval and the tab on one end come

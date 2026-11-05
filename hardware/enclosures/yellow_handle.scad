@@ -40,19 +40,18 @@ screen_center_y = 2;
 screen_window_width = 51.2;
 screen_window_height = 38.4;
 screen_window_radius = 4;
-// The supplied Makerfabs dimension image gives the overall PCB outline, mounting ears included:
-// 54.5 x 60.3 mm in portrait. This enclosure keeps the display landscape (rotated 90 degrees)
-// with the board's USB-C/FPC end toward the speaker (-x). The outline is modeled as its
-// bounding rectangle. Hole insets and the screen offset are measured from that image at
-// ~8.55 px/mm; confirm them on the physical board.
-display_board_width = 60.3;
-display_board_height = 54.5;
-display_hole_inset = [2.95, 2.85]; // Image estimate: board edge to hole center, per axis.
-display_hole_pitch = [
-    display_board_width - 2 * display_hole_inset[0],
-    display_board_height - 2 * display_hole_inset[1]
+// MaTouch PCB in landscape (rotated 90 degrees from the Makerfabs portrait drawing), with the
+// board's USB-C/FPC end toward the speaker (-x). The outline is modeled as its bounding
+// rectangle. The 54.5 x 60.3 mm drawing outline measured about 1.5 mm too large on a 1:1
+// print, so the outline is 58.8 x 53.0. Hole pitch and diameter are measured on the board.
+display_board_width = 58.8;
+display_board_height = 53.0;
+display_hole_pitch = [54.2, 48.6]; // Measured.
+display_hole_diameter = 2.85; // Measured; takes M2.5 screws.
+display_hole_inset = [
+    (display_board_width - display_hole_pitch[0]) / 2,
+    (display_board_height - display_hole_pitch[1]) / 2
 ];
-display_hole_diameter = 3.2;
 // Image estimate: the active screen sits 2.6 mm from the board center, away from the USB-C end.
 display_screen_offset = [2.6, 0];
 display_board_center = [
@@ -62,10 +61,10 @@ display_board_center = [
 display_lip_depth = 1.4;
 display_lip_overlap = 1.2;
 display_pcb_thickness = 1.6; // Placeholder; measure the board.
-display_mount_boss_diameter = 7.5;
-display_insert_pilot_diameter = 4.2; // Placeholder; match this to the chosen M3 insert.
-display_insert_length = 4.5; // Placeholder; match this to the chosen M3 insert.
-display_mount_screw_length = 8; // Placeholder; confirm engagement with the chosen insert.
+display_mount_boss_diameter = 6.5;
+display_insert_pilot_diameter = 3.6; // Placeholder; match this to the chosen M2.5 insert.
+display_insert_length = 4.0; // Placeholder; match this to the chosen M2.5 insert.
+display_mount_screw_length = 6; // Placeholder; M2.5 x 6 through the PCB into the insert.
 
 // Raised screen bezel. Separate by default so the front shell prints flat on its face;
 // glue it into the shallow pocket. Set false to merge it into the front shell (needs supports).
