@@ -1,5 +1,51 @@
 {
   "version": 1,
-  "assets": [],
-  "note": "Assets not yet created. Agent must fill with original/licensed provenance."
+  "assets": [
+    {
+      "id": "rainbow_piano.prompt.play",
+      "kind": "procedural_sound",
+      "source": "firmware/components/audio/sound_bank.cpp",
+      "status": "implemented"
+    },
+    { "id": "rainbow_piano.bells.0", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "rainbow_piano.bells.1", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "rainbow_piano.bells.2", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "rainbow_piano.bells.3", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "rainbow_piano.bells.4", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "rainbow_piano.flute.0", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "rainbow_piano.flute.1", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "rainbow_piano.flute.2", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "rainbow_piano.flute.3", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "rainbow_piano.flute.4", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "rainbow_piano.drum.0", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "rainbow_piano.drum.1", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "rainbow_piano.drum.2", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "rainbow_piano.drum.3", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "rainbow_piano.drum.4", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    {
+      "id": "rainbow_piano.select.bells",
+      "kind": "procedural_sound",
+      "source": "firmware/components/audio/sound_bank.cpp",
+      "status": "implemented"
+    },
+    {
+      "id": "rainbow_piano.select.flute",
+      "kind": "procedural_sound",
+      "source": "firmware/components/audio/sound_bank.cpp",
+      "status": "implemented"
+    },
+    {
+      "id": "rainbow_piano.select.drum",
+      "kind": "procedural_sound",
+      "source": "firmware/components/audio/sound_bank.cpp",
+      "status": "implemented"
+    },
+    {
+      "id": "common.celebrate",
+      "kind": "procedural_sound",
+      "source": "firmware/components/audio/sound_bank.cpp",
+      "status": "implemented"
+    }
+  ],
+  "note": "Rainbow Piano sounds are original synthesized cues; no recorded samples or network assets."
 }

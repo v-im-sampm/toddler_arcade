@@ -142,6 +142,7 @@ bool same_sound(const Sound& a, const Sound& b) {
 void test_game_palettes_are_distinct() {
   const uint8_t pop = static_cast<uint8_t>(GameId::COLOR_POP);
   const uint8_t hatch = static_cast<uint8_t>(GameId::HATCH_A_PET);
+  const uint8_t piano = static_cast<uint8_t>(GameId::RAINBOW_PIANO);
   for (uint8_t a = 0; a < 4; ++a) {
     for (uint8_t b = static_cast<uint8_t>(a + 1); b < 4; ++b) {
       EXPECT(!same_sound(sound_for(pop, Cue::PROMPT, a), sound_for(pop, Cue::PROMPT, b)));
@@ -157,6 +158,19 @@ void test_game_palettes_are_distinct() {
     EXPECT(sound_for(hatch, Cue::NOTE, c).tones[1].f0_hz < sound_for(hatch, Cue::NOTE, static_cast<uint8_t>(c + 1)).tones[1].f0_hz);
   }
   EXPECT(!same_sound(sound_for(hatch, Cue::PROMPT, 0), sound_for(pop, Cue::PROMPT, 0)));
+  constexpr uint16_t notes[] = {523, 587, 659, 784, 880};
+  for (uint8_t key = 0; key < 5; ++key) {
+    const Sound bells = sound_for(piano, Cue::NOTE, key);
+    const Sound flute = sound_for(piano, Cue::NOTE, static_cast<uint8_t>(5 + key));
+    const Sound drum = sound_for(piano, Cue::NOTE, static_cast<uint8_t>(10 + key));
+    EXPECT(bells.tones[0].f0_hz == notes[key] && flute.tones[0].f0_hz == notes[key]);
+    EXPECT(drum.tones[0].f0_hz == notes[key] / 4);
+    EXPECT(!same_sound(bells, flute) && !same_sound(flute, drum));
+  }
+  for (Cue cue : {Cue::PROMPT, Cue::TAP, Cue::CELEBRATE}) {
+    const Sound piano_sound = sound_for(piano, cue, 0);
+    EXPECT(piano_sound.count > 0 && piano_sound.duration_ms() <= kMaxSoundMs);
+  }
   EXPECT(scene_change_sound(pop, pop).count == 0);
   EXPECT(scene_change_sound(IFeedback::kSceneMenu, pop).count > 0);
   EXPECT(scene_change_sound(pop, IFeedback::kSceneMenu).count > 0);

@@ -1,0 +1,178 @@
+<!doctype html>
+<!--
+  Launcher tile + Rainbow Piano visual mockup.
+  Geometry mirrors rainbow_piano.hpp and SceneManager. Browser-only reference,
+  not a hardware artefact.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rainbow Piano mockup</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #222; color: #eee; margin: 16px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p { margin: 4px 0 12px; font-size: 13px; color: #bbb; max-width: 760px; }
+  canvas { image-rendering: pixelated; border: 2px solid #555; background: #000; cursor: pointer; }
+  kbd, label { font-size: 12px; color: #ccc; margin-right: 12px; }
+</style>
+</head>
+<body>
+<h1>Rainbow Piano: 320×240 landscape mockup</h1>
+<p>Five big, differently shaped rainbow keys play in free play. Three picture buttons change the sound.
+The gentle follow-light is optional: any key always plays, and nothing is lost. Tap Home to return to the
+launcher; tap the piano tile to play again.</p>
+<label><input type="checkbox" id="grid"> show hit rects</label>
+<kbd>Keyboard: 1–5 = keys, B/F/D = bells/flute/drum, A = AGAIN, Home = launcher</kbd>
+<div><canvas id="screen" width="320" height="240"></canvas></div>
+<p id="status"></p>
+
+<script>
+const W = 320, H = 240, SCALE = 2;
+const home = [0, 0, 56, 56];
+const instruments = [[60, 64, 56, 48], [132, 64, 56, 48], [204, 64, 56, 48]];
+const keys = Array.from({length: 5}, (_, i) => [4 + 64 * i, 120, 56, 112]);
+const colors = ['#E84A4A', '#F28C28', '#F7C631', '#3FB24A', '#9B6BD6'];
+const shapes = ['circle', 'square', 'triangle', 'heart', 'star'];
+const c = document.querySelector('#screen'), g = c.getContext('2d');
+c.width = W * SCALE; c.height = H * SCALE;
+c.style.width = `${W}px`; c.style.height = `${H}px`;
+const state = { page: 'game', instrument: 0, lit: -1, litUntil: 0, follow: 0, progress: 0, celebrateUntil: 0, notes: 0 };
+
+function rounded(x, y, w, h, r, fill, stroke = null, line = 2) {
+  g.beginPath(); g.roundRect(x, y, w, h, r); g.fillStyle = fill; g.fill();
+  if (stroke) { g.lineWidth = line; g.strokeStyle = stroke; g.stroke(); }
+}
+function circle(x, y, r, fill, stroke = null, line = 2) {
+  g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = fill; g.fill();
+  if (stroke) { g.lineWidth = line; g.strokeStyle = stroke; g.stroke(); }
+}
+function polygon(points, fill, stroke = null, line = 2) {
+  g.beginPath(); points.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y));
+  g.closePath(); g.fillStyle = fill; g.fill();
+  if (stroke) { g.lineWidth = line; g.strokeStyle = stroke; g.stroke(); }
+}
+function drawShape(kind, cx, cy, s, color) {
+  if (kind === 'circle') circle(cx, cy, s * .43, color);
+  else if (kind === 'square') rounded(cx - s * .38, cy - s * .38, s * .76, s * .76, 3, color);
+  else if (kind === 'triangle') polygon([[cx, cy - s * .48], [cx + s * .48, cy + s * .4], [cx - s * .48, cy + s * .4]], color);
+  else if (kind === 'heart') {
+    g.beginPath(); g.moveTo(cx, cy + s * .42); g.bezierCurveTo(cx - s * .8, cy - s * .05, cx - s * .35, cy - s * .62, cx, cy - s * .2);
+    g.bezierCurveTo(cx + s * .35, cy - s * .62, cx + s * .8, cy - s * .05, cx, cy + s * .42);
+    g.fillStyle = color; g.fill();
+  } else {
+    const pts = [];
+    for (let i = 0; i < 10; i++) { const r = i % 2 ? s * .2 : s * .47, a = -Math.PI / 2 + i * Math.PI / 5; pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); }
+    polygon(pts, color);
+  }
+}
+function drawInstrument(i, x, y) {
+  g.save(); g.translate(x, y); g.fillStyle = '#33415C'; g.strokeStyle = '#33415C'; g.lineWidth = 3; g.lineCap = 'round';
+  if (i === 0) { // bell
+    g.beginPath(); g.moveTo(-12, 4); g.quadraticCurveTo(-8, 0, -8, -8); g.arc(0, -8, 8, Math.PI, 0); g.quadraticCurveTo(8, 0, 12, 4); g.closePath(); g.fill();
+    g.fillRect(-13, 4, 26, 4); circle(0, 11, 3, '#33415C');
+  } else if (i === 1) { // flute
+    g.beginPath(); g.moveTo(-14, 8); g.lineTo(14, -8); g.stroke();
+    for (const [dx, dy] of [[-7, 3], [0, -1], [7, -5]]) circle(dx, dy, 2, '#FFFFFF');
+  } else { // drum
+    rounded(-12, -9, 24, 21, 4, '#F7C631', '#33415C', 2);
+    g.beginPath(); g.moveTo(-6, -14); g.lineTo(7, 8); g.stroke();
+  }
+  g.restore();
+}
+function homeButton() {
+  rounded(4, 4, 48, 48, 10, '#FFFFFF', '#5B6B8C', 2);
+  polygon([[14, 29], [28, 16], [42, 29]], '#33415C');
+  g.fillStyle = '#33415C'; g.fillRect(18, 28, 20, 15); g.fillStyle = '#FFFFFF'; g.fillRect(25, 34, 6, 9);
+}
+function pianoTile() {
+  rounded(13, 73, 110, 70, 12, 'rgba(40,60,90,.25)');
+  rounded(10, 70, 110, 70, 12, '#E7DDFB', '#33415C', 3);
+  g.beginPath(); g.lineWidth = 4;
+  ['#E84A4A', '#F28C28', '#F7C631', '#3FB24A', '#9B6BD6'].forEach((col, i) => { g.strokeStyle = col; g.beginPath(); g.arc(65, 110, 40 - i * 6, Math.PI, 0); g.stroke(); });
+  keys.slice(0, 5).forEach(([x], i) => {
+    const tx = 19 + i * 18;
+    rounded(tx, 87, 15, 42, 4, colors[i], '#33415C', 1);
+    drawShape(shapes[i], tx + 7.5, 107, 12, '#FFFFFF');
+  });
+}
+function render() {
+  g.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+  g.fillStyle = '#BFE8FF'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#9FD4F5'; g.fillRect(0, 0, W, 62);
+  g.fillStyle = '#A8E6A1'; g.fillRect(0, 230, W, 10);
+  if (state.page === 'menu') {
+    g.beginPath(); g.lineWidth = 6;
+    ['#E84A4A', '#F7C631', '#3FB24A', '#3A7BE0'].forEach((col, i) => { g.strokeStyle = col; g.beginPath(); g.arc(160, 50, 34 - i * 7, Math.PI, 0); g.stroke(); });
+    homeButton(); pianoTile();
+  } else {
+    homeButton();
+    // Soft rainbow arch and floating notes are decoration, not instructions.
+    ['#E84A4A', '#F28C28', '#F7C631', '#3FB24A', '#9B6BD6'].forEach((col, i) => {
+      g.beginPath(); g.lineWidth = 5; g.strokeStyle = col; g.arc(160, 53, 42 - i * 7, Math.PI, 0); g.stroke();
+    });
+    const celebrating = Date.now() < state.celebrateUntil;
+    if (celebrating) {
+      for (const [x, y] of [[88, 30], [160, 18], [232, 30]]) drawShape('star', x, y, 18, '#F7C631');
+    }
+    instruments.forEach(([x, y, w, h], i) => {
+      rounded(x + 4, y + 4, w - 8, h - 8, 9, i === state.instrument ? '#FFF4B8' : '#FFFFFF',
+        i === state.instrument ? '#F59B3A' : '#5B6B8C', i === state.instrument ? 4 : 2);
+      drawInstrument(i, x + w / 2, y + h / 2);
+    });
+    keys.forEach(([x, y, w, h], i) => {
+      const active = state.lit === i && Date.now() < state.litUntil;
+      rounded(x + 2, y + 4, w - 4, h - 6, 10, 'rgba(40,60,90,.22)');
+      rounded(x + 2, y + (active ? 1 : 0), w - 4, h - (active ? 3 : 4), 9, colors[i], active ? '#FFFFFF' : '#33415C', active ? 4 : 2);
+      circle(x + 13, y + 15, 3, 'rgba(255,255,255,.75)');
+      drawShape(shapes[i], x + w / 2, y + 57, 22, '#FFFFFF');
+      if (!celebrating && state.follow === i) circle(x + w / 2, y + h - 15, 7, '#FFFFFF', '#33415C', 2);
+    });
+  }
+  if (document.querySelector('#grid').checked) {
+    g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 1;
+    [...(state.page === 'game' ? [...keys, ...instruments] : [[8, 68, 120, 80]]), home].forEach(([x, y, w, h]) => g.strokeRect(x, y, w, h));
+  }
+  document.querySelector('#status').textContent = state.page === 'menu'
+    ? 'Launcher preview — click the piano tile.'
+    : `${Date.now() < state.celebrateUntil ? 'CELEBRATE' : 'PLAY'} • instrument ${['bells', 'flute', 'drum'][state.instrument]} • notes ${state.notes} • follow-light optional`;
+}
+function note(i) {
+  state.lit = i; state.litUntil = Date.now() + 300; state.notes++;
+  if (Date.now() >= state.celebrateUntil && i === state.follow) {
+    state.progress++;
+    state.follow = (state.follow + 1) % 5;
+    if (state.progress === 5) {
+      state.progress = 0;
+      state.celebrateUntil = Date.now() + 1500;
+      setTimeout(render, 1500);
+    }
+  }
+  render(); setTimeout(() => { if (Date.now() >= state.litUntil) { state.lit = -1; render(); } }, 300);
+}
+c.addEventListener('pointerdown', e => {
+  const b = c.getBoundingClientRect(), x = (e.clientX - b.left) / b.width * W, y = (e.clientY - b.top) / b.height * H;
+  if (x < 56 && y < 56) state.page = 'menu';
+  else if (state.page === 'menu') { if (x >= 8 && x < 128 && y >= 68 && y < 148) state.page = 'game'; }
+  else {
+    const key = keys.findIndex(([kx, ky, kw, kh]) => x >= kx && x < kx + kw && y >= ky && y < ky + kh);
+    const inst = instruments.findIndex(([ix, iy, iw, ih]) => x >= ix && x < ix + iw && y >= iy && y < iy + ih);
+    if (key >= 0) note(key); else if (inst >= 0) state.instrument = inst;
+  }
+  render();
+});
+document.querySelector('#grid').addEventListener('change', render);
+window.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase(), n = Number(k);
+  if (n >= 1 && n <= 5 && state.page === 'game') note(n - 1);
+  else if (k === 'b') state.instrument = 0;
+  else if (k === 'f') state.instrument = 1;
+  else if (k === 'd') state.instrument = 2;
+  else if (k === 'a' && state.page === 'game') note(state.lit >= 0 ? state.lit : state.follow);
+  else if (k === 'home') state.page = 'menu';
+  render();
+});
+render();
+</script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 # Desktop simulator (LVGL + SDL2)
 
 Runs the full `Arcade` shell (`firmware/components/arcade`) on a desktop PC: the
-`SceneManager` launcher, Home, Color Pop and Hatch-a-Pet, with the real game logic
+`SceneManager` launcher, Home, Color Pop, Hatch-a-Pet and Rainbow Piano, with the real game logic
 and the real LVGL views shared with the device firmware. It is for visual
 iteration and render-cost comparison only. **Results from this simulator are
 host-desktop measurements, not hardware validation** (AGENTS.md rule 8).
@@ -37,7 +37,7 @@ build-sim\Release\little_arcade_sim.exe [--zoom 3] [--seed N]
 | `A` / `H` | voice intent AGAIN / HELP |
 | `J` / `N` / `X` | voice intent YES / NO / NEXT |
 | `Backspace` | voice intent BACK (to the launcher) |
-| `C` / `E` | voice intent COLORS / EGGS (launch from the menu) |
+| `C` / `E` / `M` | voice intent COLORS / EGGS / MUSIC (launch from the menu) |
 | Mic button (tap) | does nothing yet; push-to-talk is simulated by the keys above |
 | Mic button (hold 5 s) | opens the hidden parent gate (a bar under the Mic fills after 1 s): answer the sum, pick volume 0–6, tap ✓ |
 | `Esc` | quit |
@@ -47,7 +47,7 @@ Audio cues are printed to the console (`[audio] PROMPT 0`). Like the device, sou
 ## Headless benchmark
 
 ```powershell
-build-sim\Release\little_arcade_sim.exe --bench --game color_pop|hatch_a_pet --seconds 60 --seed 1234 [--frame-ms 33] [--shots DIR]
+build-sim\Release\little_arcade_sim.exe --bench --game color_pop|hatch_a_pet|rainbow_piano --seconds 60 --seed 1234 [--frame-ms 33] [--shots DIR]
 ```
 
 The benchmark uses a deterministic simulated clock. It starts on the launcher,
@@ -58,6 +58,8 @@ taps the game's tile at 600 ms, and then a scripted player plays through the
   (AGAIN), then answers by touch or by voice.
 - **Hatch-a-Pet**: taps the egg (badge replay on alternate eggs, one crack by
   voice YES), pets the creature twice, presses NO, then YES by touch or voice.
+- **Rainbow Piano**: follows the optional light by tapping the lit key until a
+  tune completes. Any key still plays freely; there is no wrong-key response.
 
 LVGL renders into two partial RGB565 buffers (320×24 lines each, as on the
 device). The flush callback copies them into a frame, which `--shots` saves as
@@ -71,5 +73,5 @@ The report covers:
 - LVGL heap high-water mark.
 
 It also prints a `JSON {...}` line, which the engine comparison under
-`experiments/engine_compare/` is intended to reuse. Exit code 0 means at least
-one round (Color Pop) or one hatch (Hatch-a-Pet) completed.
+`experiments/engine_compare/` is intended to reuse. Exit code 0 means at least one round (Color Pop), one hatch (Hatch-a-Pet), or
+one tune (Rainbow Piano) completed.

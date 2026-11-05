@@ -5,6 +5,8 @@
 #include "little_arcade/games/color_pop_view.hpp"
 #include "little_arcade/games/hatch_a_pet.hpp"
 #include "little_arcade/games/hatch_a_pet_view.hpp"
+#include "little_arcade/games/rainbow_piano.hpp"
+#include "little_arcade/games/rainbow_piano_view.hpp"
 #include "little_arcade/parent_view.hpp"
 #include "little_arcade/scene_manager.hpp"
 #include "little_arcade/settings/parent_gate.hpp"
@@ -19,7 +21,7 @@ namespace little_arcade {
 // scene. Only the visible layer is synced each frame. Runs on the UI task.
 class Arcade {
  public:
-  enum class Layer : uint8_t { NONE, MENU, COLOR_POP, HATCH_A_PET };
+  enum class Layer : uint8_t { NONE, MENU, COLOR_POP, HATCH_A_PET, RAINBOW_PIANO };
 
   // `volume_level` is the parent-saved level (0 = muted, the default).
   Arcade(IFeedback& feedback, uint32_t seed, uint8_t volume_level = 0);
@@ -48,15 +50,17 @@ class Arcade {
   const color_pop::ColorPopGame& color_pop() const { return color_pop_; }
   const hatch_a_pet::HatchAPetGame& hatch_a_pet() const { return hatch_a_pet_; }
   const hatch_a_pet::HatchAPetView& hatch_a_pet_view() const { return hatch_view_; }
+  const rainbow_piano::RainbowPianoGame& rainbow_piano() const { return rainbow_piano_; }
 
  private:
-  static constexpr std::size_t kGameCount = 2;
+  static constexpr std::size_t kGameCount = 3;
 
   Layer wanted_layer() const;
   void show_layer(Layer layer);
 
   color_pop::ColorPopGame color_pop_;
   hatch_a_pet::HatchAPetGame hatch_a_pet_;
+  rainbow_piano::RainbowPianoGame rainbow_piano_;
   GameEntry entries_[kGameCount];
   IFeedback& feedback_;
   SceneManager scenes_;
@@ -66,8 +70,9 @@ class Arcade {
   ui::LauncherView launcher_;
   color_pop::ColorPopView color_view_;
   hatch_a_pet::HatchAPetView hatch_view_;
+  rainbow_piano::RainbowPianoView rainbow_piano_view_;
   ui::ChromeView chrome_;
-  lv_obj_t* layers_[4]{};
+  lv_obj_t* layers_[5]{};
   lv_obj_t* sleep_overlay_ = nullptr;
   Layer shown_ = Layer::NONE;
   bool sleeping_ = false;

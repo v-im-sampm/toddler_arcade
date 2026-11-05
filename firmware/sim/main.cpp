@@ -1,5 +1,5 @@
-// Little Arcade desktop simulator: the full Arcade shell (launcher + Home +
-// Color Pop + Hatch-a-Pet) with the real game logic and real LVGL views.
+// Little Arcade desktop simulator: launcher + Home + Color Pop, Hatch-a-Pet
+// and Rainbow Piano with the real game logic and real LVGL views.
 //
 // Interactive:  little_arcade_sim [--zoom N] [--seed N] [--mute] [--volume 0..6]
 //   Sounds play through the PC speakers using the device synth. Like the
@@ -8,8 +8,8 @@
 //   for a level a parent already saved (the sim does not persist settings).
 //   Mouse = touch (Home and the launcher work like the device).
 //   Keys = voice intents: R B G Y colours, A AGAIN, H HELP, J YES, N NO,
-//   X NEXT, Backspace BACK, C COLORS, E EGGS. Esc quits.
-// Benchmark:    little_arcade_sim --bench [--game color_pop|hatch_a_pet]
+//     X NEXT, Backspace BACK, C COLORS, E EGGS, M MUSIC. Esc quits.
+// Benchmark:    little_arcade_sim --bench [--game color_pop|hatch_a_pet|rainbow_piano]
 //                 [--seconds N] [--seed N] [--frame-ms N] [--shots DIR]
 //   Headless, deterministic simulated clock. Starts on the launcher, taps the
 //   game's tile, then a scripted player plays through the SceneManager.
@@ -108,6 +108,31 @@ bool open_sim_audio(audio::AudioFeedback& fb) {
 int16_t mid_x(const Rect& r) { return static_cast<int16_t>(r.x + r.w / 2); }
 int16_t mid_y(const Rect& r) { return static_cast<int16_t>(r.y + r.h / 2); }
 void tap(Arcade& a, const Rect& r, uint32_t now) { a.touch(mid_x(r), mid_y(r), now); }
+
+class RainbowPianoPlayer {
+ public:
+  void tick(Arcade& a, uint32_t now) {
+    using rainbow_piano::Phase;
+    const auto& g = a.rainbow_piano();
+    if (!started_) {
+      started_ = true;
+      next_ = now + 500;
+      return;
+    }
+    if (now < next_) return;
+    if (g.phase() == Phase::CELEBRATE) {
+      next_ = now + 100;
+      return;
+    }
+    const int key = g.follow_key();
+    if (key >= 0) tap(a, rainbow_piano::RainbowPianoGame::kKeys[key], now);
+    next_ = now + 420;
+  }
+
+ private:
+  bool started_ = false;
+  uint32_t next_ = 0;
+};
 
 Intent color_intent(color_pop::Color c) {
   switch (c) {
@@ -315,6 +340,7 @@ int run_bench(const Options& opt) {
   lv_display_set_flush_cb(disp, bench_flush);
 
   const bool hatch = opt.game == GameId::HATCH_A_PET;
+  const bool piano = opt.game == GameId::RAINBOW_PIANO;
   const uint32_t seed = opt.seed ? opt.seed : 1234;
   static ConsoleFeedback feedback;
   feedback.quiet = true;
@@ -322,28 +348,32 @@ int run_bench(const Options& opt) {
   arcade.create(lv_screen_active());
   ColorPopPlayer pop_player;
   HatchAPetPlayer hatch_player;
+  RainbowPianoPlayer piano_player;
 
   ShotPlan plan;
   plan.dir = opt.shots;
-  plan.prefix = hatch ? "hatch_a_pet_" : "color_pop_";
+  plan.prefix = hatch ? "hatch_a_pet_" : (piano ? "rainbow_piano_" : "color_pop_");
   if (hatch) {
     plan.shots = {{"00_menu", false},  {"01_intro", false},     {"02_egg", false},       {"03_egg_cracked", false},
                   {"04_hint", false},  {"05_hatch", false},     {"06_hatch_pop", false}, {"07_pet_hello", false},
                   {"08_pet", false}};
+  } else if (piano) {
+    plan.shots = {{"00_menu", false}, {"01_intro", false}, {"02_play", false}, {"03_key_glow", false},
+                  {"04_celebrate", false}};
   } else {
     plan.shots = {{"00_menu", false},          {"01_intro", false},     {"02_play_two", false},
                   {"03_wrong_tap_wiggle", false}, {"04_celebrate", false}, {"05_play_four", false}};
   }
 
   const uint32_t launch_at = 600;  // let the launcher settle and be captured
-  const Rect tile = SceneManager::kTileRects[hatch ? 1 : 0];
+  const Rect tile = SceneManager::kTileRects[piano ? 2 : (hatch ? 1 : 0)];
   const uint32_t frames = opt.seconds * 1000 / opt.frame_ms;
   std::vector<double> render_us, sync_us;
   std::vector<uint64_t> pixels;
   render_us.reserve(frames);
   sync_us.reserve(frames);
   bool launched = false;
-  int pop_phase = -1, hatch_phase = -1, last_wiggle = -1;
+  int pop_phase = -1, hatch_phase = -1, piano_phase = -1, last_wiggle = -1;
   uint32_t phase_start = 0, wiggle_start = 0;
 
   using clock = std::chrono::steady_clock;
@@ -357,6 +387,8 @@ int run_bench(const Options& opt) {
     if (arcade.layer() != Arcade::Layer::MENU) {
       if (hatch) {
         hatch_player.tick(arcade, g_sim_now);
+      } else if (piano) {
+        piano_player.tick(arcade, g_sim_now);
       } else {
         pop_player.tick(arcade, g_sim_now);
       }
@@ -391,6 +423,21 @@ int run_bench(const Options& opt) {
       plan.maybe(6, g.phase() == Phase::HATCH && in_phase >= 900, state.frame);
       plan.maybe(7, g.phase() == Phase::PET && in_phase >= 250, state.frame);
       plan.maybe(8, g.phase() == Phase::PET && g.pet_count() >= 2 && g.reacting() && in_phase >= 1300, state.frame);
+    } else if (piano) {
+      using rainbow_piano::Phase;
+      const auto& g = arcade.rainbow_piano();
+      if (arcade.layer() != Arcade::Layer::RAINBOW_PIANO) continue;
+      if (static_cast<int>(g.phase()) != piano_phase) {
+        piano_phase = static_cast<int>(g.phase());
+        phase_start = g_sim_now;
+      }
+      const uint32_t in_phase = g_sim_now - phase_start;
+      plan.maybe(1, g.phase() == Phase::INTRO && in_phase >= 100, state.frame);
+      plan.maybe(2, g.phase() == Phase::PLAY && in_phase >= 100, state.frame);
+      bool glowing = false;
+      for (std::size_t i = 0; i < rainbow_piano::kKeyCount; ++i) glowing = glowing || g.key_lit(i);
+      plan.maybe(3, glowing, state.frame);
+      plan.maybe(4, g.phase() == Phase::CELEBRATE && in_phase >= 100, state.frame);
     } else {
       using color_pop::Phase;
       const color_pop::ColorPopGame& g = arcade.color_pop();
@@ -425,13 +472,14 @@ int run_bench(const Options& opt) {
   const std::size_t rendered = render_us.size();
   const double avg_px = rendered ? static_cast<double>(px_sum) / static_cast<double>(rendered) : 0.0;
   const double render_avg = rendered ? render_sum / static_cast<double>(rendered) : 0.0;
-  const char* name = hatch ? "hatch_a_pet" : "color_pop";
-  const uint32_t progress = hatch ? arcade.hatch_a_pet().hatch_count() : arcade.color_pop().rounds_completed();
+  const char* name = hatch ? "hatch_a_pet" : (piano ? "rainbow_piano" : "color_pop");
+  const uint32_t progress = hatch ? arcade.hatch_a_pet().hatch_count()
+                                  : (piano ? arcade.rainbow_piano().tunes_completed() : arcade.color_pop().rounds_completed());
   const hatch_a_pet::HatchAPetView& hv = arcade.hatch_a_pet_view();
 
   std::printf("\n%s LVGL benchmark via Arcade (HOST DESKTOP, not device)\n", name);
   std::printf("  seed=%u frame_ms=%u sim_seconds=%u frames=%u rendered=%zu %s=%u cues=%u\n", seed, opt.frame_ms,
-              opt.seconds, frames, rendered, hatch ? "hatches" : "rounds", progress, feedback.count);
+              opt.seconds, frames, rendered, hatch ? "hatches" : (piano ? "tunes" : "rounds"), progress, feedback.count);
   std::printf("  render us/frame: avg=%.1f p50=%.1f p95=%.1f max=%.1f\n", render_avg, percentile(render_us, 0.5),
               percentile(render_us, 0.95), percentile(render_us, 1.0));
   std::printf("  logic+view sync us/frame: avg=%.2f p95=%.2f max=%.2f\n", sync_sum / static_cast<double>(frames),
@@ -472,7 +520,7 @@ int run_interactive(const Options& opt) {
   int applied_level = -1;
   std::printf(
       "Little Arcade sim: click = touch. Keys: R/B/G/Y colours, A again, H help, J yes, N no, X next,\n"
-      "  Backspace back, C colors, E eggs, Esc quit. Sound is muted: hold the Mic corner 5 s for parent settings.\n");
+      "  Backspace back, C colors, E eggs, M music, Esc quit. Sound is muted: hold the Mic corner 5 s for parent settings.\n");
 
   struct Key {
     SDL_Scancode code;
@@ -483,7 +531,8 @@ int run_interactive(const Options& opt) {
               {SDL_SCANCODE_A, Intent::AGAIN, false},     {SDL_SCANCODE_H, Intent::HELP, false},
               {SDL_SCANCODE_J, Intent::YES, false},       {SDL_SCANCODE_N, Intent::NO, false},
               {SDL_SCANCODE_X, Intent::NEXT, false},      {SDL_SCANCODE_BACKSPACE, Intent::BACK, false},
-              {SDL_SCANCODE_C, Intent::COLORS, false},    {SDL_SCANCODE_E, Intent::EGGS, false}};
+              {SDL_SCANCODE_C, Intent::COLORS, false},    {SDL_SCANCODE_E, Intent::EGGS, false},
+              {SDL_SCANCODE_M, Intent::MUSIC, false}};
   for (;;) {
     const uint32_t now = SDL_GetTicks();
     // Every sample goes to the Arcade (parent-gate hold + press edges), like the device.
@@ -530,6 +579,8 @@ bool parse(int argc, char** argv, Options& opt) {
         opt.game = GameId::COLOR_POP;
       } else if (g == "hatch_a_pet") {
         opt.game = GameId::HATCH_A_PET;
+      } else if (g == "rainbow_piano") {
+        opt.game = GameId::RAINBOW_PIANO;
       } else {
         return false;
       }
@@ -562,7 +613,7 @@ int main(int argc, char** argv) {
   if (!parse(argc, argv, opt)) {
     std::printf(
         "usage: little_arcade_sim [--zoom N] [--seed N] [--mute] [--volume 0..6]\n"
-        "       little_arcade_sim --bench [--game color_pop|hatch_a_pet] [--seconds N] [--seed N]\n"
+        "       little_arcade_sim --bench [--game color_pop|hatch_a_pet|rainbow_piano] [--seconds N] [--seed N]\n"
         "                         [--frame-ms N] [--shots DIR]\n");
     return 2;
   }

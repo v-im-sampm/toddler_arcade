@@ -116,6 +116,50 @@ Sound color_pop_sound(Cue cue, uint8_t variant) {
   }
 }
 
+// ---- Rainbow Piano --------------------------------------------------------
+
+constexpr uint16_t kPianoNotes[] = {523, 587, 659, 784, 880};  // C-major pentatonic
+
+Sound piano_note(uint8_t variant) {
+  const uint8_t key = variant % 5;
+  const uint8_t instrument = variant / 5;
+  const uint16_t hz = kPianoNotes[key];
+  switch (instrument) {
+    case 0:  // soft bell with a quiet, high shimmer
+      return Sound{}.add(bell(hz, 220, 145)).add(bell(static_cast<uint16_t>(hz * 2), 70, 55));
+    case 1:  // gentle sustained flute-like sine
+      return Sound{}.add(tone(Wave::SINE, hz, static_cast<uint16_t>(hz + 12), 240, 110, 22, 100));
+    default: {  // small pitched drum, descending softly rather than a loud thump
+      const uint16_t low = static_cast<uint16_t>(hz / 4);
+      return Sound{}.add(tone(Wave::TRIANGLE, low, static_cast<uint16_t>(low * 2 / 3), 115, 115, 3, 70))
+          .add(tone(Wave::NOISE, 3200, 3200, 14, 45, 1, 10));
+    }
+  }
+}
+
+Sound piano_prompt() {
+  return Sound{}.add(bell(659, 90, 100)).add(bell(784, 90, 105)).add(bell(880, 180, 110));
+}
+
+Sound piano_select(uint8_t instrument) {
+  const uint16_t hz = static_cast<uint16_t>(659 + (instrument % 3) * 131);
+  return Sound{}.add(tone(instrument == 2 ? Wave::TRIANGLE : Wave::SINE, hz, hz, 90, 85, 6, 55));
+}
+
+Sound piano_celebrate() {
+  return Sound{}.add(bell(523, 90, 120)).add(bell(659, 90, 125)).add(bell(784, 100, 130)).add(bell(1047, 260, 135));
+}
+
+Sound rainbow_piano_sound(Cue cue, uint8_t variant) {
+  switch (cue) {
+    case Cue::PROMPT: return piano_prompt();
+    case Cue::NOTE: return piano_note(variant % 15);
+    case Cue::TAP: return piano_select(variant);
+    case Cue::CELEBRATE: return piano_celebrate();
+    default: return default_sound(cue, variant);
+  }
+}
+
 // ---- Hatch-a-Pet ----------------------------------------------------------
 
 Sound egg_prompt(uint8_t prompt) {
@@ -195,6 +239,7 @@ Sound sound_for(uint8_t scene, Cue cue, uint8_t variant) {
   switch (scene) {
     case static_cast<uint8_t>(GameId::COLOR_POP): return color_pop_sound(cue, variant);
     case static_cast<uint8_t>(GameId::HATCH_A_PET): return hatch_a_pet_sound(cue, variant);
+    case static_cast<uint8_t>(GameId::RAINBOW_PIANO): return rainbow_piano_sound(cue, variant);
     default: return default_sound(cue, variant);
   }
 }
