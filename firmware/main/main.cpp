@@ -33,13 +33,18 @@ constexpr int kBufLines = 24;  // two partial RGB565 buffers, 15 KB each
 constexpr std::size_t kBufBytes = kScreenWidth * kBufLines * 2;
 
 void log_memory(const char* phase) {
+  lv_mem_monitor_t lv{};
+  // lv_mem_monitor divides by the pool size, which is zero before lv_init().
+  if (lv_is_initialized()) lv_mem_monitor(&lv);
   ESP_LOGI(kTag,
-           "[mem:%s] internal free=%u min=%u largest=%u | psram free=%u min=%u", phase,
-           static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)),
+           "[mem:%s] internal free=%u min=%u largest=%u | psram free=%u min=%u | lvgl used=%u max=%u total=%u",
+           phase, static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)),
            static_cast<unsigned>(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL)),
            static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL)),
            static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)),
-           static_cast<unsigned>(heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM)));
+           static_cast<unsigned>(heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM)),
+           static_cast<unsigned>(lv.total_size - lv.free_size), static_cast<unsigned>(lv.max_used),
+           static_cast<unsigned>(lv.total_size));
 }
 
 void log_board() {
@@ -197,6 +202,7 @@ void ui_task(void*) {
   const int64_t create_t0 = esp_timer_get_time();
   arcade.create(lv_screen_active());
   ESP_LOGI(kTag, "arcade created in %lld ms", (esp_timer_get_time() - create_t0) / 1000);
+  log_memory("arcade_created");
 
   // First full frame before the backlight comes on: no flash of garbage.
   arcade.tick(tick_ms());

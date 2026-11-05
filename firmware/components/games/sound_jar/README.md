@@ -61,10 +61,14 @@ The launcher shows Sound Jar on page 2, slot 4.
 | View rasters (5 critters 50², 7 icons 36², star 28², jar 112×34; ARGB8888) | 104 656 | PSRAM | desktop calculation |
 | `libsound_jar.a` | 13 404 flash | flash | ESP-IDF size report |
 | LVGL heap max_used, sim bench | 96 912 vs 93 760 (Robo Buddy) | LVGL pool | desktop sim |
+| LVGL heap at boot (menu) | used 52 948, max 60 392 of 123 236 | LVGL pool | physical device, boot only |
+| Internal heap after audio start | free 140 107, min 75 376 | internal | physical device, boot only |
 
-The ESP-IDF image with Sound Jar is **1,106,711 bytes**, with 74% of the 4 MiB app partition free.
-DIRAM use is 169,795 of 341,760 bytes (49.68%) for the whole firmware. There is no physical-board
-PSRAM or minimum-heap measurement yet.
+The ESP-IDF image with Sound Jar is **1,107,984 bytes**, with 74% of the 4 MiB app partition free.
+With the default 64 KB LVGL pool the device hung on its first frame: the 24 KB draw layer could not
+be allocated, so the pool is now 128 KB (`CONFIG_LV_MEM_SIZE_KILOBYTES`). DIRAM use is 235,331 of
+341,760 bytes (68.86%) for the whole firmware. The device numbers above are from a clean boot to the
+menu only; no Sound Jar gameplay has been measured on the device yet.
 
 ## Tests
 - Host (`ctest`):

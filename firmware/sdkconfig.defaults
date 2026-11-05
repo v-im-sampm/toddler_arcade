@@ -28,6 +28,11 @@ CONFIG_BT_ENABLED=n
 CONFIG_LV_COLOR_DEPTH_16=y
 CONFIG_LV_BUILD_EXAMPLES=n
 CONFIG_LV_FONT_MONTSERRAT_28=y
+# LVGL object pool (internal RAM). 64 KB ran out on the first frame once
+# Sound Jar's view joined the always-created game views: the 24 KB draw layer
+# could not be allocated and the UI task spun in lv_draw_dispatch (task WDT).
+# Device boot: used=52,948 max=60,392 of 123,236 B; internal min free 75 KB.
+CONFIG_LV_MEM_SIZE_KILOBYTES=128
 
 # -O2: at -Og the UI task rasterised Hatch-a-Pet art at up to 2.3 s per image
 # and LVGL rendered full frames in ~40 ms (P02 device log). Assertions stay on.
