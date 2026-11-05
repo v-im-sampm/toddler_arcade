@@ -7,22 +7,27 @@ of the file.
 
 ## Design
 
-- **Pillow body:** 124 x 88 x 36 mm with 20 mm plan corners and 9 mm rounded
-  edges on every face, so there are no sharp corners or edges. Wall thickness is
-  2.4 mm. The body splits into a front and a back shell at `seam_z` (15 mm). A
-  2 mm alignment lip on the back shell keys into the front shell.
-- **Handle:** chunky and rounded, 74 mm wide, rising 31 mm above the body.
-  The finger opening is 46 x 18 mm and its edges are rounded so a small hand
-  can grip it comfortably.
+- **Pillow body:** 124 x 88 x 36 mm with 16 mm plan corners and 9 mm rounded
+  edges. `bed_safe_edges` makes a shallow 45-degree land at the face edges for
+  bed contact; the edge blend radius is 1.5 mm. Wall thickness is 2.4 mm.
+  The body splits into a front and a back shell at `seam_z` (15 mm). A 2 mm
+  alignment lip on the back shell keys into the front shell.
+- **Handle:** chunky and rounded, 88 mm wide across the grip, with the posts
+  flaring to 96 mm at the body. It rises 26 mm above the body, is 23 mm deep,
+  and has a 62 x 18 mm rounded finger opening.
 - **Screen bezel (purple):** a separate raised frame, 2.4 mm proud, with a
   chamfered window. It is glued into a 0.8 mm pocket around the screen
   window. Printing it separately keeps the front shell flat for face-down
   printing. Set `bezel_separate = false` to merge it into the shell; that
   version needs supports.
-- **Side bumpers (purple):** ribbed, chamfered grip pads on the left and right
-  sides. They are part of the shell geometry. `part="bumpers"` exports only
-  the pads, so they can be loaded as a color-modifier volume (Bambu Studio /
-  OrcaSlicer) for a two-color print.
+- **Side bumpers (purple):** separate ribbed grip caps, with three broad lobes
+  each. Their tabs pass through the front shell and hook behind the back
+  shell's side wall, so the back shell traps them in place. `part="bumpers"`
+  exports both grips laid out for printing; `part="grip_left"` and
+  `part="grip_right"` export one grip each.
+- **Back slots:** four shallow, chamfered grooves are decorative only. They
+  leave the back wall intact; the speaker is sealed at the front and needs no
+  rear-facing vent.
 - **Speaker port (viewer's right):** a small 1 W speaker cannot be made much
   louder by a printed horn, because its wavelengths are far larger than any
   shape that fits here. The port aims for the gains that are actually
@@ -149,11 +154,13 @@ $scad = "C:\Program Files\OpenSCAD (Nightly)\openscad.com"
 & $scad --backend=manifold -o back.stl   -D 'part="back"'   hardware\enclosures\yellow_handle.scad
 & $scad --backend=manifold -o bezel.stl  -D 'part="bezel"'  hardware\enclosures\yellow_handle.scad
 & $scad --backend=manifold -o bumpers.stl -D 'part="bumpers"' hardware\enclosures\yellow_handle.scad
+& $scad --backend=manifold -o back_print.stl -D 'part="back_print"' hardware\enclosures\yellow_handle.scad
 ```
 
 In the GUI, set `part` near the top of the file and render with F6. Leave it
 as `"preview"` to see the assembled enclosure with ghosted components. Use
 `part="layout"` to see the back shell with every internal component in color.
+Other supported options include `back_print`, `grip_left`, and `grip_right`.
 
 [`yellow_handle_views.scad`](yellow_handle_views.scad) produces the labeled
 layout and section renders. Always pass `-D 'part="none"'` so the model's own
@@ -204,9 +211,9 @@ slice of the shell before printing it in full.
 
 - Print the front shell face-down, the back shell back-down, and the bezel
   flat-back-down.
-- The rounded pillow edges meet the bed at a steep angle. Use a brim, and
-  expect slight sag or use light tree supports on the first few millimeters.
-- The handle overhang inside the finger opening needs supports.
+- The bed-safe perimeter has a 45-degree land. A brim may help adhesion.
+- The inset handle faces need support beneath the two shell halves; keep
+  supports out of the rounded finger opening.
 - Prefer PETG or PLA+ for drop toughness. Choose filament colors yourself;
   nothing in the model assumes a particular material.
 

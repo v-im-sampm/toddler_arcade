@@ -40,3 +40,14 @@ foreach ($r in $renders) {
     }
     Write-Host "wrote $out"
 }
+
+$bezelOut = Join-Path $OutDir "yellow_handle_bezel.png"
+$ErrorActionPreference = "Continue"
+$bezelLog = & $Scad --backend=manifold --colorscheme=Tomorrow -D (Def "part" "bezel") `
+    --camera=0,0,0,0,0,0,120 --viewall --autocenter --imgsize=1200,900 `
+    -o $bezelOut hardware\enclosures\yellow_handle.scad 2>&1 | Out-String
+$ErrorActionPreference = "Stop"
+if ($bezelLog -cmatch "ERROR:|WARNING: Ignoring unknown|top level object is empty|Normalized CSG tree has 0") {
+    throw "Render of bezel failed:`n$bezelLog"
+}
+Write-Host "wrote $bezelOut"

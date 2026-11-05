@@ -46,6 +46,7 @@ PARAMS = [
 
 # 2D OpenSCAD expressions; every layer is in model millimeters.
 LAYERS = {
+    "display_board_outline": "projection() linear_extrude(height = 0.1) union() display_pcb_outline_2d();",
     "front_silhouette": "projection() front_shell();",
     "front_face": "projection(cut = true) translate([0, 0, -0.05]) front_shell(false);",
     "front_through": "projection(cut = true) translate([0, 0, -front_skin / 2]) front_shell(false);",
@@ -273,7 +274,10 @@ def page_front_inside(c, L, P):
     s.polys(L["front_through"], fill=GRAY, width=0.3)
     s.polys(L["front_features"], fill=FEATURE, width=0.4)
     cx, cy = P["display_board_center"]
-    s.rect((cx, cy), P["display_board_width"], P["display_board_height"], stroke=BLUE, width=0.6, dash=DASH)
+    s.polys(
+        [[(x + cx, y + cy) for x, y in poly] for poly in L["display_board_outline"]],
+        stroke=BLUE, width=0.6, dash=DASH,
+    )
     for h in holes(P, (cx, cy), P["display_hole_pitch"], P["display_hole_diameter"]):
         s.circle(h, P["display_hole_diameter"], stroke=BLUE, width=0.5)
         s.cross(h, 7, BLUE)
@@ -351,7 +355,7 @@ def page_profiles(c, L, P):
     c.showPage()
 
 
-def page_templates(c, P):
+def page_templates(c, P, display_board_outline):
     s = Sheet(c, "6. Component templates (the sizes the model assumes)", [
         "Lay each real part on its outline. If one does not match, update the named parameter in yellow_handle.scad,",
         "re-run this script, and reprint. Dashed = placeholder or estimate; solid = from a supplied drawing or photo.",
@@ -361,7 +365,10 @@ def page_templates(c, P):
 
     dw, dh = P["display_board_width"], P["display_board_height"]
     dc = (x0 + dw / 2, top - dh / 2)
-    s.rect(dc, dw, dh, stroke=BLUE, width=0.6)
+    s.polys(
+        [[(x + dc[0], y + dc[1]) for x, y in poly] for poly in display_board_outline],
+        stroke=BLUE, width=0.6,
+    )
     for h in holes(P, dc, P["display_hole_pitch"], P["display_hole_diameter"]):
         s.circle(h, P["display_hole_diameter"], stroke=BLUE, width=0.6)
         s.cross(h, 7, BLUE)
@@ -452,7 +459,7 @@ def main():
     page_back_inside(c, layers, params)
     page_back_outside(c, layers, params)
     page_profiles(c, layers, params)
-    page_templates(c, params)
+    page_templates(c, params, layers["display_board_outline"])
     c.save()
     print(f"wrote {args.out}")
 

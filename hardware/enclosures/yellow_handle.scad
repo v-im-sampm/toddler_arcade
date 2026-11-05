@@ -5,16 +5,25 @@
 $fn = 40;
 
 // "preview", "front", "back", "bezel" (separate purple part, print-oriented),
-// "bumpers" (grip pads only, for use as a color modifier in a multi-material slicer), or
-// "layout" (back shell plus colored stand-ins for every internal component).
+// "bumpers" (with bumpers_separate: both grips, print-oriented; otherwise the grip pads only, for
+// use as a color modifier in a multi-material slicer), "grip_left" / "grip_right" (one grip,
+// print-oriented; left is the viewer's left, +x), "back_print" (back shell flipped back-down for
+// printing), or "layout" (back shell plus colored stand-ins for every internal component).
 part = "preview";
 
 // Overall pillow-shaped body
 body_width = 124;
 body_height = 88;
 body_depth = 36;
-plan_corner_radius = 20; // Corner radius seen from the front.
+plan_corner_radius = 16; // Corner radius seen from the front.
 edge_radius = 9; // Rounding of every front and back edge.
+// The front shell prints face-down and the back shell back-down, so the face edges meet the
+// bed. With bed_safe_edges, each face-edge round turns into a 45-degree land for its last
+// 0.29 * radius, and the land meets the face through a small blend radius, so nothing at the
+// bed overhangs past 45 degrees. Set false for pure quarter-round edges (these need care or
+// support at the bed).
+bed_safe_edges = true;
+bed_edge_blend_radius = 1.5; // Land-to-face blend; the child-safety minimum edge radius.
 wall = 2.4;
 seam_z = 15;
 // Alignment lip on the back shell that slides inside the front shell.
@@ -22,28 +31,34 @@ seam_lip_height = 2;
 seam_lip_thickness = 1.2;
 seam_lip_clearance = 0.2;
 
-// Rounded carry handle
-handle_width = 74;
-handle_rise = 31; // Above the top of the body.
-handle_depth = 22;
-handle_corner_radius = 13;
-handle_edge_radius = 6;
+// Rounded carry handle, centered and inset from both faces like the concept render.
+// Inset faces float above the bed in both shells, so each handle half needs support under
+// its face. Set handle_depth = body_depth for a flush, support-free handle.
+handle_width = 88; // Outer width at the grip bar.
+handle_base_width = 96; // Outer width where the posts meet the body; splays the posts.
+handle_rise = 26; // Above the top of the body.
+handle_depth = 23; // About 0.63 of body_depth, as in the concept's side view.
+handle_corner_radius = 14;
+// Edge round plus flare equals the bar thickness (rise - opening height), so the grip bar's
+// face is one continuous round: the concept's tube look.
+handle_edge_radius = 5;
 handle_root_depth = 12; // How far the handle block is buried in the body.
-handle_opening_width = 46;
-handle_opening_height = 18;
+handle_opening_width = 62;
+handle_opening_height = 18; // Above the top of the body; the opening is a closed rounded slot.
 handle_opening_radius = 8;
-handle_flare_radius = 4; // Rounds the finger edges of the handle opening.
+handle_flare_radius = 3; // Rounds the finger edges of the handle opening.
 
 // Display opening and board-retaining lip
 screen_center_x = 0;
 screen_center_y = 2;
+// Viewing area, measured from the Makerfabs dimension image (50.97 x 38.39 mm).
 screen_window_width = 51.2;
 screen_window_height = 38.4;
 screen_window_radius = 4;
 // MaTouch PCB in landscape (rotated 90 degrees from the Makerfabs portrait drawing), with the
-// board's USB-C/FPC end toward the speaker (-x). The outline is modeled as its bounding
-// rectangle: 60.3 x 54.5 mm from the Makerfabs drawing (confirmed by the user). Hole centers
-// are 2.8 mm in from each edge and the holes are 2.85 mm (measured on the board).
+// board's USB-C/FPC end toward the speaker (-x). 60.3 x 54.5 mm is the overall size across the
+// mounting ears, from the Makerfabs dimension image. Hole centers are 2.8 mm in from each edge
+// and the holes are 2.85 mm (measured on the board; the image agrees within about 0.3 mm).
 display_board_width = 60.3;
 display_board_height = 54.5;
 display_hole_inset = [2.8, 2.8]; // Measured: board edge to hole center.
@@ -52,8 +67,18 @@ display_hole_pitch = [
     display_board_width - 2 * display_hole_inset[0],
     display_board_height - 2 * display_hole_inset[1]
 ];
-// Image estimate: the active screen sits 2.6 mm from the board center, away from the USB-C end.
+// The viewing area sits 2.6 mm from the board center, away from the USB-C/FPC end (2.62 mm
+// measured on the dimension image); on that end the LCD's non-display border, the FPC and the
+// connectors take up the rest of the glass.
 display_screen_offset = [2.6, 0];
+// Measured from the dimension image (12.48 px/mm): the glass/LCD module runs the full board
+// length but is only 43 mm across, so the PCB shows beyond it only at the four corner ears
+// that carry the mounting holes.
+display_glass_size = [60.3, 43.0]; // Glass/LCD module outline, centered on the board.
+display_ear_length = 6.3; // Each corner ear's length along x.
+display_ear_radius = 2.5; // Outer rounding of the ears. Estimate.
+display_connector_overhang = 1.2; // FPC and connectors past the board edge at the -x end.
+display_glass_clearance = 0.3; // Relief cut into the mount bosses where they meet the glass.
 display_board_center = [
     screen_center_x - display_screen_offset[0],
     screen_center_y - display_screen_offset[1]
@@ -69,7 +94,7 @@ display_mount_screw_length = 6; // Placeholder; M2.5 x 6 through the PCB into th
 // Raised screen bezel. Separate by default so the front shell prints flat on its face;
 // glue it into the shallow pocket. Set false to merge it into the front shell (needs supports).
 bezel_separate = true;
-bezel_border = 9;
+bezel_border = 10;
 bezel_corner_radius = 10;
 bezel_height = 2.4; // Proud of the front face.
 bezel_edge_radius = 1.6;
@@ -78,16 +103,46 @@ bezel_pocket_depth = 0.8;
 bezel_pocket_clearance = 0.2;
 
 // Ribbed side grips (bumpers) on the left and right sides.
-bumper_length = 60;
-bumper_center_y = -4;
-bumper_z_inset = 4; // From the front and back faces.
+bumper_length = 42;
+bumper_center_y = 2; // Level with the screen center.
+// From the front and back faces. 0 wraps the pads over both face edges; their ends then sit on
+// the print bed and follow the bed-safe edge profile.
+bumper_z_inset = 0;
 bumper_wrap = 12; // How far the grip reaches around from the side.
-bumper_base = 1.2; // Pad thickness between ribs.
-bumper_rib_height = 2.4;
-bumper_rib_count = 5;
-bumper_rib_width = 5;
-bumper_rib_pitch = 10.5;
-bumper_chamfer = 1.6;
+bumper_base = 1.0; // Pad thickness between ribs.
+bumper_rib_height = 2.8;
+bumper_rib_count = 3; // Three chunky lobes split by narrow grooves.
+bumper_rib_width = 11;
+bumper_rib_pitch = 14.5;
+bumper_chamfer = 2;
+// Separate grips (true): each grip prints on its own. With the back shell off, it pushes onto the
+// side of the front shell like a cap: two tabs pass through notches in the side wall, and a hook
+// on each tab rises past the seam inside the case. Screwing the back shell on puts its wall in
+// front of the hooks, so the grips are trapped without glue and come free when the case opens.
+// The grip wraps only the front edge, because the back shell slides in under it when closing.
+// false merges the pads into both shells for a multi-material printer ("bumpers" is the modifier).
+bumpers_separate = true;
+bumper_tab_count = 2;
+bumper_tab_pitch = 22; // Along y, centered on the grip.
+bumper_tab_width = 8; // Along y, where the tab passes through the front shell's wall.
+bumper_tab_height = 2.5; // At the tab's inner end; its underside slopes at 45 degrees for printing.
+bumper_tab_top_gap = 0.2; // Tab top below the seam, so the back shell's wall end clears it.
+bumper_flange_width = 13; // Along y, where the hook bears on the back shell's wall above the seam.
+bumper_flange_depth = 2; // Hook thickness, into the case past the wall.
+bumper_hook_rise = 3.5; // How far the hook reaches above the seam, behind the back shell's wall.
+bumper_fit_clearance = 0.2; // Tab and flange to their notch, per side.
+bumper_slide_clearance = 0.15; // Grip to back shell, so the back shell slides in under the grip.
+grip_print_spacing = 10; // Gap between the two grips when part = "bumpers".
+
+// Decorative slotted panel on the back face. The slots are blind grooves, not through-holes:
+// the speaker is sealed at the front, so nothing behind them needs to breathe.
+back_slot_count = 4;
+back_slot_length = 25; // Mouth length, along x.
+back_slot_width = 2.2; // Floor width, along y; the mouth adds the chamfer on each side.
+back_slot_pitch = 7.2;
+back_slot_depth = 1.0; // Leaves rear_skin - back_slot_depth of skin behind each groove.
+back_slot_chamfer = 0.6; // 45-degree softened mouth.
+back_slot_center = [0, 0];
 
 // Charging board: Teyleten Robot TP4057 1A USB-C 1S charger with protection.
 // Listing size ~19.5 x 13.8 mm; it has no mounting holes, so it sits in a cradle with its
@@ -252,8 +307,11 @@ handle_block_height = handle_rise + handle_root_depth;
 handle_center_y = body_top + (handle_rise - handle_root_depth) / 2;
 handle_front_z = (body_depth - handle_depth) / 2;
 handle_back_z = handle_front_z + handle_depth;
-handle_opening_cut_height = handle_opening_height + handle_root_depth;
-handle_opening_center_y = body_top + (handle_opening_height - handle_root_depth) / 2;
+// The bed-safe profile only applies to handle faces that actually rest on the bed.
+handle_on_bed = bed_safe_edges && handle_depth >= body_depth;
+// The opening starts at the body top, so its lower corners round into the posts like the concept.
+handle_opening_cut_height = handle_opening_height;
+handle_opening_center_y = body_top + handle_opening_height / 2;
 fastener_x_positions = [-case_screw_x, case_screw_x];
 fastener_y_positions = [-case_screw_y, case_screw_y];
 case_screw_head_z = seam_z - case_screw_engagement + case_screw_length;
@@ -289,6 +347,16 @@ speaker_retainer_outer_height =
     speaker_height + speaker_tab_length + 2 * (speaker_clearance + speaker_retainer_thickness);
 display_stack_back_z = front_skin + display_lip_depth + display_stack_depth;
 display_mount_top_z = display_stack_back_z - display_pcb_thickness;
+// Separate grips stop where the back edge round starts, so the back shell can slide in under them.
+bumper_z_back = bumpers_separate ? body_depth - edge_radius : body_depth - bumper_z_inset;
+bumper_x_wall_in = body_width / 2 - wall;
+bumper_tab_top = seam_z - bumper_tab_top_gap;
+bumper_tab_bottom = bumper_tab_top - bumper_tab_height;
+bumper_tab_x_inner = bumper_x_wall_in - bumper_fit_clearance - bumper_flange_depth;
+bumper_hook_top = seam_z + bumper_hook_rise;
+bumper_tab_y = [
+    for (i = [0 : bumper_tab_count - 1]) bumper_center_y + (i - (bumper_tab_count - 1) / 2) * bumper_tab_pitch
+];
 
 module rounded_rect_2d(width, height, radius) {
     r = min(radius, min(width, height) / 2 - 0.01);
@@ -296,16 +364,36 @@ module rounded_rect_2d(width, height, radius) {
         square([width - 2 * r, height - 2 * r], center = true);
 }
 
-// Convex box from z = 0 to depth: plan corners of corner_r, front/back edges rounded by edge_r.
-module rounded_box(width, height, depth, corner_r, edge_r) {
+// Inset from the side wall of a face-edge round of radius r, at height s above the face.
+// With bed_safe_edges the round becomes a 45-degree land below its 45-degree point, and the
+// land blends into the face with radius b. rounded_box() and the handle flare share this profile.
+function edge_inset(r, b, s, safe = bed_safe_edges) =
+    let(land = (2 - sqrt(2)) * r, s_blend = b * (1 - 1 / sqrt(2)), s_land = r * (1 - 1 / sqrt(2)))
+    !safe || s >= s_land ? r - sqrt(r * r - (r - s) * (r - s))
+        : s >= s_blend ? land - s
+        : land + (sqrt(2) - 1) * b - sqrt(b * b - (b - s) * (b - s));
+
+// Convex box from z = 0 to depth: plan corners of corner_r, front/back edges rounded by edge_r
+// (bed-safe land and blend_r per bed_safe_edges).
+module rounded_box(
+    width, height, depth, corner_r, edge_r, blend_r = bed_edge_blend_radius, bed_safe = bed_safe_edges
+) {
     e = min(edge_r, depth / 2 - 0.01);
     c = max(corner_r, e + 0.01);
+    // A blend that has shrunk to nothing (inner offsets) leaves the true sharp offset corner.
+    b = min(max(blend_r, 0.01), e);
+    blend_x = c - (2 - sqrt(2)) * e - (sqrt(2) - 1) * b; // Blend center: tangent to land and face.
     hull()
         for (sx = [-1, 1], sy = [-1, 1], z = [e, depth - e])
             translate([sx * (width / 2 - c), sy * (height / 2 - c), z])
                 rotate_extrude()
                     intersection() {
-                        translate([c - e, 0]) circle(r = e);
+                        hull() {
+                            translate([c - e, 0]) circle(r = e);
+                            if (bed_safe)
+                                for (s = [-1, 1])
+                                    translate([blend_x, s * (e - b)]) circle(r = b);
+                        }
                         translate([0, -e]) square([c, 2 * e]);
                     }
 }
@@ -318,7 +406,8 @@ module body_offset(t) {
             body_height + 2 * t,
             body_depth + 2 * t,
             plan_corner_radius + t,
-            edge_radius + t
+            edge_radius + t,
+            bed_edge_blend_radius + t
         );
 }
 
@@ -344,18 +433,26 @@ module handle_opening_layer(grow, z) {
             );
 }
 
-// Through-opening with quarter-round finger edges on both faces.
+// Through-opening with rounded finger edges on both faces (bed-safe profile when handle_on_bed).
 module handle_opening_cut() {
     f = handle_flare_radius;
+    b = min(bed_edge_blend_radius, f);
     steps = 6;
-    function grow(s) = f - sqrt(f * f - (f - s) * (f - s));
+    function grow(s) = edge_inset(f, b, s, handle_on_bed);
+    // Sample the blend and the straight land at their breakpoints, then the round in steps.
+    s_land = handle_on_bed ? f * (1 - 1 / sqrt(2)) : 0;
+    s_blend = b * (1 - 1 / sqrt(2));
+    heights = concat(
+        handle_on_bed ? [0, s_blend / 2, s_blend] : [],
+        [for (i = [0 : steps]) s_land + (f - s_land) * i / steps]
+    );
     hull() {
         handle_opening_layer(0, handle_front_z + f);
         handle_opening_layer(0, handle_back_z - f);
     }
-    for (i = [0 : steps - 1]) {
-        s0 = f * i / steps;
-        s1 = f * (i + 1) / steps;
+    for (i = [1 : len(heights) - 2]) {
+        s0 = heights[i];
+        s1 = heights[i + 1];
         hull() {
             handle_opening_layer(grow(s0), handle_front_z + s0);
             handle_opening_layer(grow(s1), handle_front_z + s1);
@@ -365,26 +462,43 @@ module handle_opening_cut() {
             handle_opening_layer(grow(s1), handle_back_z - s1);
         }
     }
+    // The first step and the run-out past each face are one convex piece, so the cut leaves no
+    // coincident faces at the handle faces (keeps the exported mesh 2-manifold).
     hull() {
-        handle_opening_layer(f, handle_front_z - 2);
-        handle_opening_layer(f, handle_front_z + 0.01);
+        handle_opening_layer(grow(0), handle_front_z - 2);
+        handle_opening_layer(grow(0), handle_front_z);
+        handle_opening_layer(grow(heights[1]), handle_front_z + heights[1]);
     }
     hull() {
-        handle_opening_layer(f, handle_back_z - 0.01);
-        handle_opening_layer(f, handle_back_z + 2);
+        handle_opening_layer(grow(heights[1]), handle_back_z - heights[1]);
+        handle_opening_layer(grow(0), handle_back_z);
+        handle_opening_layer(grow(0), handle_back_z + 2);
     }
 }
 
 module handle() {
     difference() {
-        translate([0, handle_center_y, handle_front_z])
-            rounded_box(
-                handle_width,
-                handle_block_height,
-                handle_depth,
-                handle_corner_radius,
-                handle_edge_radius
-            );
+        hull() {
+            translate([0, handle_center_y, handle_front_z])
+                rounded_box(
+                    handle_width,
+                    handle_block_height,
+                    handle_depth,
+                    handle_corner_radius,
+                    handle_edge_radius,
+                    bed_safe = handle_on_bed
+                );
+            // Root block whose widest point sits at the body top, splaying the posts.
+            translate([0, body_top, handle_front_z])
+                rounded_box(
+                    handle_base_width,
+                    2 * handle_corner_radius,
+                    handle_depth,
+                    handle_corner_radius,
+                    handle_edge_radius,
+                    bed_safe = handle_on_bed
+                );
+        }
         handle_opening_cut();
     }
 }
@@ -395,7 +509,7 @@ module bumper_region() {
     x_side = body_width / 2;
     x_out = body_width / 2 + bumper_rib_height + 0.5;
     z1 = bumper_z_inset;
-    z2 = body_depth - bumper_z_inset;
+    z2 = bumper_z_back;
     c = bumper_chamfer;
     y0 = bumper_center_y - bumper_length / 2;
     hull() {
@@ -437,6 +551,135 @@ module bumper_pads() {
             }
         body_outer();
     }
+}
+
+// Grip volume on the +x side, before the body surface is removed.
+module bumper_outer_solid() {
+    intersection() {
+        body_offset(bumper_base);
+        bumper_region();
+    }
+    intersection() {
+        body_offset(bumper_rib_height);
+        bumper_region();
+        bumper_rib_bands();
+    }
+}
+
+// Side profile (x, z) of a grip tab: flat top just under the seam, 45-degree underside. With
+// grow > 0 it is the matching notch, opened up through the seam.
+module bumper_tab_profile_2d(grow = 0) {
+    xi = bumper_tab_x_inner - grow;
+    xo = grow > 0 ? body_width / 2 + 1 : body_width / 2 + bumper_base / 2;
+    top = grow > 0 ? seam_z + 1 : bumper_tab_top;
+    under = bumper_tab_bottom - grow * sqrt(2);
+    polygon([
+        [xi, top],
+        [xo, top],
+        [xo, under - (xo - bumper_tab_x_inner)],
+        [xi, under - (xi - bumper_tab_x_inner)]
+    ]);
+}
+
+module bumper_tab_prism(width, grow = 0) {
+    rotate([90, 0, 0])
+        linear_extrude(height = width, center = true)
+            bumper_tab_profile_2d(grow);
+}
+
+// Tabs on the +x grip: a neck through the front shell's wall notch, and a hook inside the case
+// that rises past the seam and widens behind the back shell's wall. The hook widens at 45 degrees
+// so the grip prints on its front end without support.
+module bumper_tabs() {
+    x_hook_out = bumper_x_wall_in - bumper_fit_clearance;
+    z_free = seam_z + bumper_fit_clearance; // Above the front shell's wall top while fitting.
+    widen = (bumper_flange_width - bumper_tab_width) / 2;
+    for (ty = bumper_tab_y)
+        translate([0, ty, 0]) {
+            bumper_tab_prism(bumper_tab_width);
+            // The hook column starts a hair inside the neck so the two never share a face (keeps the
+            // mesh 2-manifold), and only widens above z_free so it clears the wall while fitting.
+            inset = 0.01;
+            hook_x = x_hook_out - bumper_tab_x_inner - inset;
+            translate([bumper_tab_x_inner + inset, -bumper_tab_width / 2 + inset, bumper_tab_top - 1])
+                cube([hook_x, bumper_tab_width - 2 * inset, z_free - bumper_tab_top + 1.01]);
+            hull() {
+                translate([bumper_tab_x_inner + inset, -bumper_tab_width / 2 + inset, z_free])
+                    cube([hook_x, bumper_tab_width - 2 * inset, 0.01]);
+                translate([bumper_tab_x_inner + inset, -bumper_flange_width / 2, z_free + widen + 0.05])
+                    cube([hook_x, bumper_flange_width, bumper_hook_top - z_free - widen - 0.05]);
+            }
+        }
+}
+
+// One separate grip in assembly position: side 0 is +x (viewer's left), side 1 is -x.
+module bumper_grip(side) {
+    mirror([side, 0, 0]) {
+        difference() {
+            bumper_outer_solid();
+            body_outer();
+            // Clearance over the back shell, which slides in under the grip.
+            intersection() {
+                body_offset(bumper_slide_clearance);
+                back_half_space();
+            }
+        }
+        bumper_tabs();
+    }
+}
+
+// Notches in the front shell's side walls that take the grip tabs (both sides).
+module bumper_notches() {
+    for (side = [0, 1], ty = bumper_tab_y)
+        mirror([side, 0, 0])
+            translate([0, ty, 0])
+                bumper_tab_prism(bumper_tab_width + 2 * bumper_fit_clearance, bumper_fit_clearance);
+}
+
+// Gaps in the back shell's alignment lip and its root band where the grip hooks sit (both sides).
+// The back shell's wall itself stays whole: it is what traps the hooks.
+module bumper_lip_cuts() {
+    for (side = [0, 1], ty = bumper_tab_y)
+        mirror([side, 0, 0])
+            translate([
+                bumper_tab_x_inner - bumper_fit_clearance - 1,
+                ty - bumper_flange_width / 2 - bumper_fit_clearance,
+                seam_z - seam_lip_height - 1
+            ])
+                cube([
+                    bumper_x_wall_in - bumper_tab_x_inner + bumper_fit_clearance + 1,
+                    bumper_flange_width + 2 * bumper_fit_clearance,
+                    bumper_hook_top - seam_z + seam_lip_height + 1 + bumper_fit_clearance
+                ]);
+}
+
+// Grip laid on its front end and centered on the origin, ready to print.
+module grip_print(side) {
+    translate([(side == 0 ? -1 : 1) * body_width / 2, -bumper_center_y, 0])
+        bumper_grip(side);
+}
+
+// Blind decorative slots in the back face, with 45-degree mouths.
+module back_slot_cut() {
+    ch = back_slot_chamfer;
+    for (i = [0 : back_slot_count - 1])
+        translate([
+            back_slot_center[0],
+            back_slot_center[1] + (i - (back_slot_count - 1) / 2) * back_slot_pitch,
+            body_depth
+        ]) {
+            translate([0, 0, -back_slot_depth])
+                linear_extrude(height = back_slot_depth + 1)
+                    stadium_2d(back_slot_length - 2 * ch, back_slot_width);
+            hull() {
+                translate([0, 0, -ch])
+                    linear_extrude(height = 0.01)
+                        stadium_2d(back_slot_length - 2 * ch, back_slot_width);
+                translate([0, 0, 0.01])
+                    linear_extrude(height = 1)
+                        stadium_2d(back_slot_length + 0.02, back_slot_width + 2 * ch + 0.02);
+            }
+        }
 }
 
 module bezel_outline_2d(grow = 0) {
@@ -610,8 +853,9 @@ module charger_cradle() {
         translate([0, 0, charger_rail_front_z])
             linear_extrude(height = charger_floor_z - charger_rail_front_z + fuse)
                 difference() {
-                    translate([-charger_outer_width / 2, inside_bottom_y - fuse])
-                        square([charger_outer_width, charger_outer_length + fuse]);
+                    // 0.01 inside the platform's sides so no faces coincide (2-manifold export).
+                    translate([-charger_outer_width / 2 + 0.01, inside_bottom_y - fuse])
+                        square([charger_outer_width - 0.02, charger_outer_length + fuse - 0.01]);
                     translate([-charger_pocket_width / 2, inside_bottom_y - 1])
                         square([charger_pocket_width, charger_pocket_length + 1]);
                     // Wire exit for B+/B- and OUT+/OUT- at the far end.
@@ -704,6 +948,14 @@ module display_mount_bosses() {
                 cylinder(h = display_mount_top_z - front_skin + fuse, d = display_mount_boss_diameter);
             translate([x, y, display_mount_top_z - display_insert_length])
                 cylinder(h = display_insert_length + fuse, d = display_insert_pilot_diameter);
+            // The bosses sit on the ears beside the glass; relieve them where the glass passes.
+            translate([display_board_center[0], display_board_center[1], front_skin + display_lip_depth])
+                linear_extrude(height = display_mount_top_z - front_skin - display_lip_depth + 1)
+                    rounded_rect_2d(
+                        display_glass_size[0] + 2 * display_glass_clearance,
+                        display_glass_size[1] + 2 * display_glass_clearance,
+                        1
+                    );
         }
     }
 }
@@ -738,7 +990,19 @@ module battery_hold_down() {
 module display_ghost() {
     translate([display_board_center[0], display_board_center[1], front_skin + display_lip_depth])
         linear_extrude(height = 1)
-            rounded_rect_2d(display_board_width - 2, display_board_height - 2, 2);
+            rounded_rect_2d(display_glass_size[0], display_glass_size[1], 1);
+}
+
+// MaTouch PCB outline: the glass footprint plus the four corner ears.
+module display_pcb_outline_2d() {
+    ear_width = (display_board_height - display_glass_size[1]) / 2;
+    rounded_rect_2d(display_glass_size[0], display_glass_size[1], 1);
+    for (sx = [-1, 1], sy = [-1, 1])
+        translate([
+            sx * (display_board_width - display_ear_length) / 2,
+            sy * (display_board_height - ear_width - 1) / 2
+        ])
+            rounded_rect_2d(display_ear_length, ear_width + 1, display_ear_radius);
 }
 
 // Walls and floor (switch panel) of the recessed switch well, added inside the back shell.
@@ -780,9 +1044,18 @@ module switch_well_cut() {
 
 // Component stand-ins in assembly position, for layout views and clearance checks.
 module display_module_ghost() {
-    translate([display_board_center[0], display_board_center[1], front_skin + display_lip_depth])
-        linear_extrude(height = display_stack_depth)
-            rounded_rect_2d(display_board_width, display_board_height, 2);
+    translate([display_board_center[0], display_board_center[1], front_skin + display_lip_depth]) {
+        // Glass/LCD module in front of the PCB.
+        linear_extrude(height = display_stack_depth - display_pcb_thickness)
+            rounded_rect_2d(display_glass_size[0], display_glass_size[1], 1);
+        // PCB with its corner ears, resting on the mount bosses.
+        translate([0, 0, display_stack_depth - display_pcb_thickness])
+            linear_extrude(height = display_pcb_thickness)
+                display_pcb_outline_2d();
+        // FPC and connectors past the -x end, over the full stack depth (conservative).
+        translate([-display_board_width / 2 - display_connector_overhang, -display_glass_size[1] / 2, 0])
+            cube([display_connector_overhang + 0.01, display_glass_size[1], display_stack_depth]);
+    }
 }
 
 module speaker_ghost() {
@@ -879,7 +1152,7 @@ module back_half_space() {
     translate([-200, -200, seam_z]) cube([400, 400, 100]);
 }
 
-module front_shell(with_bumpers = true) {
+module front_shell(with_bumpers = !bumpers_separate) {
     difference() {
         union() {
             intersection() {
@@ -903,6 +1176,7 @@ module front_shell(with_bumpers = true) {
                 rounded_rect_2d(screen_window_width, screen_window_height, screen_window_radius);
         speaker_grille();
         mic_port_cut();
+        if (bumpers_separate) bumper_notches();
         if (bezel_separate)
             translate([0, 0, -1])
                 linear_extrude(height = 1 + bezel_pocket_depth)
@@ -911,7 +1185,7 @@ module front_shell(with_bumpers = true) {
     if (!bezel_separate) bezel();
 }
 
-module back_shell(with_bumpers = true) {
+module back_shell(with_bumpers = !bumpers_separate) {
     difference() {
         union() {
             intersection() {
@@ -933,6 +1207,8 @@ module back_shell(with_bumpers = true) {
         case_screw_holes();
         usb_c_cutout();
         switch_well_cut();
+        back_slot_cut();
+        if (bumpers_separate) bumper_lip_cuts();
     }
 }
 
@@ -945,12 +1221,31 @@ if (part == "front") {
     rotate([0, 180, 0])
         translate([0, 0, -bezel_pocket_depth])
             bezel();
+} else if (part == "back_print") {
+    // Back face down for printing.
+    rotate([0, 180, 0])
+        translate([0, 0, -body_depth])
+            back_shell();
 } else if (part == "bumpers") {
-    bumper_pads();
+    if (bumpers_separate) {
+        // Both grips, each on its front end, side by side.
+        for (side = [0, 1])
+            translate([(side == 0 ? -1 : 1) * grip_print_spacing, 0, 0])
+                grip_print(side);
+    } else {
+        bumper_pads();
+    }
+} else if (part == "grip_left") {
+    grip_print(0);
+} else if (part == "grip_right") {
+    grip_print(1);
 } else if (part == "preview") {
     color("#F7C600") front_shell(false);
     color("#EDB700") back_shell(false);
-    color("#7B4FC9") bumper_pads();
+    if (bumpers_separate)
+        for (side = [0, 1]) color("#7B4FC9") bumper_grip(side);
+    else
+        color("#7B4FC9") bumper_pads();
     color("#7B4FC9") bezel();
     color("#1E2A5A") display_ghost();
     %components();
@@ -1142,3 +1437,105 @@ for (x = fastener_x_positions, y = fastener_y_positions)
         "Switch well hits a case screw boss"
     );
 assert(switch_rocker_proud < switch_well_depth, "Rocker sticks out of the switch well");
+
+// Styling checks.
+assert(handle_opening_height >= 18, "Handle opening is too low for an adult's fingers");
+assert(handle_depth <= body_depth, "Handle is deeper than the body; its faces would stand proud");
+assert(
+    handle_base_width >= handle_width && handle_base_width / 2 < body_width / 2 - edge_radius,
+    "Handle posts must splay outward and stay on the body top"
+);
+assert(
+    !bed_safe_edges || bed_edge_blend_radius < min(edge_radius, handle_edge_radius, handle_flare_radius),
+    "Bed-edge blend radius must be smaller than the edge rounds it blends"
+);
+assert(
+    bumper_rib_width < bumper_rib_pitch
+        && (bumper_rib_count - 1) * bumper_rib_pitch + bumper_rib_width <= bumper_length,
+    "Bumper ribs overlap each other or run past the ends of the grip pad"
+);
+back_slot_span = (back_slot_count - 1) * back_slot_pitch + back_slot_width + 2 * back_slot_chamfer;
+back_slot_rect = centered_rect(back_slot_center, back_slot_length, back_slot_span);
+assert(
+    rear_skin - back_slot_depth >= 1.2 && back_slot_chamfer < back_slot_depth,
+    "Back slots must stay blind, with at least 1.2 mm of skin behind them"
+);
+assert(
+    back_slot_pitch - back_slot_width - 2 * back_slot_chamfer >= 1,
+    "Back slots are too close together"
+);
+assert(
+    abs(back_slot_center[0]) + back_slot_length / 2 < flat_x
+        && abs(back_slot_center[1]) + back_slot_span / 2 < flat_y,
+    "Back slots run onto the rounded back edge"
+);
+assert(!rects_overlap(back_slot_rect, switch_well_rect), "Back slots hit the switch well");
+for (x = fastener_x_positions, y = fastener_y_positions)
+    assert(
+        !rects_overlap(back_slot_rect, centered_rect([x, y], case_screw_head_diameter + 2, case_screw_head_diameter + 2)),
+        "Back slots hit a case screw counterbore"
+    );
+
+// MaTouch outline checks.
+display_ear_width = (display_board_height - display_glass_size[1]) / 2;
+assert(
+    display_glass_size[0] <= display_board_width && display_hole_inset[1] + display_hole_diameter / 2 < display_ear_width,
+    "Display glass must fit the board, with the mounting holes on the ears"
+);
+assert(
+    abs(display_screen_offset[0]) + screen_window_width / 2 + display_lip_overlap <= display_glass_size[0] / 2
+        && abs(display_screen_offset[1]) + screen_window_height / 2 + display_lip_overlap <= display_glass_size[1] / 2,
+    "Screen window plus lip overlap runs off the display glass"
+);
+assert(
+    display_ear_width - display_hole_inset[1] - display_glass_clearance - display_insert_pilot_diameter / 2 >= 0.8,
+    "Display mount boss wall beside the glass is too thin for the insert"
+);
+display_connector_rect = [
+    display_board_center[0] - display_board_width / 2 - display_connector_overhang,
+    display_board_center[1] - display_glass_size[1] / 2,
+    display_board_center[0] - display_board_width / 2,
+    display_board_center[1] + display_glass_size[1] / 2
+];
+assert(
+    !rects_overlap(display_connector_rect, switch_body_rect) || switch_body_front_z > display_stack_back_z,
+    "Display FPC and connectors hit the switch body"
+);
+assert(!rects_overlap(display_connector_rect, speaker_rect), "Display FPC and connectors hit the speaker");
+
+// Separate grip checks.
+if (bumpers_separate) {
+    assert(bumper_z_back <= body_depth - edge_radius, "Grips must stop before the back edge round");
+    assert(
+        bumper_tab_top < seam_z && bumper_tab_bottom - bumper_flange_depth >= edge_radius,
+        "Grip tabs must sit below the seam and clear the inside of the front edge round"
+    );
+    assert(
+        bumper_hook_rise >= bumper_fit_clearance + (bumper_flange_width - bumper_tab_width) / 2 + 0.5
+            && bumper_flange_width >= bumper_tab_width,
+        "Grip hooks need room above the seam to widen behind the back shell's wall"
+    );
+    for (ty = bumper_tab_y) {
+        assert(
+            abs(ty - bumper_center_y) + bumper_flange_width / 2 + bumper_fit_clearance
+                <= bumper_length / 2 - bumper_chamfer,
+            "Grip tabs run past the ends of the grip"
+        );
+        for (side = [-1, 1]) {
+            flange_rect = [
+                side > 0 ? bumper_tab_x_inner - bumper_fit_clearance : -bumper_x_wall_in,
+                ty - bumper_flange_width / 2 - bumper_fit_clearance,
+                side > 0 ? bumper_x_wall_in : -(bumper_tab_x_inner - bumper_fit_clearance),
+                ty + bumper_flange_width / 2 + bumper_fit_clearance
+            ];
+            assert(!rects_overlap(flange_rect, mic_rect), "Grip flange hits the mic pocket");
+            assert(!rects_overlap(flange_rect, speaker_rect), "Grip flange hits the speaker retainer");
+            assert(!rects_overlap(flange_rect, switch_well_rect), "Grip flange hits the switch well");
+            for (x = fastener_x_positions, y = fastener_y_positions)
+                assert(
+                    !rects_overlap(flange_rect, centered_rect([x, y], case_screw_boss_diameter, case_screw_boss_diameter)),
+                    "Grip flange hits a case screw boss"
+                );
+        }
+    }
+}
