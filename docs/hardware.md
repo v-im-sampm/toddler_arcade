@@ -19,3 +19,12 @@ Makerfabs README states ESP32-S3, 320×240 ST7789V SPI, NS2009 resistive touch, 
 
 ## Electrical safety
 Use enclosure, strain relief, inaccessible wiring, no exposed cells, no sharp edges, and limit acoustic output. Prototype USB-powered; don't assume battery circuitry exists.
+
+## Enclosure concept
+The editable yellow carry-handle OpenSCAD starting model is in
+[`hardware/enclosures/`](../hardware/enclosures/). Its PCB, battery, and mounting
+dimensions are placeholders, not manufacturer-verified measurements. Measure
+the physical parts and update the model before printing a fit-critical enclosure.
+The enclosure is designed for a 503450 1S LiPo and a TP4057 USB-C charger.
+A 1S cell needs a 5 V boost converter to feed MaTouch VBUS. That converter,
+the power switch, and the 5 V entry point are TBD. See the enclosure README.
