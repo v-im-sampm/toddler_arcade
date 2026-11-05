@@ -48,11 +48,13 @@ of the file.
   through counterbored bosses and thread 6 mm into pilot holes in the
   front-shell bosses at (+/-48, +/-30).
 - **Display mounts:** four M3 screws pass through the MaTouch corner holes
-  into heat-set inserts in bosses on the front shell. The mounts are at a
-  60.3 x 54.5 mm pitch, rotated from the portrait orientation in the supplied
-  dimension image to match the landscape opening. The image suggests the
-  screen is centered on the board, but the PCB outline and board revision are
-  not specified; the 3.1 mm board-edge margin is only an image estimate.
+  into heat-set inserts in bosses on the front shell. The supplied dimension
+  image gives the **overall PCB outline**, 54.5 x 60.3 mm in portrait; the
+  model rotates it to landscape (60.3 x 54.5) with the board's USB-C end toward
+  the speaker side (-x). Hole insets (`display_hole_inset` = 2.95, 2.85 mm),
+  the resulting hole pitch (about 54.4 x 48.8 mm) and the 2.6 mm screen offset
+  away from the USB-C end (`display_screen_offset`) are measured from image
+  pixels, so they are estimates.
 
 Model coordinates: the front face is at z = 0, the back at z = 36, and the
 handle points to +y. Seen from the front, +x is on the viewer's **left**.
@@ -80,8 +82,15 @@ handle points to +y. Seen from the front, +x is on the viewer's **left**.
   fully. **This is the only external USB-C.**
 - **MAX98357A:** mounts on rear-shell standoffs in the free area behind the
   display, between the speaker side and the battery tray, at (-15, 20). The
-  board outline is the hole pitch plus `pcb_board_margin` on each side
-  (placeholder).
+  board is 17.8 mm along the 7-pin header and 18.8 mm from the header edge to
+  the terminal block (`max_board_size`). It has only two holes, both at the
+  terminal-block end, about 13.1 mm apart and 2.3 mm in from that edge
+  (`max_hole_pitch`, `max_hole_inset`, photo estimates). These take M2 screws
+  into 4.2 mm standoffs. Two solid rest posts (`max_rest_inset`) support the
+  header end. **Solder the header (11.2 mm, `max_header_height`) and the
+  terminal block on the component side, facing the display**, or wire directly
+  to the pads. Pins pointing toward the back skin would not fit on the
+  standoffs. Terminal-block height and depth are placeholders.
 - **INMP441 mic (the "INA" board, `config/board_pins.json`):** a 14 mm round
   board with flats 12 mm apart, in a front-shell pocket at `mic_center` =
   (45, 0), on the viewer's left, mirroring the speaker. The INMP441 is **bottom-ported**: its sound hole goes through the
@@ -114,7 +123,10 @@ The model's asserts fail the render if any of these happen:
 - The USB-C recess leaves the flat wall band or crosses the seam.
 - The case is too shallow for the battery stack.
 - The MAX board hits the battery tray, charger, switch well, or the display
-  stack (`display_stack_depth`).
+  stack (`display_stack_depth`). Its front-facing header or terminal block
+  comes within 1 mm of the display stack, or its holes sit too close to the
+  board edge.
+- A display mounting hole sits closer to the board edge than its radius.
 - The mic pocket leaves the flat face or hits the display, a case boss, or a
   battery rib. The mic ledge is not narrower than the board.
 - The speaker dish leaves the flat face or reaches the bezel. Grille bars are
@@ -256,12 +268,12 @@ enclosure until the parts are measured and the parameters are updated.
 
 Measure and update:
 
-- **MaTouch PCB:** the supplied dimension image shows a 54.5 x 60.3 mm
-  corner-hole pitch in portrait orientation and 3.2 mm holes; this model
-  rotates that pattern for landscape and places four M3 insert mounts below
-  the PCB. The outline estimate uses a 3.1 mm edge margin; confirm the pitch,
-  screen offset, PCB outline, board revision, stack depth, and mount fit on
-  the physical board. `display_insert_pilot_diameter`, `display_insert_length`,
+- **MaTouch PCB:** the supplied dimension image gives a 54.5 x 60.3 mm overall
+  outline (portrait) with 3.2 mm corner holes; the model uses it in landscape.
+  The hole insets (`display_hole_inset`), the derived hole pitch (about
+  54.4 x 48.8) and the screen offset (`display_screen_offset` = 2.6 mm away
+  from the USB-C end) are pixel estimates. Confirm them, along with the board
+  revision, stack depth, and mount fit, on the physical board. `display_insert_pilot_diameter`, `display_insert_length`,
   and `display_mount_screw_length` are placeholders; choose an insert and
   verify screw engagement before printing.
 - **TP4057 board:** length and width (placeholder 19.5 x 13.8), PCB
@@ -269,8 +281,10 @@ Measure and update:
   the solder joints underneath.
 - **503450 battery:** the bay uses seller dimensions (34 x 50 x 5). Confirm
   the fit, including the protection-circuit end and the lead bend radius.
-- **MAX98357A board:** mounting-hole pitch, board outline
-  (`pcb_board_margin`), and component height. The standoffs assume the
+- **MAX98357A board:** the outline (17.8 x 18.8) comes from the supplied
+  drawing. The hole pitch (13.1), the hole inset (2.3), the terminal-block
+  height and depth (`max_terminal_height`, `max_terminal_size`), and the rest-post
+  positions are estimates or placeholders. The standoffs assume the
   display stack is no deeper than `display_stack_depth` (placeholder 8 mm).
 - **KCD1 switch:** KCD1 dimensions vary by maker. The model uses typical
   listing values: 13 x 19 mm cutout, 15 x 21 mm flange, about 7 mm rocker

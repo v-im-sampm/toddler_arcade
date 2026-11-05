@@ -40,15 +40,21 @@ screen_center_y = 2;
 screen_window_width = 51.2;
 screen_window_height = 38.4;
 screen_window_radius = 4;
-// The supplied Makerfabs dimension image shows 54.5 x 60.3 mm hole pitch in portrait.
-// This enclosure keeps the display landscape, so the pitch is rotated 90 degrees.
-// The PCB edge margin is estimated from the image; measure the physical board and inserts.
-display_hole_pitch = [60.3, 54.5];
+// The supplied Makerfabs dimension image gives the overall PCB outline, mounting ears included:
+// 54.5 x 60.3 mm in portrait. This enclosure keeps the display landscape (rotated 90 degrees)
+// with the board's USB-C/FPC end toward the speaker (-x). The outline is modeled as its
+// bounding rectangle. Hole insets and the screen offset are measured from that image at
+// ~8.55 px/mm; confirm them on the physical board.
+display_board_width = 60.3;
+display_board_height = 54.5;
+display_hole_inset = [2.95, 2.85]; // Image estimate: board edge to hole center, per axis.
+display_hole_pitch = [
+    display_board_width - 2 * display_hole_inset[0],
+    display_board_height - 2 * display_hole_inset[1]
+];
 display_hole_diameter = 3.2;
-display_board_edge_margin = 3.1; // Image estimate, not dimensioned by Makerfabs.
-display_board_width = display_hole_pitch[0] + 2 * display_board_edge_margin;
-display_board_height = display_hole_pitch[1] + 2 * display_board_edge_margin;
-display_screen_offset = [0, 0]; // Image estimate: active screen is centered on the board.
+// Image estimate: the active screen sits 2.6 mm from the board center, away from the USB-C end.
+display_screen_offset = [2.6, 0];
 display_board_center = [
     screen_center_x - display_screen_offset[0],
     screen_center_y - display_screen_offset[1]
@@ -138,15 +144,24 @@ speaker_grille_bar_width = 1.0;
 speaker_dish_depth = 0.8; // Flared mouth recessed into the face.
 speaker_dish_flare = 3; // Mouth grows by this much per side from the cone opening.
 
-// Rear-shell MAX98357A mount behind the display; board outline and hole pitch are editable
-// placeholders. Board outline = hole pitch + 2 * pcb_board_margin.
+// Rear-shell MAX98357A mount behind the display, components (terminal block and header) facing
+// the front. Outline from the supplied dimension image: 17.8 mm along the header (x) by 18.8 mm
+// from the header edge to the terminal block (y, terminal block toward +y). Two mounting holes
+// sit at the terminal-block end; plain rest posts support the header end. Hole pitch and inset
+// are estimated from the top-view photo at ~18.9 px/mm; confirm them on the board.
 pcb_standoff_height = 4.2;
 pcb_standoff_diameter = 5.2;
+pcb_rest_diameter = 4;
 m2_clearance_diameter = 2.3;
 pcb_thickness = 1.6;
-pcb_board_margin = 2.5; // Placeholder hole-center-to-edge distance.
 max_board_center = [-15, 20];
-max_hole_pitch = [18, 13];
+max_board_size = [17.8, 18.8];
+max_hole_pitch = 13.1; // Image estimate, along x.
+max_hole_inset = 2.3; // Image estimate: terminal-block edge to hole centers.
+max_rest_inset = 5.5; // Header edge to rest posts; clears the header solder stubs.
+max_header_height = 11.2; // Header pins on the terminal-block side (from the dimension image).
+max_terminal_height = 10; // Placeholder: screw terminal height above the PCB.
+max_terminal_size = [8.75, 7.5]; // x from the dimension image; y is a placeholder.
 
 // Microphone: INMP441 I2S MEMS breakout (the "INA" module), 14 mm round with flats 12 mm
 // apart and a ~1 mm PCB per the supplied image. The INMP441 is bottom-ported: its sound
@@ -251,7 +266,13 @@ switch_panel_back_z = body_depth - switch_well_depth; // Face the flange rests o
 switch_panel_front_z = switch_panel_back_z - switch_panel_thickness;
 switch_body_front_z = switch_panel_front_z - switch_below_panel_depth;
 pcb_board_back_z = inside_back_z - pcb_standoff_height;
-max_board_size = max_hole_pitch + [2, 2] * pcb_board_margin;
+max_hole_positions = [
+    for (sx = [-1, 1]) [max_board_center[0] + sx * max_hole_pitch / 2, max_board_center[1] + max_board_size[1] / 2 - max_hole_inset]
+];
+max_rest_positions = [
+    for (sx = [-1, 1]) [max_board_center[0] + sx * max_hole_pitch / 2, max_board_center[1] - max_board_size[1] / 2 + max_rest_inset]
+];
+pcb_board_front_z = pcb_board_back_z - pcb_thickness;
 mic_pocket_inner_diameter = mic_board_diameter + 2 * mic_pocket_clearance;
 mic_pocket_outer_diameter = mic_pocket_inner_diameter + 2 * mic_pocket_wall;
 mic_board_front_z = front_skin + mic_underside_clearance;
@@ -655,18 +676,17 @@ module seam_lip() {
             }
 }
 
-module pcb_standoffs(center, hole_pitch) {
-    for (
-        x = [center[0] - hole_pitch[0] / 2, center[0] + hole_pitch[0] / 2],
-        y = [center[1] - hole_pitch[1] / 2, center[1] + hole_pitch[1] / 2]
-    ) {
+module pcb_standoffs(holes, rests = []) {
+    for (p = holes)
         difference() {
-            translate([x, y, inside_back_z - pcb_standoff_height])
+            translate([p[0], p[1], inside_back_z - pcb_standoff_height])
                 cylinder(h = pcb_standoff_height + fuse, d = pcb_standoff_diameter);
-            translate([x, y, inside_back_z - pcb_standoff_height - 0.05])
+            translate([p[0], p[1], inside_back_z - pcb_standoff_height - 0.05])
                 cylinder(h = pcb_standoff_height + 0.05, d = m2_clearance_diameter);
         }
-    }
+    for (p = rests)
+        translate([p[0], p[1], inside_back_z - pcb_standoff_height])
+            cylinder(h = pcb_standoff_height + fuse, d = pcb_rest_diameter);
 }
 
 module display_mount_bosses() {
@@ -778,7 +798,18 @@ module board_ghost(center, size) {
         cube([size[0], size[1], pcb_thickness], center = true);
 }
 
-module max_ghost() board_ghost(max_board_center, max_board_size);
+module max_ghost() {
+    board_ghost(max_board_center, max_board_size);
+    // Screw terminal at the +y end and the 7-pin header along the -y edge, both facing front.
+    translate([
+        max_board_center[0] - max_terminal_size[0] / 2,
+        max_board_center[1] + max_board_size[1] / 2 - max_terminal_size[1],
+        pcb_board_front_z - max_terminal_height
+    ])
+        cube([max_terminal_size[0], max_terminal_size[1], max_terminal_height]);
+    translate([max_board_center[0] - 9, max_board_center[1] - max_board_size[1] / 2 + 1, pcb_board_front_z - max_header_height])
+        cube([18, 2.6, max_header_height]);
+}
 module mic_ghost() {
     translate([mic_center[0], mic_center[1], mic_board_front_z])
         linear_extrude(height = mic_pcb_thickness)
@@ -895,7 +926,7 @@ module back_shell(with_bumpers = true) {
                 union() {
                     seam_lip();
                     back_case_bosses();
-                    pcb_standoffs(max_board_center, max_hole_pitch);
+                    pcb_standoffs(max_hole_positions, max_rest_positions);
                     charger_cradle();
                     battery_tray();
                     switch_well_body();
@@ -1014,11 +1045,9 @@ for (x = fastener_x_positions, y = fastener_y_positions)
         "Speaker retainer hits a case screw boss"
     );
 display_mount_height = display_mount_top_z - front_skin;
-assert(display_board_edge_margin > 0, "Display board edge margin must be positive");
 assert(
-    display_board_width >= display_hole_pitch[0] + display_hole_diameter
-        && display_board_height >= display_hole_pitch[1] + display_hole_diameter,
-    "Display board outline is too small for the hole pattern"
+    min(display_hole_inset) > display_hole_diameter / 2,
+    "Display holes must be inside the board outline"
 );
 assert(
     abs(display_board_center[0]) + display_board_width / 2 < flat_x
@@ -1092,8 +1121,13 @@ assert(
     "Mic header and wires hit the battery"
 );
 assert(
-    pcb_board_back_z - pcb_thickness - 3 > display_stack_back_z,
-    "Rear boards (with ~3 mm of parts) hit the display stack"
+    pcb_board_front_z - max(max_header_height, max_terminal_height) > display_stack_back_z + 1,
+    "MAX header or screw terminal hits the display stack"
+);
+assert(
+    max_hole_inset > m2_clearance_diameter / 2 + 0.5 && max_rest_inset - pcb_rest_diameter / 2 > 3
+        && max_hole_pitch + pcb_standoff_diameter < max_board_size[0] + 2,
+    "MAX standoffs must sit under the board and clear the header solder stubs"
 );
 assert(
     abs(switch_center[0]) + switch_well_width / 2 + switch_well_chamfer < flat_x

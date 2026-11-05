@@ -27,8 +27,10 @@ dimensions are placeholders, not manufacturer-verified measurements. Measure
 the physical parts and update the model before printing a fit-critical enclosure.
 The enclosure is designed for a 503450 1S LiPo and a TP4057 USB-C charger.
 The MaTouch display uses four M3 insert mounts based on the supplied
-dimensioned image (54.5 x 60.3 mm portrait hole pitch, rotated for the
-landscape case). The PCB outline, revision, and insert dimensions still need
+dimensioned image. That image gives the 54.5 x 60.3 mm overall PCB outline in
+portrait, which the model uses in landscape with the USB-C end toward the speaker.
+The hole pitch is estimated from the image at about 54.4 x 48.8 mm. The hole
+positions, revision, and insert dimensions still need
 physical confirmation. A 1S cell needs a 5 V boost converter to feed MaTouch
 VBUS; the converter and 5 V entry point are TBD. The INMP441 mic sits in a
 front-shell pocket behind a 2 mm port. It is bottom-ported, so its pinhole

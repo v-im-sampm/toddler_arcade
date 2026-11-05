@@ -36,7 +36,8 @@ PARAMS = [
     "mic_center", "mic_board_diameter", "mic_board_flat_width", "mic_port_center", "mic_hole_diameter",
     "battery_center", "battery_pack_width", "battery_pack_length", "battery_pack_thickness",
     "charger_port_center_x", "charger_board_width", "charger_board_length", "inside_bottom_y",
-    "max_board_center", "max_board_size", "max_hole_pitch",
+    "max_board_center", "max_board_size", "max_hole_positions", "max_rest_positions",
+    "pcb_rest_diameter", "display_screen_offset", "display_hole_inset",
     "switch_center", "switch_cutout_x", "switch_cutout_y", "switch_flange_x", "switch_flange_y",
     "usb_c_receptacle_width", "usb_c_receptacle_height", "usb_c_opening_clearance",
     "usb_c_plug_recess_width", "usb_c_plug_recess_height", "usb_c_center_z",
@@ -276,7 +277,8 @@ def page_front_inside(c, L, P):
     for h in holes(P, (cx, cy), P["display_hole_pitch"], P["display_hole_diameter"]):
         s.circle(h, P["display_hole_diameter"], stroke=BLUE, width=0.5)
         s.cross(h, 7, BLUE)
-    s.label((cx, cy - P["display_board_height"] / 2 + 4), "MaTouch PCB outline (estimate)", color=BLUE)
+    s.label((cx, cy - P["display_board_height"] / 2 + 4), "MaTouch PCB outline", color=BLUE)
+    s.label((cx - P["display_board_width"] / 2 + 14, cy + P["display_board_height"] / 2 - 4), "<- USB-C end", color=BLUE, size=5.5)
     sp = (P["speaker_center_x"], P["speaker_center_y"])
     s.stadium(sp, P["speaker_width"], P["speaker_height"], stroke=RED, width=0.6, dash=DASH)
     s.rect((sp[0], sp[1] + P["speaker_height"] / 2 + P["speaker_tab_length"] / 2),
@@ -305,8 +307,8 @@ def page_back_inside(c, L, P):
     s.label((P["charger_port_center_x"], ch_y), "TP4057", color=GREEN)
     mc = P["max_board_center"]
     s.rect(mc, P["max_board_size"][0], P["max_board_size"][1], stroke=BLUE, width=0.6, dash=DASH)
-    for h in holes(P, mc, P["max_hole_pitch"], 2):
-        s.cross(h, 4, BLUE)
+    for h in P["max_hole_positions"]:
+        s.cross(h, 5, BLUE)
     s.label(mc, "MAX98357A", color=BLUE)
     s.rect(P["switch_center"], P["switch_cutout_x"], P["switch_cutout_y"], stroke=PINK, width=0.6, dash=DASH)
     s.label(P["switch_center"], "KCD1", color=PINK)
@@ -359,13 +361,15 @@ def page_templates(c, P):
 
     dw, dh = P["display_board_width"], P["display_board_height"]
     dc = (x0 + dw / 2, top - dh / 2)
-    s.rect(dc, dw, dh, stroke=BLUE, width=0.6, dash=DASH)
+    s.rect(dc, dw, dh, stroke=BLUE, width=0.6)
     for h in holes(P, dc, P["display_hole_pitch"], P["display_hole_diameter"]):
         s.circle(h, P["display_hole_diameter"], stroke=BLUE, width=0.6)
         s.cross(h, 7, BLUE)
-    s.label((dc[0], dc[1] + 4), "MaTouch 2.4 (landscape)", color=BLUE, bold=True)
-    s.label((dc[0], dc[1] - 1), f"holes {P['display_hole_pitch'][0]} x {P['display_hole_pitch'][1]}, d{P['display_hole_diameter']}", color=BLUE)
-    s.label((dc[0], dc[1] - 5), "display_hole_pitch / display_board_*", color=BLUE, size=5.5)
+    s.label((dc[0], dc[1] + 4), "MaTouch 2.4 (landscape), screen side down", color=BLUE, bold=True)
+    pitch = P["display_hole_pitch"]
+    s.label((dc[0], dc[1] - 1), f"outline {dw} x {dh}, holes {pitch[0]:.1f} x {pitch[1]:.1f} (est.)", color=BLUE)
+    s.label((dc[0], dc[1] - 5), "display_board_*, display_hole_inset", color=BLUE, size=5.5)
+    s.label((dc[0] - dw / 2 + 7, dc[1] - 12), "USB-C end", color=BLUE, size=5.5)
 
     bw, bl = P["battery_pack_width"], P["battery_pack_length"]
     bc = (x0 + dw + 10 + bw / 2, top - bl / 2)
@@ -385,11 +389,18 @@ def page_templates(c, P):
     row2 = top - max(dh, bl) - 14
     mw, mh = P["max_board_size"]
     mc = (x0 + mw / 2, row2 - mh / 2)
-    s.rect(mc, mw, mh, stroke=BLUE, width=0.6, dash=DASH)
-    for h in holes(P, mc, P["max_hole_pitch"], 2):
-        s.cross(h, 4, BLUE)
+    s.rect(mc, mw, mh, stroke=BLUE, width=0.6)
+    bc0 = P["max_board_center"]
+    for h in P["max_hole_positions"]:
+        p = (mc[0] + h[0] - bc0[0], mc[1] + h[1] - bc0[1])
+        s.circle(p, 2.3, stroke=BLUE, width=0.5)
+        s.cross(p, 5, BLUE)
+    for h in P["max_rest_positions"]:
+        s.circle((mc[0] + h[0] - bc0[0], mc[1] + h[1] - bc0[1]), P["pcb_rest_diameter"], stroke=BLUE, width=0.4, dash=DASH)
+    s.label((mc[0], mc[1] + mh / 2 - 6), "terminal end", color=BLUE, size=5.5)
+    s.label((mc[0], mc[1] - mh / 2 + 2), "header", color=BLUE, size=5.5)
     s.label((mc[0], mc[1] - mh / 2 - 4), f"MAX98357A {mw} x {mh}", color=BLUE)
-    s.label((mc[0], mc[1] - mh / 2 - 8), "max_hole_pitch, pcb_board_margin", color=BLUE, size=5.5)
+    s.label((mc[0], mc[1] - mh / 2 - 8), "max_board_size, max_hole_*", color=BLUE, size=5.5)
 
     kc = (mc[0] + mw / 2 + 14 + P["switch_flange_x"] / 2, row2 - P["switch_flange_y"] / 2)
     s.rect(kc, P["switch_flange_x"], P["switch_flange_y"], stroke=PINK, width=0.5, dash=DASH)

@@ -6,7 +6,14 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $views = "hardware\enclosures\yellow_handle_views.scad"
-$common = @("--backend=manifold", "--colorscheme=Tomorrow", "-D", 'part="none"')
+
+# Windows PowerShell 5 and pwsh < 7.3 strip embedded double quotes from native arguments,
+# which turns -D view="x" into an undefined variable and renders an empty image.
+function Def([string]$name, [string]$value) {
+    $q = if ($PSVersionTable.PSVersion -lt [version]"7.3") { '\"' } else { '"' }
+    "$name=$q$value$q"
+}
+$common = @("--backend=manifold", "--colorscheme=Tomorrow", "-D", (Def "part" "none"))
 
 # name, view, camera (translate x,y,z, rotate x,y,z, distance), size, extra args
 $renders = @(
@@ -25,7 +32,11 @@ $renders = @(
 
 foreach ($r in $renders) {
     $out = Join-Path $OutDir "yellow_handle_$($r[0]).png"
-    $log = & $Scad @common -D "view=`"$($r[1])`"" "--camera=$($r[2])" --viewall --autocenter "--imgsize=$($r[3])" @($r[4]) -o $out $views 2>&1 | Out-String
-    if ($log -cmatch "ERROR:") { throw "Render of $($r[0]) failed:`n$log" }
+    $ErrorActionPreference = "Continue"
+    $log = & $Scad @common -D (Def "view" $r[1]) "--camera=$($r[2])" --viewall --autocenter "--imgsize=$($r[3])" @($r[4]) -o $out $views 2>&1 | Out-String
+    $ErrorActionPreference = "Stop"
+    if ($log -cmatch "ERROR:|WARNING: Ignoring unknown|top level object is empty|Normalized CSG tree has 0") {
+        throw "Render of $($r[0]) failed:`n$log"
+    }
     Write-Host "wrote $out"
 }
