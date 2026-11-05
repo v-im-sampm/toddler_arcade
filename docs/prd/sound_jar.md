@@ -64,9 +64,12 @@ button that randomizes effects with a deterministic seed, tap-to-record rhythm l
    disabled. Red ring and loudness halo animate. Starts only on an explicit tap.
 3. **Process** (< 50 ms): trim leading/trailing silence (keep 20 ms pre-roll / 80 ms tail),
    normalize peak to −6 dBFS, 5 ms fade in/out.
+   - Sound is detected in 5 ms windows and must last at least 15 ms, so clicks and screen-tap
+     pops are trimmed.
+   - The threshold is the loudest sustained level / 10, raised to 2× the room-noise floor.
 4. **CELEBRATE** (≤ 1.5 s, non-blocking): jar sparkles and plays the new sound once.
-5. **Too quiet / too short** (peak < 512 ≈ −36 dBFS or < 150 ms): keep the previous sound, jar
-   does a gentle wiggle. No failure sound, no text.
+5. **Too quiet / too short** (no sustained sound ≥ 512 ≈ −36 dBFS, or < 150 ms): keep the
+   previous sound, jar does a gentle wiggle. No failure sound, no text.
 
 Repeated taps never queue up: at most 2 sample voices (plus one fading out); a new tap steals the
 oldest. Navigation is accepted at any time, including mid-recording (recording is discarded).

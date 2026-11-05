@@ -19,6 +19,32 @@ int16_t clamp16(int32_t v) {
 
 int32_t abs32(int32_t v) { return v < 0 ? -v : v; }
 
+constexpr uint32_t kWin = Sampler::kTrimWindowSamples;
+constexpr uint32_t kRun = Sampler::kTrimRunWindows;
+
+// Peak |x| of window w (the last window may be partial).
+int32_t window_level(const int16_t* x, uint32_t n, uint32_t w) {
+  const uint32_t a = w * kWin;
+  const uint32_t b = a + kWin < n ? a + kWin : n;
+  int32_t p = 0;
+  for (uint32_t i = a; i < b; ++i) {
+    const int32_t v = abs32(x[i]);
+    if (v > p) p = v;
+  }
+  return p;
+}
+
+// Quietest of the kRun windows starting at w: a run is only as loud as its
+// weakest window, so a click shorter than the run never counts as sound.
+int32_t run_level(const int16_t* x, uint32_t n, uint32_t w) {
+  int32_t m = INT32_MAX;
+  for (uint32_t k = 0; k < kRun; ++k) {
+    const int32_t v = window_level(x, n, w + k);
+    if (v < m) m = v;
+  }
+  return m;
+}
+
 int32_t soft_limit(int32_t x) {
   constexpr int32_t k = Sampler::kSoftKnee;
   if (x > k) x = k + (x - k) / 4;
@@ -148,22 +174,53 @@ void Sampler::abort_recording() {
   level_.store(0, std::memory_order_relaxed);
 }
 
+bool Sampler::find_sound(const int16_t* x, uint32_t n, uint32_t* first, uint32_t* last) {
+  const uint32_t windows = (n + kWin - 1) / kWin;
+  if (windows < kRun) return false;
+  const uint32_t runs = windows - kRun + 1;
+  int32_t loud = 0, floor = INT32_MAX;
+  for (uint32_t w = 0; w < runs; ++w) {
+    const int32_t v = run_level(x, n, w);
+    if (v > loud) loud = v;
+  }
+  for (uint32_t w = 0; w + 1 < windows; ++w) {  // the partial last window would read too quiet
+    const int32_t v = window_level(x, n, w);
+    if (v < floor) floor = v;
+  }
+  if (loud < kQuietPeak) return false;
+  // Relative to the sound, raised above a noisy room, but always below the sound itself.
+  int32_t threshold = loud / kTrimPeakDivisor;
+  if (floor * kTrimNoiseFactor > threshold) threshold = floor * kTrimNoiseFactor;
+  if (threshold > loud / 2) threshold = loud / 2;
+
+  uint32_t w0 = 0;
+  while (run_level(x, n, w0) < threshold) ++w0;  // terminates: some run reaches `loud`
+  uint32_t w1 = runs - 1;
+  while (run_level(x, n, w1) < threshold) --w1;
+  w1 += kRun - 1;
+
+  // Refine to the first/last loud sample inside the edge windows.
+  uint32_t a = w0 * kWin;
+  while (abs32(x[a]) < threshold) ++a;
+  uint32_t b = (w1 + 1) * kWin < n ? (w1 + 1) * kWin - 1 : n - 1;
+  while (abs32(x[b]) < threshold) --b;
+  *first = a;
+  *last = b;
+  return true;
+}
+
 void Sampler::finish_recording() {
   if (!rec_active_) return;
   rec_active_ = false;
   const uint32_t n = rec_count_;
-  int32_t peak = 0;
-  for (uint32_t i = 0; i < n; ++i) {
-    const int32_t a = abs32(record_[i]);
-    if (a > peak) peak = a;
-  }
   RecordResult result = RecordResult::TOO_QUIET;
-  if (n >= kMinRecordSamples && peak >= kQuietPeak) {
-    const int32_t threshold = peak / 10;
-    uint32_t first = 0;
-    while (first < n && abs32(record_[first]) <= threshold) ++first;
-    uint32_t last = n - 1;
-    while (last > first && abs32(record_[last]) <= threshold) --last;
+  uint32_t first = 0, last = 0;
+  if (n >= kMinRecordSamples && find_sound(record_, n, &first, &last)) {
+    int32_t peak = 0;
+    for (uint32_t i = first; i <= last; ++i) {
+      const int32_t a = abs32(record_[i]);
+      if (a > peak) peak = a;
+    }
     const uint32_t start = first > kPreRollSamples ? first - kPreRollSamples : 0;
     const uint32_t end = last + 1 + kTailSamples < n ? last + 1 + kTailSamples : n;
     install_clip(record_, start, end - start, peak);

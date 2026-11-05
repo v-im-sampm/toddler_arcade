@@ -12,9 +12,16 @@ Host and desktop-simulator results are not device validation.
 - A built-in "boing" is in the jar from the start, so every pad works before any recording.
 - Record: tap the red dot, make a noise, tap the stop square (or wait 3 s). The speaker is silent
   while recording. A fill bar shows time and the button's outline grows with loudness.
-- The engine trims silence (20 ms pre-roll, 80 ms tail), normalizes to −6 dBFS and adds 5 ms fades.
-  A take that is too quiet (peak < 512) or too short (< 150 ms) keeps the old sound and the jar
-  wiggles. There is no failure sound and no text.
+- The engine trims leading and trailing silence, normalizes the kept sound to −6 dBFS and adds
+  5 ms fades. The trim works on 5 ms windows:
+  - Sound must stay above a threshold for 15 ms, so screen-tap pops and clicks around the sound are
+    cut too.
+  - The threshold is 1/10 of the loudest sustained part, raised to 2× the quietest window in a
+    noisy room.
+  - It keeps 20 ms before the sound, 80 ms after it, and any pauses inside it.
+  A take that is too quiet (no sustained sound ≥ 512) or too short (< 150 ms) keeps the old sound
+  and the jar wiggles. A take with only a click counts as too quiet. There is no failure sound and
+  no text.
 - Pads: big → tiny creature = −12, −5, 0, +7, +12 semitones. Tap = one shot. Hold > 350 ms = loop
   until lifted. Hold and slide sideways (12 px dead zone) = continuous pitch bend, shown by a dot.
 - Effects (toggles, stackable): Backwards, Echo, Robot, Wobble. Each tap previews the sound.
@@ -72,7 +79,8 @@ menu only; no Sound Jar gameplay has been measured on the device yet.
 
 ## Tests
 - Host (`ctest`):
-  - `audio_sampler_test`: resampling, reverse, echo/robot/wobble, limiter, trim/normalize,
+  - `audio_sampler_test`: resampling, reverse, echo/robot/wobble, limiter, trim/normalize
+    (pops around the sound, steady room noise, click-only take, pauses inside the sound),
     too-quiet path, wipe, queue/epoch.
   - `sound_jar_test`: state machine, Home mid-record, hold/loop, bend, mic off, privacy wipe.
   - `sound_jar_art_test`

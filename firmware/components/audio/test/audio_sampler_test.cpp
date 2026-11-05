@@ -122,6 +122,80 @@ void test_trim_and_normalize_recording() {
   }
 }
 
+void append_click(std::vector<int16_t>& v, std::size_t n, int16_t amp) {
+  for (std::size_t i = 0; i < n; ++i) v.push_back(static_cast<int16_t>(i % 2 ? -amp : amp));
+}
+
+// Deterministic white-ish noise in [-amp, amp].
+void add_noise(std::vector<int16_t>& v, int amp) {
+  uint32_t s = 12345;
+  for (int16_t& x : v) {
+    s = s * 1664525u + 1013904223u;
+    const int r = static_cast<int>((s >> 16) % static_cast<uint32_t>(2 * amp + 1)) - amp;
+    x = static_cast<int16_t>(std::clamp(x + r, -32768, 32767));
+  }
+}
+
+// Clip length expected for a sound of `sound` samples: pre-roll + tail around it.
+bool trimmed_to(uint32_t len, uint32_t sound) {
+  const uint32_t want = sound + Sampler::kPreRollSamples + Sampler::kTailSamples;
+  return len + 300 >= want && len <= want + 100;
+}
+
+void test_trim_ignores_clicks_around_the_sound() {
+  Rig r;
+  std::vector<int16_t> pcm = silence(800);
+  append_click(pcm, 32, 30000);  // 2 ms screen-tap pop, louder than the sound
+  const auto gap = silence(4000);
+  pcm.insert(pcm.end(), gap.begin(), gap.end());
+  append_tone(pcm, 8000, 440.0, 6000.0);
+  pcm.insert(pcm.end(), gap.begin(), gap.end());
+  append_click(pcm, 48, 30000);
+  const auto tail = silence(1600);
+  pcm.insert(pcm.end(), tail.begin(), tail.end());
+
+  EXPECT(r.record_fixture(pcm) == ISampler::RecordResult::ACCEPTED);
+  EXPECT(trimmed_to(r.s.clip_samples(), 8000));
+  // Normalized from the tone, not from the pops.
+  const int32_t p = peak(r.clip);
+  EXPECT(p >= Sampler::kTargetPeak - 600 && p <= Sampler::kTargetPeak);
+}
+
+void test_trim_cuts_steady_room_noise() {
+  Rig r;
+  std::vector<int16_t> pcm = silence(6400);
+  append_tone(pcm, 8000, 300.0, 3000.0);
+  const auto tail = silence(9600);
+  pcm.insert(pcm.end(), tail.begin(), tail.end());
+  add_noise(pcm, 400);  // above the old peak/10 threshold, so it was never trimmed
+
+  EXPECT(r.record_fixture(pcm) == ISampler::RecordResult::ACCEPTED);
+  EXPECT(trimmed_to(r.s.clip_samples(), 8000));
+}
+
+void test_click_only_take_is_too_quiet() {
+  Rig r;
+  std::vector<int16_t> pcm = silence(8000);
+  append_click(pcm, 32, 30000);
+  const auto tail = silence(8000);
+  pcm.insert(pcm.end(), tail.begin(), tail.end());
+  EXPECT(r.record_fixture(pcm) == ISampler::RecordResult::TOO_QUIET);
+  EXPECT(r.s.clip_samples() == 0);
+  EXPECT(all_zero(r.record));
+}
+
+void test_trim_keeps_gaps_inside_the_sound() {
+  Rig r;
+  std::vector<int16_t> pcm = silence(3200);
+  append_tone(pcm, 3200, 500.0, 6000.0);  // "ba"
+  const auto gap = silence(4800);          // 300 ms pause
+  pcm.insert(pcm.end(), gap.begin(), gap.end());
+  append_tone(pcm, 3200, 500.0, 6000.0);  // "ba"
+  pcm.insert(pcm.end(), gap.begin(), gap.end());
+  EXPECT(r.record_fixture(pcm) == ISampler::RecordResult::ACCEPTED);
+  EXPECT(trimmed_to(r.s.clip_samples(), 3200 + 4800 + 3200));
+}
+
 void test_too_quiet_and_too_short_keep_previous_sound() {
   Rig r;
   r.s.load_builtin(0);
@@ -332,6 +406,10 @@ int main() {
   test_constructor_zeroes_buffers();
   test_builtins_render_and_normalize();
   test_trim_and_normalize_recording();
+  test_trim_ignores_clicks_around_the_sound();
+  test_trim_cuts_steady_room_noise();
+  test_click_only_take_is_too_quiet();
+  test_trim_keeps_gaps_inside_the_sound();
   test_too_quiet_and_too_short_keep_previous_sound();
   test_record_cap_stops_at_three_seconds();
   test_recording_silences_output_and_needs_mic();

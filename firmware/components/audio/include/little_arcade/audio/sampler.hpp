@@ -31,6 +31,12 @@ class Sampler final : public ISampler {
   static constexpr int32_t kTargetPeak = 16384;  // -6 dBFS
   static constexpr uint32_t kPreRollSamples = kSampleRateHz * 20u / 1000u;
   static constexpr uint32_t kTailSamples = kSampleRateHz * 80u / 1000u;
+  // Silence trim: 5 ms windows; sound must stay above the threshold for 3
+  // windows (15 ms) in a row, so screen-tap clicks and pops are cut too.
+  static constexpr uint32_t kTrimWindowSamples = kSampleRateHz * 5u / 1000u;
+  static constexpr uint32_t kTrimRunWindows = 3;
+  static constexpr int32_t kTrimPeakDivisor = 10;  // threshold >= loudest run / 10 (-20 dB)
+  static constexpr int32_t kTrimNoiseFactor = 2;   // threshold >= 2x the quietest window (+6 dB)
   static constexpr uint32_t kFadeSamples = kSampleRateHz * 5u / 1000u;
   static constexpr uint32_t kAttackSamples = kSampleRateHz * 3u / 1000u;
   static constexpr uint32_t kReleaseSamples = kSampleRateHz * 40u / 1000u;
@@ -114,6 +120,9 @@ class Sampler final : public ISampler {
   void do_wipe();
   void begin_recording();
   void finish_recording();
+  // Finds the sustained sound in x[0, n): first/last sample at or above an
+  // adaptive threshold. False if there is no sustained sound >= kQuietPeak.
+  static bool find_sound(const int16_t* x, uint32_t n, uint32_t* first, uint32_t* last);
   void abort_recording();
   void start_voice(uint32_t rate, bool loop);
   void silence_voices();
