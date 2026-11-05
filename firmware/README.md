@@ -74,7 +74,7 @@ python -m esptool --chip esp32s3 -p COM15 -b 921600 --before default_reset --aft
 
 Sound is **muted from the factory** and stays muted until a parent opts in (`docs/acceptance.md` G4, `docs/parental-safety.md`):
 
-1. Hold the Mic corner (top-right) for 5 seconds. A short tap on the Mic corner does nothing to the games.
+1. Hold the Mic corner (top-right) for 5 seconds. After 1 second a small bar under the Mic button starts filling; keep holding until it is full. Small finger slips and brief touch dropouts (under 0.3 s) do not restart the hold. A short tap on the Mic corner does nothing to the games.
 2. Answer the sum by tapping the right number. A wrong answer, or 30 s with no touch, closes the screen.
 3. Pick a volume from 0 (off) to 6 (the parent cap). Each non-zero tap plays a short preview chime.
 4. Tap ✓.

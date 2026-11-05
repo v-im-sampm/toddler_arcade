@@ -40,6 +40,10 @@ void set_visible(lv_obj_t* o, bool visible) {
 }
 }  // namespace
 
+constexpr int16_t kHoldBarW = 48, kHoldBarH = 8;
+constexpr int16_t kHoldBarX = ParentGate::kHotspot.x + (ParentGate::kHotspot.w - kHoldBarW) / 2;
+constexpr int16_t kHoldBarY = ParentGate::kHotspot.y + ParentGate::kHotspot.h + 4;
+
 lv_obj_t* ParentView::button(lv_obj_t* parent, const Rect& r, lv_obj_t** label_out) {
   lv_obj_t* b = plain(parent);
   lv_obj_set_pos(b, r.x, r.y);
@@ -87,9 +91,37 @@ void ParentView::create(lv_obj_t* screen) {
 
   lv_obj_add_flag(root_, LV_OBJ_FLAG_HIDDEN);
   shown_ = ParentGate::State::CLOSED;
+
+  hold_track_ = plain(screen);
+  lv_obj_set_pos(hold_track_, kHoldBarX, kHoldBarY);
+  lv_obj_set_size(hold_track_, kHoldBarW, kHoldBarH);
+  lv_obj_set_style_radius(hold_track_, kHoldBarH / 2, 0);
+  lv_obj_set_style_bg_opa(hold_track_, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(hold_track_, ui::to_lv(pal::kWhite), 0);
+  lv_obj_set_style_border_width(hold_track_, 1, 0);
+  lv_obj_set_style_border_color(hold_track_, ui::to_lv(pal::kChromeEdge), 0);
+  hold_fill_ = plain(hold_track_);
+  lv_obj_set_pos(hold_fill_, 0, 0);
+  lv_obj_set_size(hold_fill_, 0, kHoldBarH);
+  lv_obj_set_style_radius(hold_fill_, kHoldBarH / 2, 0);
+  lv_obj_set_style_bg_opa(hold_fill_, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(hold_fill_, ui::to_lv(pal::kGreen), 0);
+  lv_obj_add_flag(hold_track_, LV_OBJ_FLAG_HIDDEN);
 }
 
 void ParentView::sync(const ParentGate& gate) {
+  const uint32_t held = gate.hold_ms();
+  const int hold_px = held < ParentGate::kShowProgressMs
+                          ? -1
+                          : static_cast<int>((held - ParentGate::kShowProgressMs) * kHoldBarW /
+                                             (ParentGate::kHoldMs - ParentGate::kShowProgressMs));
+  if (hold_px != shown_hold_px_) {
+    if (shown_hold_px_ < 0) lv_obj_move_foreground(hold_track_);
+    shown_hold_px_ = hold_px;
+    set_visible(hold_track_, hold_px >= 0);
+    if (hold_px >= 0) lv_obj_set_width(hold_fill_, static_cast<int32_t>(hold_px > kHoldBarW ? kHoldBarW : hold_px));
+  }
+
   const ParentGate::State s = gate.state();
   if (s != shown_) {
     shown_ = s;

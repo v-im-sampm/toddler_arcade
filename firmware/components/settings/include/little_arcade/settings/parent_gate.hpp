@@ -18,6 +18,13 @@ class ParentGate {
   static constexpr uint32_t kHoldMs = 5000;
   static constexpr uint32_t kIdleCloseMs = 30000;
   static constexpr Rect kHotspot{kScreenWidth - 56, 0, 56, 56};  // == kMicButton
+  // Once a hold has started it survives small finger drift and brief NS2009
+  // pressure dropouts (single not-pressed samples seen on the resistive panel).
+  static constexpr int16_t kHoldSlackPx = 20;
+  static constexpr Rect kHoldArea{kScreenWidth - 56 - kHoldSlackPx, 0, 56 + kHoldSlackPx, 56 + kHoldSlackPx};
+  static constexpr uint32_t kReleaseGraceMs = 300;
+  // Progress is shown only after this much holding, so quick taps stay quiet.
+  static constexpr uint32_t kShowProgressMs = 1000;
   static constexpr uint8_t kMaxLevel = 6;  // == VolumeLimiter::kDefaultParentCap
 
   static constexpr int kChoiceCount = 3;
@@ -39,6 +46,8 @@ class ParentGate {
   State state() const { return state_; }
   bool open() const { return state_ != State::CLOSED; }
   uint8_t level() const { return level_; }
+  // Milliseconds of the current hotspot hold (0 when not holding).
+  uint32_t hold_ms() const { return holding_ ? hold_ms_ : 0; }
   uint8_t sum_a() const { return a_; }
   uint8_t sum_b() const { return b_; }
   uint8_t choice(int i) const { return choices_[i]; }
@@ -62,6 +71,9 @@ class ParentGate {
   bool was_pressed_ = false;
   bool holding_ = false;
   uint32_t hold_start_ms_ = 0;
+  uint32_t hold_ms_ = 0;
+  bool release_pending_ = false;
+  uint32_t release_ms_ = 0;
   uint32_t last_input_ms_ = 0;
   bool level_changed_ = false;
   bool preview_ = false;

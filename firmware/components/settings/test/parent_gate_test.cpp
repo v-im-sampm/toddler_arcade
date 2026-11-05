@@ -137,6 +137,41 @@ void test_level_buttons_fit_screen() {
   EXPECT(ParentGate::kDoneRect.on_screen());
 }
 
+void test_hold_survives_touch_dropouts_and_drift() {
+  ParentGate g(1, 0);
+  const int16_t x = hx(ParentGate::kHotspot), y = hy(ParentGate::kHotspot);
+  uint32_t now = 0;
+  g.pointer(true, x, y, now);
+  for (now = 20; now <= ParentGate::kHoldMs + 40; now += 20) {
+    if (now % 700 == 0) {
+      // Single-sample pressure dropout followed by a re-press edge.
+      EXPECT(!g.pointer(false, 0, 0, now));
+      continue;
+    }
+    const int16_t drift = static_cast<int16_t>((now / 20) % 2 ? -ParentGate::kHoldSlackPx + 2 : 0);
+    EXPECT(!g.pointer(true, static_cast<int16_t>(x + drift - 28), static_cast<int16_t>(y + 28 - drift), now));
+  }
+  EXPECT(g.state() == ParentGate::State::CHALLENGE);
+}
+
+void test_real_release_cancels_hold_and_progress_is_reported() {
+  ParentGate g(1, 0);
+  const int16_t x = hx(ParentGate::kHotspot), y = hy(ParentGate::kHotspot);
+  g.pointer(true, x, y, 0);
+  g.pointer(true, x, y, 2000);
+  EXPECT(g.hold_ms() == 2000);
+  g.pointer(false, 0, 0, 2020);
+  g.pointer(false, 0, 0, 2020 + ParentGate::kReleaseGraceMs + 20);
+  EXPECT(g.hold_ms() == 0);
+  // Re-pressing after a real release starts over.
+  g.pointer(true, x, y, 2500);
+  g.pointer(true, x, y, 2500 + ParentGate::kHoldMs - 100);
+  EXPECT(!g.open());
+  g.pointer(true, x, y, 2500 + ParentGate::kHoldMs);
+  EXPECT(g.open());
+}
+
+void test_hold_area_fits_screen() { EXPECT(ParentGate::kHoldArea.on_screen()); }
 }  // namespace
 
 int main() {
@@ -149,5 +184,8 @@ int main() {
   test_parent_sets_level_and_it_is_reported_once();
   test_idle_settings_close_after_timeout();
   test_level_buttons_fit_screen();
+  test_hold_survives_touch_dropouts_and_drift();
+  test_real_release_cancels_hold_and_progress_is_reported();
+  test_hold_area_fits_screen();
   return little_arcade::testing::finish("parent gate tests");
 }

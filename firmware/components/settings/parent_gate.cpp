@@ -21,19 +21,35 @@ bool ParentGate::pointer(bool pressed, int16_t x, int16_t y, uint32_t now_ms) {
 
   // Closed: only a press that starts on the hotspot and stays there arms the
   // hold. The hotspot (Mic button) never reaches the games.
-  if (edge && kHotspot.contains(x, y)) {
-    holding_ = true;
-    hold_start_ms_ = now_ms;
-    return false;
-  }
   if (holding_) {
-    if (!pressed || !kHotspot.contains(x, y)) {
-      holding_ = false;
-    } else if (now_ms - hold_start_ms_ >= kHoldMs) {
+    if (!pressed) {
+      // A short gap is a touch dropout, not a release.
+      if (!release_pending_) {
+        release_pending_ = true;
+        release_ms_ = now_ms;
+      } else if (now_ms - release_ms_ > kReleaseGraceMs) {
+        holding_ = false;
+      }
+      return false;
+    }
+    release_pending_ = false;
+    if (!kHoldArea.contains(x, y)) {
+      holding_ = false;  // slid away: a new press elsewhere still reaches the game
+      return edge;
+    }
+    hold_ms_ = now_ms - hold_start_ms_;
+    if (hold_ms_ >= kHoldMs) {
       holding_ = false;
       last_input_ms_ = now_ms;
       start_challenge();
     }
+    return false;
+  }
+  if (edge && kHotspot.contains(x, y)) {
+    holding_ = true;
+    release_pending_ = false;
+    hold_start_ms_ = now_ms;
+    hold_ms_ = 0;
     return false;
   }
   return edge;
