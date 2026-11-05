@@ -33,7 +33,7 @@ PARAMS = [
     "screen_center_x", "screen_center_y", "screen_window_width", "screen_window_height",
     "speaker_center_x", "speaker_center_y", "speaker_width", "speaker_height",
     "speaker_tab_length", "speaker_tab_width",
-    "mic_center", "mic_board_diameter", "mic_board_flat_width", "mic_port_center", "mic_hole_diameter",
+    "mic_center", "mic_board_diameter", "mic_port_center", "mic_hole_diameter",
     "battery_center", "battery_pack_width", "battery_pack_length", "battery_pack_thickness",
     "charger_port_center_x", "charger_board_width", "charger_board_length", "inside_bottom_y",
     "max_board_center", "max_board_size", "max_hole_positions", "max_rest_positions",
@@ -408,19 +408,11 @@ def page_templates(c, P):
     s.label((kc[0], kc[1] - P["switch_flange_y"] / 2 - 4), "KCD1 cutout / flange", color=PINK)
     s.label((kc[0], kc[1] - P["switch_flange_y"] / 2 - 8), "switch_cutout_*, switch_flange_*", color=PINK, size=5.5)
 
-    import math
     md = P["mic_board_diameter"]
     micc = (kc[0] + P["switch_flange_x"] / 2 + 14 + md / 2, row2 - md / 2)
-    fw = P["mic_board_flat_width"]
-    half = math.asin(min(1, fw / md))
-    pts = []
-    for a0 in (-half, math.pi - half):
-        for i in range(25):
-            a = a0 + 2 * half * i / 24
-            pts.append((micc[0] + md / 2 * math.sin(a), micc[1] + md / 2 * math.cos(a)))
-    s.polys([pts], stroke=CYAN, width=0.6)
+    s.circle(micc, md, stroke=CYAN, width=0.6)
     s.cross(micc, 4, CYAN)
-    s.label((micc[0], micc[1] - md / 2 - 4), f"INMP441 d{md}, flats {fw}", color=CYAN)
+    s.label((micc[0], micc[1] - md / 2 - 4), f"INMP441 round, d{md}", color=CYAN)
     s.label((micc[0], micc[1] - md / 2 - 8), "mic_board_*; + = mic port", color=CYAN, size=5.5)
 
     spc = (micc[0] + md / 2 + 14 + P["speaker_width"] / 2, row2 - P["speaker_height"] / 2 - P["speaker_tab_length"])

@@ -91,8 +91,8 @@ handle points to +y. Seen from the front, +x is on the viewer's **left**.
   terminal block on the component side, facing the display**, or wire directly
   to the pads. Pins pointing toward the back skin would not fit on the
   standoffs. Terminal-block height and depth are placeholders.
-- **INMP441 mic (the "INA" board, `config/board_pins.json`):** a 14 mm round
-  board with flats 12 mm apart, in a front-shell pocket at `mic_center` =
+- **INMP441 mic (the "INA" board, `config/board_pins.json`):** a circular
+  14 mm board, in a front-shell pocket at `mic_center` =
   (45, 0), on the viewer's left, mirroring the speaker. The INMP441 is **bottom-ported**: its sound hole goes through the
   PCB under the mic can. Mount it as follows:
   - Seat it with the **bare pinhole side facing the front skin**, so the mic
@@ -301,8 +301,8 @@ Measure and update:
 - **INMP441:** port position relative to the board center (`mic_port_offset`,
   placeholder [0, 0]), the gasket and pin-stub stack
   (`mic_underside_clearance`), and the solder-pad ring that the ledge may
-  touch (`mic_ledge_inner_diameter`). The 14 mm diameter and 12 mm flats
-  come from the supplied photo.
+  touch (`mic_ledge_inner_diameter`). The 14 mm circular board outline comes
+  from the supplied photo.
 - **Envelope and fasteners:** check the overall envelope and handle against a
   child's grip and your print bed, and tune the screw, boss, and clearance
   parameters to your printer and fasteners.

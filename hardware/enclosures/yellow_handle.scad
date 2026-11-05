@@ -163,14 +163,13 @@ max_header_height = 11.2; // Header pins on the terminal-block side (from the di
 max_terminal_height = 10; // Placeholder: screw terminal height above the PCB.
 max_terminal_size = [8.75, 7.5]; // x from the dimension image; y is a placeholder.
 
-// Microphone: INMP441 I2S MEMS breakout (the "INA" module), 14 mm round with flats 12 mm
-// apart and a ~1 mm PCB per the supplied image. The INMP441 is bottom-ported: its sound
+// Microphone: INMP441 I2S MEMS breakout (the "INA" module), circular 14 mm PCB
+// per the supplied image. The INMP441 is bottom-ported: its sound
 // hole goes through the PCB under the mic can. The board sits flat in a front-shell pocket
 // opposite the speaker (far from it, to limit echo pickup), with the pinhole side facing a
 // small hole in the front face and a foam gasket ring sealing between them.
 mic_center = [45, 0]; // Viewer's left, mirroring the speaker.
 mic_board_diameter = 14;
-mic_board_flat_width = 12;
 mic_pcb_thickness = 1.0;
 mic_port_offset = [0, 0]; // Port (under the mic can) relative to board center. Placeholder.
 mic_underside_clearance = 1.6; // Trimmed pin stubs + compressed foam gasket. Placeholder.
@@ -813,10 +812,7 @@ module max_ghost() {
 module mic_ghost() {
     translate([mic_center[0], mic_center[1], mic_board_front_z])
         linear_extrude(height = mic_pcb_thickness)
-            intersection() {
-                circle(d = mic_board_diameter);
-                square([mic_board_flat_width, mic_board_diameter], center = true);
-            }
+            circle(d = mic_board_diameter);
     // Foam gasket ring between the PCB pinhole side and the front skin.
     translate([mic_port_center[0], mic_port_center[1], front_skin])
         linear_extrude(height = mic_underside_clearance)
