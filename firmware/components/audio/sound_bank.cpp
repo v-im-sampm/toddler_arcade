@@ -262,6 +262,36 @@ Sound robo_buddy_sound(Cue cue, uint8_t variant) {
   }
 }
 
+Sound shape_prompt(uint8_t prompt) {
+  if (prompt == 0) {
+    return Sound{}.add(pluck(523, 90, 105)).add(rest(35)).add(pluck(659, 90, 110)).add(bell(784, 200, 105));
+  }
+  const uint16_t hz[] = {523, 659, 784};
+  const uint16_t note = hz[(prompt - 1) % 3];
+  return Sound{}.add(bell(note, 120, 110)).add(rest(35)).add(pluck(static_cast<uint16_t>(note * 3 / 2), 170, 105));
+}
+
+Sound shape_clunk(uint8_t shape) {
+  constexpr uint16_t bases[] = {392, 440, 523};
+  const uint16_t hz = bases[shape % 3];
+  return Sound{}.add(tone(Wave::TRIANGLE, hz, static_cast<uint16_t>(hz * 3 / 2), 65, 95, 3, 35))
+      .add(bell(static_cast<uint16_t>(hz * 2), 100, 75));
+}
+
+Sound shape_dance() {
+  return Sound{}.add(pluck(523, 75, 95)).add(pluck(659, 75, 100)).add(pluck(784, 90, 100)).add(bell(1047, 210, 95));
+}
+
+Sound shape_garage_sound(Cue cue, uint8_t variant) {
+  switch (cue) {
+    case Cue::PROMPT: return shape_prompt(variant);
+    case Cue::SUCCESS: return shape_clunk(variant);
+    case Cue::CELEBRATE: return shape_dance();
+    case Cue::TAP: return Sound{}.add(tone(Wave::TRIANGLE, 659, 523, 35, 85, 2, 24));
+    default: return default_sound(cue, variant);
+  }
+}
+
 }  // namespace
 
 Sound sound_for(uint8_t scene, Cue cue, uint8_t variant) {
@@ -270,6 +300,7 @@ Sound sound_for(uint8_t scene, Cue cue, uint8_t variant) {
     case static_cast<uint8_t>(GameId::HATCH_A_PET): return hatch_a_pet_sound(cue, variant);
     case static_cast<uint8_t>(GameId::RAINBOW_PIANO): return rainbow_piano_sound(cue, variant);
     case static_cast<uint8_t>(GameId::ROBO_BUDDY): return robo_buddy_sound(cue, variant);
+    case static_cast<uint8_t>(GameId::SHAPE_GARAGE): return shape_garage_sound(cue, variant);
     default: return default_sound(cue, variant);
   }
 }

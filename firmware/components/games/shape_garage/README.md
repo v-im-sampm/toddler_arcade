@@ -1,7 +1,8 @@
 # Shape Garage (G05)
 
-Spec: [games/shape_garage.md](../../../../games/shape_garage.md). Status: **scene logic + host tests only**.
-There is no LVGL view yet, no assets yet, and it has not run on a device.
+Spec: [games/shape_garage.md](../../../../games/shape_garage.md). Mockup: [shape_garage.html](../../../../docs/mockups/shape_garage.html).
+Status: scene logic, LVGL view, procedural art, sound bank cues, launcher tile, and host tests are implemented.
+It has not run on a physical device.
 
 ## Behaviour
 - INTRO (1.2 s, any input skips it and doesn't count as a move) → PLAY → CELEBRATE (1.8 s robot dance) → PLAY with a new robot.
@@ -41,11 +42,23 @@ Context: `General` (YES, NO). The SceneManager adds `Global`, which brings in AG
 | `wiggling()` | gentle "not there" wiggle |
 | `hint_slot()`, `hint_piece()` | soft glow |
 | `snapping()` | part sliding into its slot |
-| `filled_count()` | robot eyes light up, one per filled slot |
+| `slot(i).filled` | the matching colored part appears in its slot |
 | `phase() == CELEBRATE` | robot dance (no rapid flashing) |
 
-## Cue → asset placeholders (to be declared in `assets/manifest.json`)
-| Cue | variant | Placeholder asset id |
+## Art and audio
+
+The LVGL view paints original robot, shape, slot, and launcher-tile artwork from fixed-size procedural canvases.
+Art is rendered once or when the robot style changes, not in the frame loop. The sound bank provides gentle
+procedural shape prompts, fitting clunks, taps, and a short repair tune. These are sound cues, not spoken prompts;
+there are no recordings or runtime network assets.
+
+Asset IDs are declared in `assets/manifest.json`. The launcher tile is selectable through the SHAPES intent and
+the second launcher page. The view and game logic have host coverage; a successful desktop build or host test is
+not physical-device validation.
+
+## Cue → asset IDs
+
+| Cue | variant | Asset ID |
 |---|---|---|
 | PROMPT | 0 (`kPromptFixRobot`) | `shape_garage.prompt.fix_robot` |
 | PROMPT | 1 + shape (`prompt_for`) | `shape_garage.prompt.{circle,square,triangle}` |
@@ -54,7 +67,8 @@ Context: `General` (YES, NO). The SceneManager adds `Global`, which brings in AG
 | TRY_AGAIN | 0 | `common.try_again_soft` |
 | CELEBRATE | 0 | `shape_garage.robot_dance` |
 
-Sprites (original art, not created yet): `shape_garage.robot.{0,1,2}`, `shape_garage.part.{circle,square,triangle}`, `shape_garage.slot.{circle,square,triangle}`.
+Image IDs: `shape_garage.robot.{0,1,2}`, `shape_garage.part.{circle,square,triangle}`,
+`shape_garage.slot.{circle,square,triangle}`, `shape_garage.head`, and `shape_garage.tile`.
 
 ## Tests
 `shape_garage_test` (host only) covers:

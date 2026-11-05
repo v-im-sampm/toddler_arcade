@@ -54,12 +54,32 @@
     { "id": "robo_buddy.beep.1", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
     { "id": "robo_buddy.beep.2", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
     { "id": "robo_buddy.snore", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "shape_garage.prompt.fix_robot", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "shape_garage.prompt.circle", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "shape_garage.prompt.square", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "shape_garage.prompt.triangle", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "shape_garage.clunk.circle", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "shape_garage.clunk.square", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "shape_garage.clunk.triangle", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "shape_garage.robot_dance", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
     {
       "id": "common.celebrate",
       "kind": "procedural_sound",
       "source": "firmware/components/audio/sound_bank.cpp",
       "status": "implemented"
-    }
+    },
+    { "id": "common.try_again_soft", "kind": "procedural_sound", "source": "firmware/components/audio/sound_bank.cpp", "status": "implemented" },
+    { "id": "shape_garage.robot.0", "kind": "procedural_image", "source": "firmware/components/games/shape_garage/view/include/little_arcade/games/shape_garage_art.hpp", "status": "implemented" },
+    { "id": "shape_garage.robot.1", "kind": "procedural_image", "source": "firmware/components/games/shape_garage/view/include/little_arcade/games/shape_garage_art.hpp", "status": "implemented" },
+    { "id": "shape_garage.robot.2", "kind": "procedural_image", "source": "firmware/components/games/shape_garage/view/include/little_arcade/games/shape_garage_art.hpp", "status": "implemented" },
+    { "id": "shape_garage.part.circle", "kind": "procedural_image", "source": "firmware/components/games/shape_garage/view/include/little_arcade/games/shape_garage_art.hpp", "status": "implemented" },
+    { "id": "shape_garage.part.square", "kind": "procedural_image", "source": "firmware/components/games/shape_garage/view/include/little_arcade/games/shape_garage_art.hpp", "status": "implemented" },
+    { "id": "shape_garage.part.triangle", "kind": "procedural_image", "source": "firmware/components/games/shape_garage/view/include/little_arcade/games/shape_garage_art.hpp", "status": "implemented" },
+    { "id": "shape_garage.slot.circle", "kind": "procedural_image", "source": "firmware/components/games/shape_garage/view/include/little_arcade/games/shape_garage_art.hpp", "status": "implemented" },
+    { "id": "shape_garage.slot.square", "kind": "procedural_image", "source": "firmware/components/games/shape_garage/view/include/little_arcade/games/shape_garage_art.hpp", "status": "implemented" },
+    { "id": "shape_garage.slot.triangle", "kind": "procedural_image", "source": "firmware/components/games/shape_garage/view/include/little_arcade/games/shape_garage_art.hpp", "status": "implemented" },
+    { "id": "shape_garage.head", "kind": "procedural_image", "source": "firmware/components/games/shape_garage/view/include/little_arcade/games/shape_garage_art.hpp", "status": "implemented" },
+    { "id": "shape_garage.tile", "kind": "procedural_image", "source": "firmware/components/games/shape_garage/view/include/little_arcade/games/shape_garage_art.hpp", "status": "implemented" }
   ],
   "note": "Rainbow Piano and Robo Buddy sounds and art are original procedural cues; no recorded samples or network assets. Spoken Robo Buddy prompts are not included."
 }

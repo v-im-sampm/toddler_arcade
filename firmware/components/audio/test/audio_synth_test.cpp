@@ -19,7 +19,8 @@ constexpr Cue kAllCues[] = {Cue::TAP,       Cue::PROMPT, Cue::SUCCESS,  Cue::TRY
 constexpr uint8_t kScenes[] = {IFeedback::kSceneMenu, static_cast<uint8_t>(GameId::COLOR_POP),
                                static_cast<uint8_t>(GameId::HATCH_A_PET),
                                static_cast<uint8_t>(GameId::RAINBOW_PIANO),
-                               static_cast<uint8_t>(GameId::ROBO_BUDDY)};
+                               static_cast<uint8_t>(GameId::ROBO_BUDDY),
+                               static_cast<uint8_t>(GameId::SHAPE_GARAGE)};
 
 std::size_t ms_samples(uint32_t ms) { return static_cast<std::size_t>(ms) * kSampleRateHz / 1000u; }
 
@@ -146,6 +147,7 @@ void test_game_palettes_are_distinct() {
   const uint8_t hatch = static_cast<uint8_t>(GameId::HATCH_A_PET);
   const uint8_t piano = static_cast<uint8_t>(GameId::RAINBOW_PIANO);
   const uint8_t robo = static_cast<uint8_t>(GameId::ROBO_BUDDY);
+  const uint8_t shapes = static_cast<uint8_t>(GameId::SHAPE_GARAGE);
   for (uint8_t a = 0; a < 4; ++a) {
     for (uint8_t b = static_cast<uint8_t>(a + 1); b < 4; ++b) {
       EXPECT(!same_sound(sound_for(pop, Cue::PROMPT, a), sound_for(pop, Cue::PROMPT, b)));
@@ -184,6 +186,15 @@ void test_game_palettes_are_distinct() {
       EXPECT(!same_sound(reaction, sound_for(robo, Cue::REACTION, other)));
     }
   }
+  for (uint8_t prompt = 1; prompt <= 3; ++prompt) {
+    EXPECT(sound_for(shapes, Cue::PROMPT, prompt).count > 0);
+    EXPECT(sound_for(shapes, Cue::SUCCESS, static_cast<uint8_t>(prompt - 1)).count > 0);
+    for (uint8_t other = static_cast<uint8_t>(prompt + 1); other <= 3; ++other) {
+      EXPECT(!same_sound(sound_for(shapes, Cue::PROMPT, prompt), sound_for(shapes, Cue::PROMPT, other)));
+    }
+  }
+  EXPECT(!same_sound(sound_for(shapes, Cue::PROMPT, 0), sound_for(shapes, Cue::PROMPT, 1)));
+  EXPECT(sound_for(shapes, Cue::CELEBRATE, 0).duration_ms() < 600);
   EXPECT(scene_change_sound(pop, pop).count == 0);
   EXPECT(scene_change_sound(IFeedback::kSceneMenu, pop).count > 0);
   EXPECT(scene_change_sound(pop, IFeedback::kSceneMenu).count > 0);

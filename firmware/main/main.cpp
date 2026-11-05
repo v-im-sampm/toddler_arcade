@@ -1,4 +1,4 @@
-// Little Arcade firmware: launcher + Color Pop, Hatch-a-Pet and Rainbow Piano on H02 display/touch.
+// Little Arcade firmware: launcher plus the implemented scenes on H02 display/touch.
 // Single UI task owns LVGL (docs/architecture.md). Sound is muted until a parent
 // opts in (parent gate). Touch presses are logged raw + mapped for calibration checks.
 #include <cinttypes>
@@ -82,6 +82,7 @@ const char* layer_name(Arcade::Layer l) {
     case Arcade::Layer::HATCH_A_PET: return "hatch_a_pet";
     case Arcade::Layer::RAINBOW_PIANO: return "rainbow_piano";
     case Arcade::Layer::ROBO_BUDDY: return "robo_buddy";
+    case Arcade::Layer::SHAPE_GARAGE: return "shape_garage";
     case Arcade::Layer::NONE: break;
   }
   return "none";
