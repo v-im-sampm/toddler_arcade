@@ -22,6 +22,7 @@ enum class GameId : uint8_t {
   FEED_MONSTER,
   BUBBLE_AQUARIUM,
   SOUND_JAR,
+  BEAT_SHARKS,
 };
 
 struct GameEntry {

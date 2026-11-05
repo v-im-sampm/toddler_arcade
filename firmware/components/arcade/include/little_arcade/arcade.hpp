@@ -3,6 +3,8 @@
 
 #include "little_arcade/games/animal_sounds.hpp"
 #include "little_arcade/games/animal_sounds_view.hpp"
+#include "little_arcade/games/beat_sharks.hpp"
+#include "little_arcade/games/beat_sharks_view.hpp"
 #include "little_arcade/games/color_pop.hpp"
 #include "little_arcade/games/color_pop_view.hpp"
 #include "little_arcade/games/feed_monster.hpp"
@@ -41,7 +43,8 @@ class Arcade {
     SHAPE_GARAGE,
     ANIMAL_SOUNDS,
     FEED_MONSTER,
-    SOUND_JAR
+    SOUND_JAR,
+    BEAT_SHARKS
   };
 
   // `volume_level` is the parent-saved level (0 = muted, the default);
@@ -50,9 +53,13 @@ class Arcade {
   Arcade(const Arcade&) = delete;
   Arcade& operator=(const Arcade&) = delete;
 
-  // Sound Jar's sampler (owned by the audio component). Attach before the
-  // first tick; without one Sound Jar still runs with picture-only pads.
-  void attach_sampler(ISampler* sampler) { sound_jar_.attach_sampler(sampler); }
+  // The shared sampler (owned by the audio component) for Sound Jar and Beat
+  // Sharks. Attach before the first tick; without one both still run (Sound
+  // Jar with picture-only pads, Beat Sharks with synth boings).
+  void attach_sampler(ISampler* sampler) {
+    sound_jar_.attach_sampler(sampler);
+    beat_sharks_.attach_sampler(sampler);
+  }
 
   // Builds every scene's objects once on `screen`.
   void create(lv_obj_t* screen);
@@ -87,9 +94,10 @@ class Arcade {
   const robo_buddy::RoboBuddyGame& robo_buddy() const { return robo_buddy_; }
   const shape_garage::ShapeGarageGame& shape_garage() const { return shape_garage_; }
   const sound_jar::SoundJarGame& sound_jar() const { return sound_jar_; }
+  const beat_sharks::BeatSharksGame& beat_sharks() const { return beat_sharks_; }
 
  private:
-  static constexpr std::size_t kGameCount = 8;
+  static constexpr std::size_t kGameCount = 9;
 
   Layer wanted_layer() const;
   void show_layer(Layer layer);
@@ -102,6 +110,7 @@ class Arcade {
   shape_garage::ShapeGarageGame shape_garage_;
   feed_monster::FeedMonsterGame feed_monster_;
   sound_jar::SoundJarGame sound_jar_;
+  beat_sharks::BeatSharksGame beat_sharks_;
   GameEntry entries_[kGameCount];
   IFeedback& feedback_;
   SceneManager scenes_;
@@ -117,8 +126,9 @@ class Arcade {
   shape_garage::ShapeGarageView shape_garage_view_;
   feed_monster::FeedMonsterView feed_monster_view_;
   sound_jar::SoundJarView sound_jar_view_;
+  beat_sharks::BeatSharksView beat_sharks_view_;
   ui::ChromeView chrome_;
-  lv_obj_t* layers_[10]{};
+  lv_obj_t* layers_[11]{};
   lv_obj_t* sleep_overlay_ = nullptr;
   Layer shown_ = Layer::NONE;
   bool sleeping_ = false;

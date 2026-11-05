@@ -24,7 +24,8 @@ constexpr uint8_t kScenes[] = {IFeedback::kSceneMenu, static_cast<uint8_t>(GameI
                                static_cast<uint8_t>(GameId::RAINBOW_PIANO),
                                static_cast<uint8_t>(GameId::ROBO_BUDDY),
                                static_cast<uint8_t>(GameId::SHAPE_GARAGE),
-                               static_cast<uint8_t>(GameId::SOUND_JAR)};
+                               static_cast<uint8_t>(GameId::SOUND_JAR),
+                               static_cast<uint8_t>(GameId::BEAT_SHARKS)};
 
 std::size_t ms_samples(uint32_t ms) { return static_cast<std::size_t>(ms) * kSampleRateHz / 1000u; }
 
@@ -252,6 +253,20 @@ void test_game_palettes_are_distinct() {
   }
   EXPECT(!same_sound(sound_for(shapes, Cue::PROMPT, 0), sound_for(shapes, Cue::PROMPT, 1)));
   EXPECT(sound_for(shapes, Cue::CELEBRATE, 0).duration_ms() < 600);
+  // Beat Sharks: nine distinct sounds, each shorter than the fastest step;
+  // drums climb from boom to bongo as the sharks shrink.
+  const uint8_t sharks = static_cast<uint8_t>(GameId::BEAT_SHARKS);
+  for (uint8_t a = 0; a < 9; ++a) {
+    const Sound note = sound_for(sharks, Cue::NOTE, a);
+    EXPECT(note.count > 0 && note.duration_ms() < 280);
+    for (uint8_t b = static_cast<uint8_t>(a + 1); b < 9; ++b) {
+      EXPECT(!same_sound(note, sound_for(sharks, Cue::NOTE, b)));
+    }
+  }
+  EXPECT(sound_for(sharks, Cue::NOTE, 6).tones[0].f0_hz < sound_for(sharks, Cue::NOTE, 7).tones[0].f0_hz);
+  EXPECT(sound_for(sharks, Cue::NOTE, 7).tones[0].f0_hz < sound_for(sharks, Cue::NOTE, 8).tones[0].f0_hz);
+  EXPECT(sound_for(sharks, Cue::CELEBRATE, 0).duration_ms() < 600);
+  EXPECT(!same_sound(sound_for(sharks, Cue::TAP, 0), sound_for(sharks, Cue::TAP, 2)));
   EXPECT(sound_for(animals, Cue::PROMPT, 0).count > 0);
   for (uint8_t animal = 0; animal < 8; ++animal) {
     const Sound call = sound_for(animals, Cue::NOTE, animal);

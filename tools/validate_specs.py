@@ -8,7 +8,7 @@ assert c['activation']=='push_to_talk'
 ids=[i['id'] for i in c['intents']]; names=[i['name'] for i in c['intents']]
 assert len(ids)==len(set(ids)) and len(names)==len(set(names))
 assert all(i['aliases'] and i['contexts'] for i in c['intents'])
-assert len(list((root/'games').glob('*.md')))==11
+assert len(list((root/'games').glob('*.md')))==12
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from board_pins import check_file
 for cfg in ('config/board_pins.json', 'config/board_pins.example.json'):
@@ -16,4 +16,4 @@ for cfg in ('config/board_pins.json', 'config/board_pins.example.json'):
     assert not errs, f'{cfg}: {errs}'
 import gen_firmware_headers
 assert gen_firmware_headers.main(['--check']) == 0, 'generated firmware headers are stale'
-print('PASS: command IDs, eleven game specs, hardware pin safety gate')
+print('PASS: command IDs, twelve game specs, hardware pin safety gate')

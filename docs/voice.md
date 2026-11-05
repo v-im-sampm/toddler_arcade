@@ -13,7 +13,7 @@ Phase A: push-to-talk via a large microphone icon (touch), so no wake-word false
 - Use calibrated confidence and noise thresholds; if uncertain, ask again or show touch choices. Never infer an answer from low confidence.
 - Context restricts valid commands. Example: Color Pop accepts RED/BLUE/GREEN/YELLOW, AGAIN, BACK; Rocket accepts GO/STOP/BACK.
 - 750 ms dedupe for repeated same command; 1.5 s cooldown after speaker playback if no AEC; tune by bench tests.
-- Do not upload child's voice; no stored utterances or transcripts. No child speech is persisted or transmitted. Sound Jar may hold one ≤ 3 s clip in RAM while open (never routed to ESP-SR, never logged or saved).
+- Do not upload child's voice; no stored utterances or transcripts. No child speech is persisted or transmitted. Sound Jar and Beat Sharks may each hold one ≤ 3 s clip in RAM while open (never routed to ESP-SR, never logged or saved).
 - Speech recognition in noisy rooms or with children's voices is experimental: test with adult and child speech only with guardian permission and without retaining recordings.
 
 ## Model validation spike

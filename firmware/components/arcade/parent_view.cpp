@@ -156,7 +156,7 @@ void ParentView::sync(const ParentGate& gate) {
   const int mic = gate.mic_enabled() ? 1 : 0;
   if (s == ParentGate::State::SETTINGS && mic != shown_mic_) {
     shown_mic_ = mic;
-    // Sound Jar may record a short clip into RAM only; never saved or sent.
+    // Sound Jar and Beat Sharks may record a short clip into RAM only; never saved or sent.
     lv_label_set_text(mic_label_, mic ? "Mic\nON" : "Mic\nOFF");
     lv_obj_center(mic_label_);
     lv_obj_set_style_bg_color(mic_button_, ui::to_lv(mic ? pal::kGreen : pal::kWhite), 0);

@@ -1,6 +1,7 @@
 #include "little_arcade/arcade.hpp"
 
 #include "little_arcade/games/animal_sounds_art.hpp"
+#include "little_arcade/games/beat_sharks_art.hpp"
 #include "little_arcade/games/color_pop_art.hpp"
 #include "little_arcade/games/feed_monster_art.hpp"
 #include "little_arcade/games/hatch_a_pet_art.hpp"
@@ -25,6 +26,7 @@ ui::ArgbImage g_robo_buddy_tile;
 ui::ArgbImage g_shape_garage_tile;
 ui::ArgbImage g_feed_monster_tile;
 ui::ArgbImage g_sound_jar_tile;
+ui::ArgbImage g_beat_sharks_tile;
 
 ui::TileArt tile_art(GameId id) {
   switch (id) {
@@ -44,6 +46,8 @@ ui::TileArt tile_art(GameId id) {
       return {g_feed_monster_tile.ready() ? g_feed_monster_tile.dsc() : nullptr, 0xEFE2FF};
     case GameId::SOUND_JAR:
       return {g_sound_jar_tile.ready() ? g_sound_jar_tile.dsc() : nullptr, 0xFFE3EE};
+    case GameId::BEAT_SHARKS:
+      return {g_beat_sharks_tile.ready() ? g_beat_sharks_tile.dsc() : nullptr, 0xD6F0FA};
     default:
       return {};
   }
@@ -83,7 +87,8 @@ Arcade::Arcade(IFeedback& feedback, uint32_t seed, uint8_t volume_level, bool mi
                 {GameId::ANIMAL_SOUNDS, Intent::ANIMALS, &animal_sounds_},
                 {GameId::FEED_MONSTER, Intent::COUNTING, &feed_monster_},
                 // No spoken launcher name: kids open Sound Jar from its tile.
-                {GameId::SOUND_JAR, Intent::UNKNOWN, &sound_jar_}},
+                {GameId::SOUND_JAR, Intent::UNKNOWN, &sound_jar_},
+                {GameId::BEAT_SHARKS, Intent::UNKNOWN, &beat_sharks_}},
       feedback_(feedback),
       scenes_(entries_, kGameCount, feedback, config_for(seed)),
       gate_(seed, volume_level, mic_enabled) {
@@ -123,9 +128,13 @@ void Arcade::create(lv_obj_t* screen) {
     ui::Canvas c = g_sound_jar_tile.canvas();
     sound_jar::art::paint_tile_art(c);
   }
+  if (g_beat_sharks_tile.allocate(beat_sharks::art::kTileW, beat_sharks::art::kTileH)) {
+    ui::Canvas c = g_beat_sharks_tile.canvas();
+    beat_sharks::art::paint_tile_art(c);
+  }
 
   lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
-  for (int i = 1; i < 10; ++i) layers_[i] = full_screen(screen);  // [0] = Layer::NONE
+  for (int i = 1; i < 11; ++i) layers_[i] = full_screen(screen);  // [0] = Layer::NONE
   launcher_.create(layers_[static_cast<int>(Layer::MENU)], tile_art);
   animal_sounds_view_.create(layers_[static_cast<int>(Layer::ANIMAL_SOUNDS)]);
   color_view_.create(layers_[static_cast<int>(Layer::COLOR_POP)]);
@@ -135,6 +144,7 @@ void Arcade::create(lv_obj_t* screen) {
   shape_garage_view_.create(layers_[static_cast<int>(Layer::SHAPE_GARAGE)]);
   feed_monster_view_.create(layers_[static_cast<int>(Layer::FEED_MONSTER)]);
   sound_jar_view_.create(layers_[static_cast<int>(Layer::SOUND_JAR)]);
+  beat_sharks_view_.create(layers_[static_cast<int>(Layer::BEAT_SHARKS)]);
   chrome_.create(screen);  // above every layer
 
   // Sleep: dim everything; the next tap wakes (and is consumed).
@@ -172,6 +182,7 @@ Arcade::Layer Arcade::wanted_layer() const {
     case GameId::SHAPE_GARAGE: return Layer::SHAPE_GARAGE;
     case GameId::FEED_MONSTER: return Layer::FEED_MONSTER;
     case GameId::SOUND_JAR: return Layer::SOUND_JAR;
+    case GameId::BEAT_SHARKS: return Layer::BEAT_SHARKS;
     default: return Layer::MENU;
   }
 }
@@ -191,6 +202,7 @@ void Arcade::show_layer(Layer layer) {
   if (layer == Layer::SHAPE_GARAGE) shape_garage_view_.reset();
   if (layer == Layer::FEED_MONSTER) feed_monster_view_.reset();
   if (layer == Layer::SOUND_JAR) sound_jar_view_.reset();
+  if (layer == Layer::BEAT_SHARKS) beat_sharks_view_.reset();
 }
 
 void Arcade::tick(uint32_t now_ms) {
@@ -215,11 +227,15 @@ void Arcade::tick(uint32_t now_ms) {
     case Layer::SHAPE_GARAGE: shape_garage_view_.sync(shape_garage_, now_ms); break;
     case Layer::FEED_MONSTER: feed_monster_view_.sync(feed_monster_, now_ms); break;
     case Layer::SOUND_JAR: sound_jar_view_.sync(sound_jar_); break;
+    case Layer::BEAT_SHARKS: beat_sharks_view_.sync(beat_sharks_); break;
     case Layer::NONE: break;
   }
   // Opening the grown-up gate drops anything recorded (privacy).
   const bool gate_open = gate_.open();
-  if (gate_open && !gate_was_open_) sound_jar_.privacy_wipe();
+  if (gate_open && !gate_was_open_) {
+    sound_jar_.privacy_wipe();
+    beat_sharks_.privacy_wipe();
+  }
   gate_was_open_ = gate_open;
   scenes_.set_audio_enabled(gate_.level() > 0);
   // Let the parent hear the level just chosen (the caller has applied it).

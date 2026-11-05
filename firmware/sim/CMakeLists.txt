@@ -49,6 +49,7 @@ add_subdirectory(${LA_COMPONENTS}/games/rainbow_piano games/rainbow_piano)
 add_subdirectory(${LA_COMPONENTS}/games/robo_buddy games/robo_buddy)
 add_subdirectory(${LA_COMPONENTS}/games/shape_garage games/shape_garage)
 add_subdirectory(${LA_COMPONENTS}/games/sound_jar games/sound_jar)
+add_subdirectory(${LA_COMPONENTS}/games/beat_sharks games/beat_sharks)
 add_subdirectory(${LA_COMPONENTS}/arcade arcade)
 
 add_executable(little_arcade_sim main.cpp)
@@ -65,6 +66,7 @@ foreach(t little_arcade_core little_arcade_ui little_arcade_game_animal_sounds
           little_arcade_game_rainbow_piano_view little_arcade_game_robo_buddy
           little_arcade_game_robo_buddy_view little_arcade_game_shape_garage
           little_arcade_game_shape_garage_view little_arcade_game_sound_jar little_arcade_game_sound_jar_view
+          little_arcade_game_beat_sharks little_arcade_game_beat_sharks_view
           little_arcade_arcade little_arcade_sim)
   if(MSVC)
     target_compile_options(${t} PRIVATE /W4 /WX /permissive-)

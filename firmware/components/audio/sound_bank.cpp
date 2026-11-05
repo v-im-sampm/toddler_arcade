@@ -339,6 +339,37 @@ Sound animal_sounds_sound(Cue cue, uint8_t variant) {
   }
 }
 
+// Beat Sharks: three rows x three sounds; NOTE variant = row * 3 + sound.
+// Row 0 normally plays the recorded/built-in clip through the sampler; these
+// boings are only its fallback. Each sound stays well under one step (280 ms).
+Sound shark_note(uint8_t variant) {
+  switch (variant % 9) {
+    case 0: return Sound{}.add(tone(Wave::SINE, 262, 392, 150, 150, 4, 70));
+    case 1: return Sound{}.add(tone(Wave::SINE, 392, 587, 130, 150, 4, 60));
+    case 2: return Sound{}.add(tone(Wave::SINE, 587, 880, 110, 145, 4, 50));
+    case 3: return Sound{}.add(tone(Wave::NOISE, 2400, 2400, 60, 150, 1, 45));                      // clap
+    case 4: return Sound{}.add(tone(Wave::TRIANGLE, 900, 860, 70, 150, 1, 50));                     // woodblock
+    case 5: return Sound{}.add(tone(Wave::NOISE, 7000, 7000, 90, 90, 25, 50));                      // shaker
+    case 6: return Sound{}.add(tone(Wave::SINE, 150, 50, 180, 190, 2, 110));                        // boom
+    case 7: return Sound{}.add(tone(Wave::SINE, 220, 110, 150, 170, 2, 90));                        // tom
+    default: return Sound{}.add(tone(Wave::SINE, 400, 260, 110, 160, 2, 70));                       // bongo
+  }
+}
+
+Sound beat_sharks_sound(Cue cue, uint8_t variant) {
+  switch (cue) {
+    case Cue::NOTE: return shark_note(variant);
+    case Cue::TAP: {  // tempo tick: slow, walk, fast
+      static constexpr uint16_t kTick[] = {392, 523, 659};
+      return Sound{}.add(pluck(kTick[variant % 3], 70, 110)).add(pluck(kTick[variant % 3], 50, 90));
+    }
+    case Cue::PROMPT: return Sound{}.add(tone(Wave::SINE, 196, 98, 120, 150, 2, 70)).add(rest(40)).add(bell(784, 160, 110));
+    case Cue::CELEBRATE:
+      return Sound{}.add(bell(523, 90, 120)).add(bell(659, 90, 120)).add(bell(784, 90, 120)).add(bell(1047, 220, 120));
+    default: return default_sound(cue, variant);
+  }
+}
+
 }  // namespace
 
 Sound sound_for(uint8_t scene, Cue cue, uint8_t variant) {
@@ -350,6 +381,7 @@ Sound sound_for(uint8_t scene, Cue cue, uint8_t variant) {
     case static_cast<uint8_t>(GameId::RAINBOW_PIANO): return rainbow_piano_sound(cue, variant);
     case static_cast<uint8_t>(GameId::ROBO_BUDDY): return robo_buddy_sound(cue, variant);
     case static_cast<uint8_t>(GameId::SHAPE_GARAGE): return shape_garage_sound(cue, variant);
+    case static_cast<uint8_t>(GameId::BEAT_SHARKS): return beat_sharks_sound(cue, variant);
     default: return default_sound(cue, variant);
   }
 }

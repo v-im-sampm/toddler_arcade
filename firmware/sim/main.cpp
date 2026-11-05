@@ -11,7 +11,7 @@
 //   Mouse = touch (Home and the launcher work like the device).
 //   Keys = voice intents: R B G Y colours, A AGAIN, H HELP, J YES, N NO,
 //     X NEXT, Backspace BACK, C COLORS, E EGGS, K COUNTING, M MUSIC, T ROBOT. Esc quits.
-// Benchmark:    little_arcade_sim --bench [--game animal_sounds|color_pop|feed_monster|hatch_a_pet|rainbow_piano|robo_buddy|sound_jar]
+// Benchmark:    little_arcade_sim --bench [--game animal_sounds|beat_sharks|color_pop|feed_monster|hatch_a_pet|rainbow_piano|robo_buddy|sound_jar]
 //                 [--seconds N] [--seed N] [--frame-ms N] [--shots DIR]
 //   Headless, deterministic simulated clock. Starts on the launcher, taps the
 //   game's tile, then a scripted player plays through the SceneManager.
@@ -980,6 +980,231 @@ int run_sound_jar_bench(const Options& opt) {
   return ok ? 0 : 1;
 }
 
+// Scripted Beat Sharks session: builds a beat by tapping cells (cycling
+// through each row's three sounds), records a synthetic "voice" into the
+// top row, fills every column for the full-ocean wave, then speeds up.
+class BeatSharksPlayer {
+ public:
+  enum Step : int { WAIT_PLAY, PATTERN, GROOVE, RECORD, LISTEN, CAUGHT, FILL, OCEAN, TEMPO, STOP, DONE };
+  int step() const { return step_; }
+  uint32_t in_step(uint32_t now) const { return now - step_at_; }
+
+  void tick(Arcade& a, uint32_t now) {
+    using beat_sharks::BeatSharksGame;
+    using beat_sharks::Phase;
+    const auto& g = a.beat_sharks();
+    if (queued_ > 0) {  // one tap per 150 ms (SceneManager debounces faster taps)
+      if (now - last_tap_ >= 150) {
+        tap_at(a, taps_[0], now);
+        last_tap_ = now;
+        for (std::size_t i = 1; i < queued_; ++i) taps_[i - 1] = taps_[i];
+        --queued_;
+      }
+      return;
+    }
+    const uint32_t t = in_step(now);
+    switch (step_) {
+      case WAIT_PLAY: if (g.phase() == Phase::PLAY && g.playing() && t >= 1500) next(now); break;
+      case PATTERN:
+        queue(BeatSharksGame::cell_rect(1, 1));  // clap
+        queue(BeatSharksGame::cell_rect(1, 2), 2);  // woodblock
+        queue(BeatSharksGame::cell_rect(2, 4), 3);  // bongo
+        next(now);
+        break;
+      case GROOVE: if (t >= 2500) next(now); break;
+      case RECORD: queue(BeatSharksGame::kRecordButton); next(now); break;
+      case LISTEN:
+        if (g.phase() == Phase::CELEBRATE) next(now);
+        else if (g.phase() == Phase::RECORDING && t >= 2500) queue(BeatSharksGame::kRecordButton);
+        break;
+      case CAUGHT: if (g.phase() == Phase::PLAY && t >= 1800) next(now); break;
+      case FILL: queue(BeatSharksGame::cell_rect(1, 5)); next(now); break;
+      case OCEAN: if (g.phase() == Phase::PLAY && t >= 1200) next(now); break;
+      case TEMPO:
+        if (!tempo_tapped_) {
+          queue(BeatSharksGame::kTempoButton);
+          tempo_tapped_ = true;
+        } else if (t >= 2000) {
+          next(now);
+        }
+        break;
+      case STOP:
+        if (t >= 200) {
+          queue(BeatSharksGame::kPlayButton);
+          next(now);
+        }
+        break;
+      default: break;
+    }
+  }
+
+ private:
+  void next(uint32_t now) { ++step_; step_at_ = now; }
+  void queue(const Rect& r, int times = 1) {
+    for (int i = 0; i < times && queued_ < 16; ++i) taps_[queued_++] = r;
+  }
+  static void tap_at(Arcade& a, const Rect& r, uint32_t now) {
+    a.pointer(true, mid_x(r), mid_y(r), now);
+    a.pointer(false, mid_x(r), mid_y(r), now);
+  }
+  int step_ = WAIT_PLAY;
+  uint32_t step_at_ = 0;
+  Rect taps_[16]{};
+  std::size_t queued_ = 0;
+  uint32_t last_tap_ = 0;
+  bool tempo_tapped_ = false;
+};
+
+int run_beat_sharks_bench(const Options& opt) {
+  static BenchState state{};
+  g_bench = &state;
+  lv_tick_set_cb(sim_tick);
+  lv_display_t* disp = lv_display_create(kW, kH);
+  lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565);
+  lv_display_set_buffers(disp, state.buf1, state.buf2, sizeof(state.buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
+  lv_display_set_flush_cb(disp, bench_flush);
+
+  static std::vector<int16_t> clip(audio::Sampler::kMaxSamples), record(audio::Sampler::kMaxSamples),
+      echo(audio::Sampler::kEchoSamples);
+  static audio::Sampler sampler(clip.data(), record.data(), echo.data());
+  sampler.set_mic_hardware(true);
+  const uint32_t seed = opt.seed ? opt.seed : 1234;
+  static ConsoleFeedback feedback;
+  feedback.quiet = true;
+  static Arcade arcade(feedback, seed);
+  arcade.attach_sampler(&sampler);
+  arcade.create(lv_screen_active());
+  BeatSharksPlayer player;
+
+  ShotPlan plan;
+  plan.dir = opt.shots;
+  plan.prefix = "beat_sharks_";
+  plan.shots = {{"00_menu", false},    {"01_intro", false},   {"02_starter", false}, {"03_pattern", false},
+                {"04_recording", false}, {"05_new_sound", false}, {"06_caught", false}, {"07_full_ocean", false},
+                {"08_rabbit", false},  {"09_stopped", false}};
+
+  // Beat Sharks is the first tile on launcher page 3.
+  const uint32_t launch_at = 900;
+  const uint32_t frames = opt.seconds * 1000 / opt.frame_ms;
+  const std::size_t block = static_cast<std::size_t>(opt.frame_ms) * audio::kSampleRateHz / 1000u;
+  std::vector<int16_t> mic(block), out(block);
+  std::vector<double> render_us, sync_us, mix_us;
+  std::vector<uint64_t> pixels;
+  int pages = 0;
+  bool launched = false;
+  double voice_phase = 0.0;
+  uint32_t voice_n = 0;
+  int32_t peak_out = 0;
+  int last_phase = -1;
+  uint32_t phase_start = 0;
+  bool saw_full_ocean = false;
+
+  using clock = std::chrono::steady_clock;
+  for (uint32_t f = 0; f < frames; ++f) {
+    g_sim_now += opt.frame_ms;
+    if (pages < 2 && g_sim_now >= 300u * static_cast<uint32_t>(pages + 1)) {
+      tap(arcade, SceneManager::kNextPageButton, g_sim_now);
+      ++pages;
+    }
+    if (!launched && g_sim_now >= launch_at) {
+      tap(arcade, SceneManager::kTileRects[0], g_sim_now);
+      launched = true;
+    }
+    const auto t0 = clock::now();
+    if (arcade.layer() == Arcade::Layer::BEAT_SHARKS) player.tick(arcade, g_sim_now);
+    arcade.tick(g_sim_now);
+    const auto t1 = clock::now();
+    if (sampler.recording()) {  // synthetic gliding tone, never a real recording
+      for (std::size_t i = 0; i < block; ++i, ++voice_n) {
+        const double s = static_cast<double>(voice_n) / audio::kSampleRateHz;
+        const double hz = 220.0 + 90.0 * std::sin(6.2831853 * 2.0 * s);
+        voice_phase += 6.2831853 * hz / audio::kSampleRateHz;
+        const double env = std::min(1.0, s * 8.0);
+        mic[i] = static_cast<int16_t>(9000.0 * env * std::sin(voice_phase));
+      }
+      sampler.capture(mic.data(), block);
+    }
+    std::fill(out.begin(), out.end(), int16_t{0});
+    const auto m0 = clock::now();
+    sampler.mix(out.data(), block);
+    mix_us.push_back(std::chrono::duration<double, std::micro>(clock::now() - m0).count());
+    for (int16_t v : out) peak_out = std::max<int32_t>(peak_out, v < 0 ? -v : v);
+    saw_full_ocean = saw_full_ocean || arcade.beat_sharks().celebration() == beat_sharks::Celebration::FULL_OCEAN;
+    state.frame_pixels = 0;
+    lv_timer_handler();
+    const auto t2 = clock::now();
+    sync_us.push_back(std::chrono::duration<double, std::micro>(t1 - t0).count());
+    if (state.frame_pixels > 0) {
+      render_us.push_back(std::chrono::duration<double, std::micro>(t2 - t1).count());
+      pixels.push_back(state.frame_pixels);
+    }
+
+    if (plan.dir.empty()) continue;
+    using beat_sharks::Celebration;
+    using beat_sharks::Phase;
+    using S = BeatSharksPlayer;
+    const auto& g = arcade.beat_sharks();
+    plan.maybe(0, arcade.layer() == Arcade::Layer::MENU && g_sim_now >= launch_at - 2 * opt.frame_ms, state.frame);
+    if (arcade.layer() != Arcade::Layer::BEAT_SHARKS) continue;
+    if (static_cast<int>(g.phase()) != last_phase) {
+      last_phase = static_cast<int>(g.phase());
+      phase_start = g_sim_now;
+    }
+    const uint32_t in_phase = g_sim_now - phase_start;
+    const uint32_t in_step = player.in_step(g_sim_now);
+    plan.maybe(1, g.phase() == Phase::INTRO && in_phase >= 300, state.frame);
+    plan.maybe(2, player.step() == S::WAIT_PLAY && g.playing() && in_step >= 1200, state.frame);
+    plan.maybe(3, player.step() == S::GROOVE && in_step >= 2000, state.frame);
+    plan.maybe(4, g.phase() == Phase::RECORDING && in_phase >= 900, state.frame);
+    plan.maybe(5, g.celebration() == Celebration::NEW_SOUND && in_phase >= 300, state.frame);
+    plan.maybe(6, player.step() == S::CAUGHT && g.phase() == Phase::PLAY && in_step >= 1500, state.frame);
+    plan.maybe(7, g.celebration() == Celebration::FULL_OCEAN && in_phase >= 250, state.frame);
+    plan.maybe(8, player.step() == S::TEMPO && in_step >= 1500, state.frame);
+    plan.maybe(9, player.step() == S::DONE && !g.playing() && in_step >= 300, state.frame);
+  }
+
+  lv_mem_monitor_t mem;
+  lv_mem_monitor(&mem);
+  double render_sum = 0;
+  for (double v : render_us) render_sum += v;
+  uint64_t px_sum = 0, px_max = 0;
+  for (uint64_t v : pixels) {
+    px_sum += v;
+    px_max = std::max(px_max, v);
+  }
+  const std::size_t rendered = render_us.size();
+  const double avg_px = rendered ? static_cast<double>(px_sum) / static_cast<double>(rendered) : 0.0;
+  const double render_avg = rendered ? render_sum / static_cast<double>(rendered) : 0.0;
+  const auto& g = arcade.beat_sharks();
+  std::printf("\nbeat_sharks LVGL benchmark via Arcade (HOST DESKTOP, not device; synthetic tone, no microphone)\n");
+  std::printf("  seed=%u frame_ms=%u sim_seconds=%u frames=%u rendered=%zu steps_played=%u hits=%u caught=%u "
+              "tempo=%u script=%d/%d full_ocean=%d\n",
+              seed, opt.frame_ms, opt.seconds, frames, rendered, g.steps_played(), g.hits(), g.sounds_caught(),
+              static_cast<unsigned>(g.tempo()), player.step(), static_cast<int>(BeatSharksPlayer::DONE),
+              saw_full_ocean ? 1 : 0);
+  std::printf("  clip samples=%u peak_out=%d commands_dropped=%u\n", sampler.clip_samples(),
+              static_cast<int>(peak_out), sampler.commands_dropped());
+  std::printf("  render us/frame: avg=%.1f p50=%.1f p95=%.1f max=%.1f\n", render_avg, percentile(render_us, 0.5),
+              percentile(render_us, 0.95), percentile(render_us, 1.0));
+  std::printf("  sampler mix us/%zu-sample block: p50=%.1f p95=%.1f max=%.1f\n", block, percentile(mix_us, 0.5),
+              percentile(mix_us, 0.95), percentile(mix_us, 1.0));
+  std::printf("  logic+view sync us/frame: p95=%.2f max=%.2f\n", percentile(sync_us, 0.95), percentile(sync_us, 1.0));
+  std::printf("  pixels/rendered frame: avg=%.0f (%.1f%% of screen) max=%llu\n", avg_px, 100.0 * avg_px / (kW * kH),
+              static_cast<unsigned long long>(px_max));
+  std::printf("  lvgl heap: used=%zu max_used=%zu total=%zu frag=%u%%\n", mem.total_size - mem.free_size,
+              mem.max_used, mem.total_size, static_cast<unsigned>(mem.frag_pct));
+  std::printf("JSON {\"engine\":\"lvgl-9.5.0\",\"platform\":\"host-desktop\",\"game\":\"beat_sharks\",\"seed\":%u,"
+              "\"frame_ms\":%u,\"frames\":%u,\"rendered\":%zu,\"render_us_avg\":%.1f,\"render_us_p95\":%.1f,"
+              "\"render_us_max\":%.1f,\"sync_us_max\":%.1f,\"mix_us_max\":%.1f,\"px_avg\":%.0f,\"px_max\":%llu,"
+              "\"heap_max_used\":%zu,\"steps\":%u,\"hits\":%u,\"caught\":%u}\n",
+              seed, opt.frame_ms, frames, rendered, render_avg, percentile(render_us, 0.95),
+              percentile(render_us, 1.0), percentile(sync_us, 1.0), percentile(mix_us, 1.0), avg_px,
+              static_cast<unsigned long long>(px_max), mem.max_used, g.steps_played(), g.hits(), g.sounds_caught());
+  const bool ok = player.step() == BeatSharksPlayer::DONE && g.sounds_caught() > 0 && saw_full_ocean &&
+                  g.hits() > 0 && peak_out > 0 && !g.playing() && g.tempo() == 2;
+  return ok ? 0 : 1;
+}
+
 // -------------------------------------------------------------- interactive
 int run_interactive(const Options& opt) {
   lv_display_t* disp = lv_sdl_window_create(kW, kH);
@@ -1081,6 +1306,8 @@ bool parse(int argc, char** argv, Options& opt) {
         opt.game = GameId::ANIMAL_SOUNDS;
       } else if (g == "sound_jar") {
         opt.game = GameId::SOUND_JAR;
+      } else if (g == "beat_sharks") {
+        opt.game = GameId::BEAT_SHARKS;
       } else {
         return false;
       }
@@ -1115,13 +1342,17 @@ int main(int argc, char** argv) {
   if (!parse(argc, argv, opt)) {
     std::printf(
         "usage: little_arcade_sim [--zoom N] [--seed N] [--mute] [--no-mic] [--volume 0..6]\n"
-        "       little_arcade_sim --bench [--game animal_sounds|color_pop|feed_monster|hatch_a_pet|rainbow_piano|robo_buddy|sound_jar] [--seconds N] [--seed N]\n"
+        "       little_arcade_sim --bench [--game animal_sounds|beat_sharks|color_pop|feed_monster|hatch_a_pet|rainbow_piano|robo_buddy|sound_jar] [--seconds N] [--seed N]\n"
         "                         [--frame-ms N] [--shots DIR]\n");
     return 2;
   }
   SDL_SetMainReady();
   std::setvbuf(stdout, nullptr, _IONBF, 0);
   lv_init();
-  if (opt.bench) return opt.game == GameId::SOUND_JAR ? run_sound_jar_bench(opt) : run_bench(opt);
+  if (opt.bench) {
+    if (opt.game == GameId::SOUND_JAR) return run_sound_jar_bench(opt);
+    if (opt.game == GameId::BEAT_SHARKS) return run_beat_sharks_bench(opt);
+    return run_bench(opt);
+  }
   return run_interactive(opt);
 }
