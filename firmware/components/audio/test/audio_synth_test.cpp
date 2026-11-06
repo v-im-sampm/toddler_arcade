@@ -1,5 +1,6 @@
 // Host tests for the procedural audio path (synth, sound bank, AudioFeedback).
 // Host only: proves determinism and digital safety limits, not acoustic level.
+#include <algorithm>
 #include <cstdlib>
 #include <vector>
 
@@ -295,11 +296,16 @@ void test_feedback_starts_muted() {
 }
 
 void test_feedback_plays_after_level_and_respects_limits() {
-  AudioFeedback fb;
+  VolumeLimiter::Config cfg;
+  cfg.parent_cap = 4;
+  AudioFeedback fb(cfg);
   fb.set_level(VolumeLimiter::kMaxLevel);  // asks for max; parent cap clamps it
   pull(fb, 256);
-  EXPECT(fb.level() == VolumeLimiter::kDefaultParentCap);
+  EXPECT(fb.level() == 4);
+  fb.set_parent_cap(VolumeLimiter::kMaxLevel);
+  fb.set_level(VolumeLimiter::kMaxLevel);
   pull(fb, ms_samples(400));  // finish the ramp
+  EXPECT(fb.level() == VolumeLimiter::kMaxLevel);
   // Worst case: every voice busy with loud overlapping sounds.
   fb.set_scene(static_cast<uint8_t>(GameId::COLOR_POP));
   fb.play(Cue::SUCCESS, 3);
@@ -310,6 +316,41 @@ void test_feedback_plays_after_level_and_respects_limits() {
   EXPECT(peak(out) > 1000);
   EXPECT(peak(out) <= VolumeLimiter::kPeakLimit);
   EXPECT(fb.peak_since_reset() == peak(out));
+}
+
+// Beat Sharks' three drums at once sum past int16 full scale. The device must
+// scale that mix by the volume, not clamp it first: at a quiet level the output
+// is the exact wide mix times the level gain (no flat tops).
+void test_overlapping_voices_are_not_clipped_before_volume() {
+  const uint8_t sharks = static_cast<uint8_t>(GameId::BEAT_SHARKS);
+  constexpr uint8_t kLevel = 1;
+  AudioFeedback fb;
+  fb.set_level(kLevel);
+  pull(fb, ms_samples(400));  // ramp done, nothing playing
+  fb.set_scene(sharks);
+  fb.play(Cue::NOTE, 6);
+  fb.play(Cue::NOTE, 7);
+  fb.play(Cue::NOTE, 8);
+  const std::size_t n = ms_samples(180);
+  const auto out = pull(fb, n);
+
+  Synth ref;
+  ref.trigger(scene_change_sound(IFeedback::kSceneMenu, sharks));
+  ref.trigger(sound_for(sharks, Cue::NOTE, 6));
+  ref.trigger(sound_for(sharks, Cue::NOTE, 7));
+  ref.trigger(sound_for(sharks, Cue::NOTE, 8));
+  std::vector<int32_t> wide(n);
+  ref.render_mix(wide.data(), n);
+  int32_t wide_peak = 0;
+  int32_t worst_err = 0;
+  const int32_t g = VolumeLimiter::gain_for_level(kLevel);
+  for (std::size_t i = 0; i < n; ++i) {
+    wide_peak = std::max(wide_peak, std::abs(wide[i]));
+    const int32_t expect = static_cast<int32_t>((static_cast<int64_t>(wide[i]) * g) / VolumeLimiter::kUnityQ15);
+    worst_err = std::max(worst_err, std::abs(expect - out[i]));
+  }
+  EXPECT(wide_peak > 32767);  // the old int16 clamp would have flattened this
+  EXPECT(worst_err <= 1);
 }
 
 void test_feedback_merges_repeats_and_drops_overflow() {
@@ -375,6 +416,7 @@ int main() {
   test_game_palettes_are_distinct();
   test_feedback_starts_muted();
   test_feedback_plays_after_level_and_respects_limits();
+  test_overlapping_voices_are_not_clipped_before_volume();
   test_feedback_merges_repeats_and_drops_overflow();
   test_scene_manager_reports_scene_changes();
   return testing::finish("audio_synth_test");

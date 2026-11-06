@@ -98,7 +98,16 @@ const char* layer_name(Arcade::Layer l) {
   return "none";
 }
 
-audio::AudioFeedback g_feedback;
+// Speaker ceiling follows the amp GAIN strap and supply in config/board_pins.json,
+// so a louder strap lowers the digital peak instead of clipping the amplifier.
+VolumeLimiter::Config speaker_config() {
+  VolumeLimiter::Config cfg;
+  cfg.sample_rate_hz = audio::kSampleRateHz;
+  cfg.peak_limit = VolumeLimiter::amp_safe_peak(board::audio::kAmpGainDb, board::audio::kAmpSupplyMv);
+  return cfg;
+}
+
+audio::AudioFeedback g_feedback(speaker_config());
 Arcade* g_arcade = nullptr;
 
 // Sound Jar's sample buffers live in PSRAM (about 200 KB). They hold at most
@@ -197,6 +206,9 @@ void ui_task(void*) {
   const uint8_t saved_level = settings::load_volume_level();
   ESP_LOGI(kTag, "parent volume level=%u (%s)", static_cast<unsigned>(saved_level),
            saved_level ? "saved by parent" : "muted until a parent opts in");
+  ESP_LOGI(kTag, "speaker ceiling=%d (amp gain %u dB, supply %u mV)",
+           static_cast<int>(speaker_config().peak_limit), static_cast<unsigned>(board::audio::kAmpGainDb),
+           static_cast<unsigned>(board::audio::kAmpSupplyMv));
   const bool saved_mic = settings::load_mic_enabled();
   static Arcade arcade(g_feedback, esp_random() | 1u, saved_level, saved_mic);
   g_arcade = &arcade;

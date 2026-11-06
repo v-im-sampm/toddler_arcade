@@ -69,6 +69,9 @@ class Synth {
 
   // Overwrites out[0..n) with the mixed mono signal (int16 clamped).
   void render(int16_t* out, std::size_t n);
+  // Same mix without clamping (overlapping voices may exceed int16); the
+  // VolumeLimiter brings it under the speaker ceiling without hard clipping.
+  void render_mix(int32_t* out, std::size_t n);
 
  private:
   struct Voice {

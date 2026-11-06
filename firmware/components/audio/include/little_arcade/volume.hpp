@@ -6,25 +6,52 @@ namespace little_arcade {
 
 // Speaker-protection policy applied to every PCM block before I2S TX
 // (AGENTS.md rule 9). Starts muted, ramps rather than jumping, honours a
-// parent cap, and hard-limits sample peaks regardless of the asset level.
-// The final analog level also depends on the amplifier gain strap and the
-// speaker, which are TBD until H03 bench measurements; constants here are
-// provisional digital ceilings, not acoustic guarantees.
+// parent cap, and limits sample peaks regardless of the asset level.
+//
+// Input is the unclamped int32 mix of all voices, so overlapping sounds are
+// never hard-clipped before the volume is applied. Peaks above the ceiling
+// are pulled down by a smooth look-ahead limiter (gain falls ahead of the
+// peak, holds, then releases slowly) instead of being flat-topped.
+//
+// The ceiling should come from amp_safe_peak() for the fitted amplifier gain
+// strap and supply; those are owner-reported until H03 bench measurements,
+// so the values are provisional digital ceilings, not acoustic guarantees.
 class VolumeLimiter {
  public:
-  static constexpr uint8_t kMaxLevel = 10;
-  static constexpr uint8_t kDefaultParentCap = 6;
+  // Same 0..6 scale as the parent menu (ParentGate::kMaxLevel).
+  static constexpr uint8_t kMaxLevel = 6;
+  static constexpr uint8_t kDefaultParentCap = kMaxLevel;
   static constexpr int32_t kUnityQ15 = 32768;
-  // Full-scale digital gain at level kMaxLevel (0.5 = -6 dBFS headroom).
-  static constexpr int32_t kMaxGainQ15 = kUnityQ15 / 2;
-  // Absolute output ceiling after gain (about -6 dBFS).
+  // Digital gain at level kMaxLevel; the limiter keeps it under the ceiling.
+  static constexpr int32_t kMaxGainQ15 = kUnityQ15;
+  // Absolute output ceiling (about -6 dBFS); per-board ceilings only go lower.
   static constexpr int16_t kPeakLimit = 16384;
+  // Samples processed per internal chunk (look-ahead window).
+  static constexpr std::size_t kChunk = 256;
+  static constexpr uint32_t kAttackMs = 2;
+  static constexpr uint32_t kHoldMs = 30;  // > half period of the lowest tone (50 Hz)
+  static constexpr uint32_t kReleaseMs = 250;
 
   struct Config {
     uint8_t parent_cap = kDefaultParentCap;
     uint32_t sample_rate_hz = 16000;
-    uint32_t ramp_ms = 300;  // time to move across the full gain range
+    uint32_t ramp_ms = 300;          // time to move across the full gain range
+    int16_t peak_limit = kPeakLimit;  // clamped to kPeakLimit
   };
+
+  // Highest digital peak that keeps a MAX98357A-class amp out of supply
+  // clipping. Datasheet: 0 dBFS = 2.1 dBV (1.80 V peak) + strap gain (3, 6,
+  // 9, 12 or 15 dB; unknown values use 15 dB). Usable bridge-tied swing is
+  // taken as 85% of the supply to allow for output drop and rail sag.
+  static constexpr int16_t amp_safe_peak(uint8_t amp_gain_db, uint32_t supply_mv) {
+    const uint32_t fs_peak_mv = amp_gain_db <= 3    ? 2544u
+                                : amp_gain_db <= 6  ? 3593u
+                                : amp_gain_db <= 9  ? 5076u
+                                : amp_gain_db <= 12 ? 7170u
+                                                    : 10128u;
+    const uint64_t peak = static_cast<uint64_t>(32767u) * (supply_mv * 85u / 100u) / fs_peak_mv;
+    return peak > static_cast<uint64_t>(kPeakLimit) ? kPeakLimit : static_cast<int16_t>(peak);
+  }
 
   VolumeLimiter() : VolumeLimiter(Config{}) {}
   explicit VolumeLimiter(Config config);
@@ -36,22 +63,38 @@ class VolumeLimiter {
 
   uint8_t level() const { return level_; }
   uint8_t parent_cap() const { return cap_; }
+  int16_t peak_limit() const { return ceiling_; }
   int32_t target_gain_q15() const { return target_gain_; }
   int32_t current_gain_q15() const { return gain_; }
+  int32_t limiter_gain_q15() const { return lim_gain_; }
 
-  // In-place gain + ramp + hard limit.
+  // Volume gain + ramp + peak limiter: in[0..count) -> out[0..count).
+  void process(const int32_t* in, int16_t* out, std::size_t count);
+  // In-place convenience for int16 sources.
   void process(int16_t* samples, std::size_t count);
 
+  // Perceptual taper: 4 dB per step, level kMaxLevel = unity, 0 = mute.
   static constexpr int32_t gain_for_level(uint8_t level) {
-    return level >= kMaxLevel ? kMaxGainQ15 : (kMaxGainQ15 * level) / kMaxLevel;
+    constexpr int32_t kTable[kMaxLevel + 1] = {0, 3277, 5193, 8231, 13045, 20675, kMaxGainQ15};
+    return kTable[level >= kMaxLevel ? kMaxLevel : level];
   }
 
  private:
+  void process_chunk(const int32_t* in, int16_t* out, std::size_t n);
+
   uint8_t cap_;
+  int16_t ceiling_;
   uint8_t level_ = 0;
   int32_t target_gain_ = 0;
   int32_t gain_ = 0;  // starts muted: no loud startup sound
   int32_t step_per_sample_;
+  int32_t lim_gain_ = kUnityQ15;
+  int32_t attack_step_;
+  int32_t release_step_;
+  uint32_t hold_samples_;
+  uint32_t hold_ = 0;
+  int32_t scratch_[kChunk];
+  int32_t env_[kChunk];
 };
 
 }  // namespace little_arcade

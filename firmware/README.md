@@ -24,7 +24,7 @@ external INMP441/MAX98357A over full-duplex I2S; the owner confirmed audible aud
   - The generated `intent.hpp`.
   - `SceneManager`, which handles launcher paging, Home/BACK, pause, debounce, idle sleep and voice context filtering.
 - `components/speech/`: push-to-talk session timing and `VoiceIntentFilter`. Pure logic; ESP-SR is not called yet.
-- `components/audio/`: `VolumeLimiter`, which provides muted startup, a parent cap, ramping and a hard peak limit. Pure logic; there is no I2S driver yet.
+- `components/audio/`: `VolumeLimiter`, which provides muted startup, a parent cap (levels 0–6, 4 dB steps, 6 = unity), ramping and a smooth look-ahead peak limiter. Voices are mixed in int32 so overlapping cues are never hard-clipped. The device ceiling comes from `audio.amp_gain_db` / `audio.amp_supply_mv` in `config/board_pins.json` via `VolumeLimiter::amp_safe_peak()`; update both if the MAX98357A GAIN strap or supply changes.
 - `components/settings/`: `ParentGate`, the hidden parent settings gate (pure logic, host-tested), plus an NVS store on the device that persists only the volume level (namespace `la_settings`, key `volume`).
 - `components/games/<name>/`: one component per game, holding scene logic, a README and host tests.
   - The IDF project and the host tests discover these folders automatically.

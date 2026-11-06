@@ -96,6 +96,14 @@ def gen_pins(cfg):
             out.append("// Wiring provenance; bench-verified only once H03 bench tests are recorded.\n")
             out.append(f"inline constexpr const char* kWiringSource = \"{source}\";\n")
             out.append(f"inline constexpr bool kWiringBenchVerified = {'true' if bench else 'false'};\n")
+            # Unknown strap/supply fall back to the loudest strap (lowest ceiling).
+            gain_db = int(body.get("amp_gain_db", 15))
+            supply_mv = int(body.get("amp_supply_mv", 3300))
+            if gain_db not in (3, 6, 9, 12, 15) or not 2500 <= supply_mv <= 5500:
+                raise ValueError(f"bad audio amp_gain_db/amp_supply_mv: {gain_db} / {supply_mv}")
+            out.append("// Amplifier gain strap and supply; set the firmware speaker ceiling.\n")
+            out.append(f"inline constexpr uint8_t kAmpGainDb = {gain_db};\n")
+            out.append(f"inline constexpr uint32_t kAmpSupplyMv = {supply_mv};\n")
         out.append(f"}}  // namespace {group}\n\n")
     out.append("}  // namespace little_arcade::board\n")
     return "".join(out)

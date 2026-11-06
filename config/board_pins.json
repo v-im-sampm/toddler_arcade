@@ -101,7 +101,10 @@
       }
     },
     "amp_shutdown": "No GPIO: SD_MODE hard-wired high through 10 kOhm (amp always enabled). Startup pop and mute behaviour rely on I2S clocks being idle until firmware starts them.",
-    "amp_gain": "GAIN pin floating (datasheet default 9 dB)",
+    "amp_gain": "12 dB (owner-reported 2026-11-05: GAIN strap changed from floating/9 dB to the 12 dB setting). Not bench-measured.",
+    "amp_gain_db": 12,
+    "amp_supply_mv": 3300,
+    "amp_headroom_note": "Firmware ceiling = VolumeLimiter::amp_safe_peak(amp_gain_db, amp_supply_mv): datasheet 0 dBFS = 2.1 dBV + gain, usable swing 85% of supply. At 12 dB on 3.3 V that is about -8 dBFS. Update both fields if the strap or amp supply changes.",
     "pins": {
       "bclk": { "gpio": 4, "net": "J1-1 IO4", "sources": ["user_reported"] },
       "ws": { "gpio": 5, "net": "J1-2 IO5", "sources": ["user_reported"] },

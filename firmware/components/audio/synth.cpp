@@ -154,6 +154,16 @@ int32_t Synth::next_sample(Voice& v) {
   return static_cast<int32_t>((static_cast<int64_t>(s) * env * t.level) / (32768 * 255));
 }
 
+void Synth::render_mix(int32_t* out, std::size_t n) {
+  for (std::size_t i = 0; i < n; ++i) {
+    int32_t mix = 0;
+    for (Voice& v : voices_) {
+      if (v.active) mix += next_sample(v);
+    }
+    out[i] = mix;
+  }
+}
+
 void Synth::render(int16_t* out, std::size_t n) {
   for (std::size_t i = 0; i < n; ++i) {
     int32_t mix = 0;

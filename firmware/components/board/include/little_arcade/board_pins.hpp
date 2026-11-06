@@ -52,6 +52,9 @@ inline constexpr int kAmpDataOut = 7;
 // Wiring provenance; bench-verified only once H03 bench tests are recorded.
 inline constexpr const char* kWiringSource = "user_reported";
 inline constexpr bool kWiringBenchVerified = false;
+// Amplifier gain strap and supply; set the firmware speaker ceiling.
+inline constexpr uint8_t kAmpGainDb = 12;
+inline constexpr uint32_t kAmpSupplyMv = 3300;
 }  // namespace audio
 
 }  // namespace little_arcade::board

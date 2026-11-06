@@ -53,7 +53,10 @@ void AudioFeedback::apply(const Event& e) {
 
 void AudioFeedback::render(int16_t* out, std::size_t n) {
   const uint8_t cap = cap_.load(std::memory_order_relaxed);
-  if (cap != limiter_.parent_cap()) limiter_.set_parent_cap(cap);
+  if (cap != limiter_.parent_cap()) {
+    limiter_.set_parent_cap(cap);
+    limiter_.set_level(requested_level_);  // a raised cap restores the requested level
+  }
   const uint8_t want = level_.load(std::memory_order_relaxed);
   if (want != requested_level_) {
     requested_level_ = want;
@@ -69,9 +72,23 @@ void AudioFeedback::render(int16_t* out, std::size_t n) {
     apply(e);
   }
 
-  synth_.render(out, n);
-  if (sampler_) sampler_->mix(out, n);  // silences the block while recording
-  limiter_.process(out, n);
+  std::size_t done = 0;
+  while (done < n) {
+    const std::size_t m = n - done < kChunk ? n - done : kChunk;
+    synth_.render_mix(mix_, m);
+    if (sampler_) {
+      // The sampler adds into int16 and silences the block while recording.
+      for (std::size_t i = 0; i < m; ++i) sampler_out_[i] = 0;
+      sampler_->mix(sampler_out_, m);
+      if (sampler_->recording()) {
+        for (std::size_t i = 0; i < m; ++i) mix_[i] = 0;
+      } else {
+        for (std::size_t i = 0; i < m; ++i) mix_[i] += sampler_out_[i];
+      }
+    }
+    limiter_.process(mix_, out + done, m);
+    done += m;
+  }
 
   int32_t peak = 0;
   for (std::size_t i = 0; i < n; ++i) {

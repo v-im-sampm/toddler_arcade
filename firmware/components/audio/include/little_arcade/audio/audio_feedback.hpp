@@ -19,7 +19,9 @@ namespace little_arcade::audio {
 //
 // Safety (AGENTS.md rule 9): output starts muted and only ramps up after
 // set_level(); every block passes through VolumeLimiter (parent cap, ramp,
-// hard peak limit). No sound is produced at startup.
+// look-ahead peak limiter at the board's amp-safe ceiling). Voices are mixed
+// in int32 so overlapping cues are never hard-clipped. No sound is produced
+// at startup.
 class AudioFeedback final : public IFeedback {
  public:
   static constexpr std::size_t kQueueSize = 16;  // power of two
@@ -73,9 +75,12 @@ class AudioFeedback final : public IFeedback {
   std::atomic<int32_t> peak_{0};
 
   // consumer side
+  static constexpr std::size_t kChunk = VolumeLimiter::kChunk;
   Synth synth_;
   Sampler* sampler_ = nullptr;
   VolumeLimiter limiter_;
+  int32_t mix_[kChunk];
+  int16_t sampler_out_[kChunk];
   uint32_t samples_ = 0;
   uint8_t requested_level_ = 0;
   Event last_{0xFF, 0, 0, 0};
