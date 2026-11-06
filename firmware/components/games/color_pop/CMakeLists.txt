@@ -1,20 +1,31 @@
 if(ESP_PLATFORM)
-  idf_component_register(SRCS "color_pop.cpp" "view/color_pop_view.cpp"
+  idf_component_register(SRCS "color_pop.cpp" "view/color_pop_paint.cpp" "view/color_pop_view.cpp"
                          INCLUDE_DIRS "include" "view/include"
-                         REQUIRES core ui lvgl__lvgl)
+                         REQUIRES core ui lvgl__lvgl PRIV_REQUIRES heap)
 else()
   add_library(little_arcade_game_color_pop STATIC ${CMAKE_CURRENT_LIST_DIR}/color_pop.cpp)
   target_include_directories(little_arcade_game_color_pop PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
   target_link_libraries(little_arcade_game_color_pop PUBLIC little_arcade_core)
+  # LVGL-free painter (reference port): shared by the view, tests and the diff tool.
+  add_library(little_arcade_game_color_pop_paint STATIC ${CMAKE_CURRENT_LIST_DIR}/view/color_pop_paint.cpp)
+  target_include_directories(little_arcade_game_color_pop_paint PUBLIC ${CMAKE_CURRENT_LIST_DIR}/view/include)
+  target_link_libraries(little_arcade_game_color_pop_paint PUBLIC little_arcade_game_color_pop little_arcade_ui_ctx2d)
   # LVGL view: built only where an `lvgl` target exists (desktop simulator).
   if(TARGET lvgl AND TARGET little_arcade_ui)
     add_library(little_arcade_game_color_pop_view STATIC ${CMAKE_CURRENT_LIST_DIR}/view/color_pop_view.cpp)
     target_include_directories(little_arcade_game_color_pop_view PUBLIC ${CMAKE_CURRENT_LIST_DIR}/view/include)
-    target_link_libraries(little_arcade_game_color_pop_view PUBLIC little_arcade_game_color_pop little_arcade_ui)
+    target_link_libraries(little_arcade_game_color_pop_view PUBLIC little_arcade_game_color_pop_paint little_arcade_ui)
   endif()
   if(COMMAND la_host_test)
     la_host_test(color_pop_test ${CMAKE_CURRENT_LIST_DIR}/test/color_pop_test.cpp)
     target_link_libraries(color_pop_test PRIVATE little_arcade_game_color_pop)
+    la_host_test(color_pop_reference_render ${CMAKE_CURRENT_LIST_DIR}/test/color_pop_reference_render.cpp)
+    target_link_libraries(color_pop_reference_render PRIVATE little_arcade_game_color_pop_paint)
+    target_compile_definitions(color_pop_reference_render PRIVATE
+      LA_QB_SCRIPT="${CMAKE_CURRENT_LIST_DIR}/../../../../tools/quality_bar_golden/script.txt")
+    if(MSVC)
+      target_compile_definitions(color_pop_reference_render PRIVATE _CRT_SECURE_NO_WARNINGS)
+    endif()
     if(TARGET little_arcade_ui_raster)
       la_host_test(color_pop_patterns_test ${CMAKE_CURRENT_LIST_DIR}/test/color_pop_patterns_test.cpp)
       target_include_directories(color_pop_patterns_test PRIVATE ${CMAKE_CURRENT_LIST_DIR}/view/include)

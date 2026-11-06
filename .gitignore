@@ -9,3 +9,5 @@ firmware/sdkconfig.old
 build-host/
 build-sim/
 .venv/
+tools/quality_bar_golden/node_modules/
+tools/quality_bar_golden/out/

@@ -1,4 +1,4 @@
-set(LA_AUDIO_SRCS volume.cpp synth.cpp sound_bank.cpp sampler.cpp audio_feedback.cpp)
+set(LA_AUDIO_SRCS volume.cpp synth.cpp sound_bank.cpp color_pop_score.cpp sampler.cpp audio_feedback.cpp)
 
 # Recorded animal calls are generated from committed WAVs at configure time.
 # Early expansion only collects requirements, so skip file generation then.

@@ -30,6 +30,9 @@ using namespace little_arcade;
 constexpr const char* kTag = "little_arcade";
 constexpr uint32_t kStatsPeriodMs = 10000;
 constexpr int kBufLines = 24;  // two partial RGB565 buffers, 15 KB each
+// SPI clock spike: upstream TFT_eSPI uses 27 MHz (80/3); 40 MHz (80/2) is
+// within the ST7789's 16 ns write cycle. Pending on-device visual check.
+constexpr uint32_t kLcdSpiHz = 40 * 1000 * 1000;
 constexpr std::size_t kBufBytes = kScreenWidth * kBufLines * 2;
 
 void log_memory(const char* phase) {
@@ -79,6 +82,28 @@ constexpr bool kMicLevelProbe = true;
 // soft menu chimes at the parent-saved level (silent while muted) so the
 // [audio] mic RMS log can show acoustic loopback from the speaker to the INMP441.
 constexpr bool kAudioLoopbackSelfTest = false;
+// Device bench: opens Color Pop 3 s after boot and pops the target bubble
+// every 1.5 s, so the perf log shows real frame cost without a tester.
+constexpr bool kBenchColorPop = false;
+
+void bench_color_pop(Arcade& arcade, uint32_t now) {
+  static uint32_t next = 3000;
+  if (now < next) return;
+  next = now + 1500;
+  if (arcade.layer() != Arcade::Layer::COLOR_POP) {
+    const Rect& r = SceneManager::kTileRects[0];
+    arcade.touch(static_cast<int16_t>(r.x + r.w / 2), static_cast<int16_t>(r.y + r.h / 2), now);
+    return;
+  }
+  const color_pop::ColorPopGame& g = arcade.color_pop();
+  for (std::size_t i = 0; i < g.bubble_count(); ++i) {
+    const color_pop::Bubble& b = g.bubble(i);
+    if (b.color == g.target() && b.state == color_pop::BubbleState::FLOAT) {
+      arcade.touch(static_cast<int16_t>(b.x), static_cast<int16_t>(b.y), now);
+      return;
+    }
+  }
+}
 
 
 const char* layer_name(Arcade::Layer l) {
@@ -179,6 +204,7 @@ void poll_touch(uint32_t now) {
 lv_display_t* start_display() {
   lv_display_t* disp = lv_display_create(kScreenWidth, kScreenHeight);
   board::DisplayConfig cfg;
+  cfg.pclk_hz = kLcdSpiHz;
   cfg.max_transfer_bytes = kBufBytes;
   cfg.on_flush_done = flush_done;
   cfg.ctx = disp;
@@ -261,6 +287,7 @@ void ui_task(void*) {
       settings::save_mic_enabled(arcade.mic_enabled());
     }
     if (kAudioLoopbackSelfTest) audio_loopback_self_test(now);
+    if (kBenchColorPop) bench_color_pop(arcade, now);
     const int64_t t_tick = esp_timer_get_time();
     arcade.tick(now);  // game logic + view sync (+ lazy Hatch-a-Pet art rasters)
     const int64_t tick_us = esp_timer_get_time() - t_tick;
@@ -284,6 +311,16 @@ void ui_task(void*) {
       lv_mem_monitor_t mem;
       lv_mem_monitor(&mem);
       const hatch_a_pet::HatchAPetView& hv = arcade.hatch_a_pet_view();
+      color_pop::ColorPopView& cv = arcade.color_pop_view();
+      if (arcade.layer() == Arcade::Layer::COLOR_POP) {
+        ESP_LOGI("perf", "[device] color_pop syncs=%u frames=%u tiles/frame=%u (core0 %u%%) paint avg=%u max=%u us, raster avg=%u max=%u us",
+                 static_cast<unsigned>(cv.syncs()), static_cast<unsigned>(cv.frames()),
+                 static_cast<unsigned>(cv.frames() ? cv.tiles_drawn() / cv.frames() : 0),
+                 static_cast<unsigned>(cv.tiles_drawn() ? cv.tiles_by_worker() * 100 / cv.tiles_drawn() : 0),
+                 static_cast<unsigned>(cv.paint_us_avg()), static_cast<unsigned>(cv.paint_us_max()),
+                 static_cast<unsigned>(cv.render_us_avg()), static_cast<unsigned>(cv.render_us_max()));
+      }
+      cv.reset_stats();
       ESP_LOGI("perf",
                "[device] layer=%s %u redraws/10s, render avg=%lld us max=%lld us, tick max=%lld us, px avg=%llu, "
                "pop rounds=%u, hatches=%u, art rasters=%u max=%u ms total=%u ms, lv_mem max_used=%u, "

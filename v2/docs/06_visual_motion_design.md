@@ -157,17 +157,40 @@ the view responsive, reuse the fixed pools, and paint static art at scene creati
 the frame loop. The current firmware particle layer caps a scene at 48 live particles; changing that
 cap requires device-budget evidence.
 
-The quality-bar sketch is the visual floor for richness and responsiveness, not a pixel-match target:
-keep its soft gradients, saturated-but-gentle color, glossy volume, calm scene life, and clear touch
-feedback while designing original game-specific scenes. Review a 320×240 simulator capture of every
-game, including a representative interaction, hint, celebration, and a Home/re-entry cycle. Fix
-obvious flat areas, clipped art, weak contrast, and cramped compositions before calling the visual
-review complete. Simulator screenshots are host evidence only; real-panel quality and performance
+**The device must match the browser reference exactly.** When a game has a reference sketch (Color Pop:
+[`quality_bar.html`](../reference/quality_bar.html)), the firmware is a line-by-line port of it,
+not a reinterpretation. The device and the desktop simulator run the same code and must look and
+sound identical. Workflow (proven on Color Pop):
+1. **Port the sketch's canvas drawing** to `ui/ctx2d` (a canvas-2D-compatible software renderer:
+   paths, arcs, gradients, alpha, `globalCompositeOperation`, ordered dither to RGB565). Keep the
+   painter (`<game>_paint.cpp`) in the same order and with the same constants as the JS `draw()`.
+2. **Port the model** (`<game>.cpp`) with the same timings, easing and seeded randomness. Use the
+   game logic's own PRNG, never `Math.random`-style drift.
+3. **Port the Web Audio score** (`audio/<game>_score.cpp`) node-for-node: oscillator types,
+   envelopes, filters, compressor and master gain.
+4. **Golden diff:** add a scripted replay to `tools/quality_bar_golden` (Edge captures the
+   reference; the host binary renders the same frames). Every frame must pass the thresholds in
+   `golden.mjs` (mean |diff| ≤ 1.5 and ≤ 1 % of pixels off by more than 32; Color Pop reaches
+   PSNR 42–46 dB) before the game ships. Open
+   `out/report.html` for the side-by-side.
+5. **Owner review on the panel.** The golden diff proves the code; only the owner on real hardware
+   signs off the look, motion and sound.
+
+**Device performance rules** (ESP32-S3, measured on Color Pop):
+- Use `float` only in per-frame and per-sample code. The FPU is single-precision; `double` math
+  is emulated in software and was about 400× slower than on the host.
+- Redraw only dirty tiles (`ctx2d` tile cache), and use `second_core_worker()` so both cores raster.
+- Audio scores must render a 16 ms block in well under 16 ms (Color Pop takes about 2 ms). Run
+  compressors and envelopes at block rate, precompute phase increments, and use no per-sample
+  `pow`/`log`/divides. Underruns sound "digitized".
+- Check the `perf` and `[audio]` serial logs on the device for every game before review.
+
+Simulator screenshots are host evidence only; real-panel quality and performance
 still require an on-device review.
 
 ## 5. Rendering strategy on the device (constraints from `01_v1_baseline.md` §2)
-- A full-frame push at 27 MHz is ≈ 45 ms, so **design scenes so that most frames touch < 35 % of
-  the screen**:
+- A full-frame push at 40 MHz SPI (validated on one board) is ≈ 31 ms (≈ 45 ms at the v1 27 MHz), so
+  **design scenes so that most frames touch < 35 % of the screen**:
   - static or slow backgrounds are cached;
   - ambient motion comes from small sprites (clouds, bubbles), not full-layer scrolling;
   - parallax scrolling happens only during transitions.

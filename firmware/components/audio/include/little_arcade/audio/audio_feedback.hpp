@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "little_arcade/audio/color_pop_score.hpp"
 #include "little_arcade/audio/sampler.hpp"
 #include "little_arcade/audio/synth.hpp"
 #include "little_arcade/feedback.hpp"
@@ -77,6 +78,7 @@ class AudioFeedback final : public IFeedback {
   // consumer side
   static constexpr std::size_t kChunk = VolumeLimiter::kChunk;
   Synth synth_;
+  ColorPopScore color_pop_;  // Color Pop's reference score (Web Audio port)
   Sampler* sampler_ = nullptr;
   VolumeLimiter limiter_;
   int32_t mix_[kChunk];

@@ -148,6 +148,30 @@ Still not verified:
 
 **Rollback:** reflash a previous `little_arcade.bin` at 0x10000, or restore the full factory dump with `write_flash 0x0 <backup>.bin`.
 
+## Color Pop exact port: device evidence (one physical board, COM16)
+
+Image: `little_arcade.bin` 1,231,456 B. All 38 host tests passed, and the golden diff
+(`tools/quality_bar_golden`) matched 23/23 frames against `v2/reference/quality_bar.html`
+(PSNR 42–46 dB).
+
+- **SPI clock raised to 40 MHz** (`kLcdSpiHz` in `main/main.cpp`). The owner reported a clean
+  picture, with no tearing, shifted lines or colour errors. 60 and 80 MHz are still untested.
+- **Render loop:** about 100–120 redraws per 10 s while playing.
+  - paint 13–18 ms on average;
+  - ctx2d raster 24–32 ms on average, with tiles split between both cores (core 0 draws about 47%);
+  - LVGL flush 20–27 ms on average;
+  - 38–51 dirty tiles per frame.
+- **Audio** (`ColorPopScore` at 16 kHz): `render_max` is about 2 ms per 16 ms block. Before the
+  block-rate compressor it was about 18 ms, which caused underruns that sounded "digitized".
+- The owner judged the motion "smooth enough" and the sound a good match for the browser reference.
+
+**Device rules learned:**
+- The ESP32-S3 FPU is single-precision only. Keep `double` and `std::sin`/`std::pow` on doubles
+  out of per-frame and per-sample code; on the device, `double` was about 400× slower than on the host.
+- Audio scores must run well under their block time. Watch `[audio] render_max`.
+
+**Rollback:** set `kLcdSpiHz` back to `27 * 1000 * 1000`, or reflash the previous image.
+
 ## P01 build evidence (container build only — not run on hardware)
 
 Environment: `espressif/idf:v5.5.6` (digest `sha256:bf72fe7a15c2…`), xtensa-esp-elf GCC 14.2.0. These numbers were recorded

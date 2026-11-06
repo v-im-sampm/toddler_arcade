@@ -250,6 +250,10 @@ Intent color_intent(color_pop::Color c) {
   return Intent::UNKNOWN;
 }
 
+Rect bubble_rect(const color_pop::Bubble& b) {
+  return Rect{static_cast<int16_t>(b.x - 4), static_cast<int16_t>(b.y - 4), 8, 8};
+}
+
 // Deterministic "child" for Color Pop: each round taps a wrong bubble,
 // sometimes asks AGAIN via the badge, then answers by touch or (every third
 // round) by voice.
@@ -268,8 +272,8 @@ class ColorPopPlayer {
     const uint32_t round = g.rounds_completed();
     if (step_ == 0 && t >= 400) {
       for (std::size_t i = 0; i < g.bubble_count(); ++i) {
-        if (g.bubble(i).color != g.target()) {
-          tap(a, g.bubble(i).rect, now);
+        if (g.bubble(i).color != g.target() && g.bubble(i).state == color_pop::BubbleState::FLOAT) {
+          tap(a, bubble_rect(g.bubble(i)), now);
           break;
         }
       }
@@ -282,8 +286,8 @@ class ColorPopPlayer {
         a.voice(color_intent(g.target()), now);
       } else {
         for (std::size_t i = 0; i < g.bubble_count(); ++i) {
-          if (g.bubble(i).color == g.target()) {
-            tap(a, g.bubble(i).rect, now);
+          if (g.bubble(i).color == g.target() && g.bubble(i).state == color_pop::BubbleState::FLOAT) {
+            tap(a, bubble_rect(g.bubble(i)), now);
             break;
           }
         }
@@ -685,14 +689,14 @@ int run_bench(const Options& opt) {
         pop_phase = static_cast<int>(g.phase());
         phase_start = g_sim_now;
       }
-      if (g.wiggling() != last_wiggle) {
-        last_wiggle = g.wiggling();
+      if (g.hint() != last_wiggle) {
+        last_wiggle = g.hint();
         wiggle_start = g_sim_now;
       }
       const uint32_t in_phase = g_sim_now - phase_start;
       plan.maybe(1, g.phase() == Phase::INTRO && in_phase >= 100, state.frame);
       plan.maybe(2, g.phase() == Phase::PLAY && g.bubble_count() == 2 && in_phase >= 100, state.frame);
-      plan.maybe(3, last_wiggle >= 0 && g_sim_now - wiggle_start >= 66 && g.hint_active(), state.frame);
+      plan.maybe(3, last_wiggle >= 1 && g_sim_now - wiggle_start >= 400, state.frame);
       plan.maybe(4, g.phase() == Phase::CELEBRATE && in_phase >= 400, state.frame);
       plan.maybe(5, g.phase() == Phase::PLAY && g.bubble_count() == 4 && in_phase >= 100, state.frame);
     }

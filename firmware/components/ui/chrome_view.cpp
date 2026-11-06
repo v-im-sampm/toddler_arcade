@@ -55,16 +55,31 @@ lv_obj_t* make_button(lv_obj_t* parent, const Rect& r, const lv_image_dsc_t* ico
 void ChromeView::create(lv_obj_t* parent) {
   const float s = static_cast<float>(kIcon);
   home_btn_ = make_button(parent, kHomeButton, home_.build([s](float x, float y) { return home_icon(x, y, s); }));
-  make_button(parent, kMicButton, mic_.build([s](float x, float y) { return mic_icon(x, y, s); }));
+  mic_btn_ = make_button(parent, kMicButton, mic_.build([s](float x, float y) { return mic_icon(x, y, s); }));
+  apply();
 }
 
 void ChromeView::set_home_visible(bool visible) {
-  if (!home_btn_) return;
-  if (visible) {
-    lv_obj_remove_flag(home_btn_, LV_OBJ_FLAG_HIDDEN);
-  } else {
-    lv_obj_add_flag(home_btn_, LV_OBJ_FLAG_HIDDEN);
-  }
+  home_visible_ = visible;
+  apply();
+}
+
+void ChromeView::set_visible(bool visible) {
+  visible_ = visible;
+  apply();
+}
+
+void ChromeView::apply() {
+  auto show = [](lv_obj_t* o, bool v) {
+    if (!o) return;
+    if (v) {
+      lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+    }
+  };
+  show(home_btn_, visible_ && home_visible_);
+  show(mic_btn_, visible_);
 }
 
 }  // namespace little_arcade::ui

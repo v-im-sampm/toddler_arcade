@@ -36,12 +36,19 @@ class ChromeView {
   void create(lv_obj_t* parent);
   // The launcher has no Home button; games show it.
   void set_home_visible(bool visible);
+  // Hides both keys (games that draw their own chrome, e.g. Color Pop). Hit
+  // rects are unchanged: SceneManager still handles them.
+  void set_visible(bool visible);
 
  private:
   static constexpr int kIcon = 40;
   A8Image<kIcon, kIcon> home_{};
   A8Image<kIcon, kIcon> mic_{};
   lv_obj_t* home_btn_ = nullptr;
+  lv_obj_t* mic_btn_ = nullptr;
+  bool home_visible_ = true;
+  bool visible_ = true;
+  void apply();
 };
 
 lv_color_t to_lv(uint32_t rgb);

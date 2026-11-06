@@ -238,6 +238,7 @@ void Arcade::show_layer(Layer layer) {
     lv_obj_t* old = layers_[static_cast<int>(shown_)];
     set_visible(old, false);
     if (shown_ != Layer::MENU) lv_obj_clean(old);  // free the closed game's objects
+    if (shown_ == Layer::COLOR_POP) color_view_.release();
   }
   shown_ = layer;
   // Each view's create() fully (re)initialises its state, so a relaunched
@@ -245,6 +246,8 @@ void Arcade::show_layer(Layer layer) {
   create_view(layer);
   set_visible(layers_[static_cast<int>(layer)], true);
   chrome_.set_home_visible(layer != Layer::MENU);
+  // Color Pop paints its own reference-style Home and mic keys.
+  chrome_.set_visible(layer != Layer::COLOR_POP);
 }
 
 void Arcade::tick(uint32_t now_ms) {

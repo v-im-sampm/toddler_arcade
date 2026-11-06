@@ -1,7 +1,7 @@
+#include <cmath>
 #include <initializer_list>
 
 #include "little_arcade/games/color_pop.hpp"
-#include "little_arcade/scene_manager.hpp"
 #include "little_arcade/testing/test_support.hpp"
 
 using namespace little_arcade;
@@ -9,299 +9,258 @@ using namespace little_arcade::color_pop;
 using little_arcade::testing::RecordingFeedback;
 
 namespace {
+constexpr double kDt = 1.0 / 60;
 
 struct Harness {
-  Rng rng{42};
+  Rng rng;
   RecordingFeedback fb;
   GameContext ctx{rng, fb};
   ColorPopGame game;
-  uint32_t t = 0;
+  uint32_t ms = 0;
 
-  explicit Harness(uint32_t seed = 42) : rng(seed) {}
-  void enter_and_play() {
-    game.enter(ctx);
-    game.update(ColorPopGame::kIntroMs);
+  explicit Harness(uint32_t seed = 42) : rng(seed) { game.enter(ctx); }
+  void run(double seconds) {
+    for (int i = 0, n = static_cast<int>(std::lround(seconds / kDt)); i < n; ++i) {
+      game.step(kDt);
+      game.frame_drawn();
+    }
   }
-  int target_index() const {
+  void to_play() {
+    run(1.25);
+    run(0.8);  // bubbles finish rising
+  }
+  int find(bool target) const {
     for (std::size_t i = 0; i < game.bubble_count(); ++i) {
-      if (game.bubble(i).color == game.target()) return static_cast<int>(i);
+      const Bubble& b = game.bubble(i);
+      if ((b.color == game.target()) == target && b.state == BubbleState::FLOAT) return static_cast<int>(i);
     }
     return -1;
   }
-  int wrong_index() const {
-    for (std::size_t i = 0; i < game.bubble_count(); ++i) {
-      if (game.bubble(i).color != game.target()) return static_cast<int>(i);
-    }
-    return -1;
+  void tap(double x, double y) {
+    game.handle(make_touch_event(static_cast<int16_t>(std::lround(x)), static_cast<int16_t>(std::lround(y)), ms += 100));
   }
   void tap_bubble(int i) {
-    const Rect& r = game.bubble(static_cast<std::size_t>(i)).rect;
-    game.handle(make_touch_event(static_cast<int16_t>(r.x + r.w / 2),
-                                 static_cast<int16_t>(r.y + r.h / 2), t += 200));
+    const Bubble& b = game.bubble(static_cast<std::size_t>(i));
+    tap(b.x, b.y);
   }
-  void say(Intent intent) { game.handle(make_voice_event(intent, t += 200)); }
-  void finish_celebration() { game.update(ColorPopGame::kCelebrateMs); }
+  void say(Intent intent) { game.handle(make_voice_event(intent, ms += 100)); }
 };
 
 Intent intent_for(Color c) {
   switch (c) {
-    case Color::RED:
-      return Intent::RED;
-    case Color::BLUE:
-      return Intent::BLUE;
-    case Color::GREEN:
-      return Intent::GREEN;
-    case Color::YELLOW:
-      return Intent::YELLOW;
+    case Color::RED: return Intent::RED;
+    case Color::BLUE: return Intent::BLUE;
+    case Color::GREEN: return Intent::GREEN;
+    default: return Intent::YELLOW;
   }
-  return Intent::UNKNOWN;
 }
 
-void test_layout_is_toddler_safe() {
-  for (std::size_t i = 0; i < ColorPopGame::kSlotCount; ++i) {
-    const Rect& a = ColorPopGame::kSlots[i];
-    EXPECT(a.on_screen() && a.large_enough());
-    EXPECT(!a.overlaps(kHomeButton) && !a.overlaps(kMicButton));
-    EXPECT(!a.overlaps(ColorPopGame::kTargetBadge));
-    for (std::size_t j = i + 1; j < ColorPopGame::kSlotCount; ++j) {
-      const Rect& b = ColorPopGame::kSlots[j];
-      const Rect grown{static_cast<int16_t>(a.x - kMinSpacing), static_cast<int16_t>(a.y - kMinSpacing),
-                       static_cast<int16_t>(a.w + 2 * kMinSpacing), static_cast<int16_t>(a.h + 2 * kMinSpacing)};
-      EXPECT(!grown.overlaps(b));
-    }
-  }
-  const Rect& badge = ColorPopGame::kTargetBadge;
-  EXPECT(badge.on_screen() && badge.large_enough());
-  EXPECT(!badge.overlaps(kHomeButton) && !badge.overlaps(kMicButton));
-}
-
-void test_intro_then_prompt() {
+void test_intro_then_first_round() {
   Harness h;
-  h.game.enter(h.ctx);
   EXPECT(h.game.phase() == Phase::INTRO);
-  EXPECT(h.game.bubble_count() == 2);
-  EXPECT(!h.fb.any(Cue::PROMPT));
-  h.game.update(ColorPopGame::kIntroMs - 1);
-  EXPECT(h.game.phase() == Phase::INTRO);
-  h.game.update(1);
+  EXPECT(h.fb.count_of(Cue::AMBIENT) == 1);
+  EXPECT(h.game.crab().y_off == 40);
+  h.run(1.0);
+  EXPECT(h.game.phase() == Phase::INTRO && h.game.crab().y_off < 1);
+  h.run(0.25);
   EXPECT(h.game.phase() == Phase::PLAY);
-  EXPECT(h.fb.last()->cue == Cue::PROMPT && h.fb.last()->variant == static_cast<uint8_t>(h.game.target()));
+  EXPECT(h.game.has_target());
+  EXPECT(h.game.bubble_count() == 2);
+  EXPECT(h.game.bubble_target_count() == 2);
+  EXPECT(!h.fb.any(Cue::PROMPT));
+  h.run(0.3);  // prompt is scheduled 0.25 s after the round starts
+  EXPECT(h.fb.count_of(Cue::PROMPT) == 1);
+  EXPECT(h.fb.last()->variant == static_cast<uint8_t>(h.game.target()));
+  h.run(0.6);
+  for (std::size_t i = 0; i < h.game.bubble_count(); ++i) {
+    const Bubble& b = h.game.bubble(i);
+    EXPECT(b.state == BubbleState::FLOAT);
+    EXPECT(std::fabs(b.y - b.by) <= 2.01);
+    EXPECT(b.x > 40 && b.x < 280 && b.y > 60 && b.y < 200);
+  }
 }
 
-void test_intro_tap_skips_without_answering() {
+void test_intro_skip_and_determinism() {
   Harness h;
-  h.game.enter(h.ctx);
-  h.tap_bubble(h.target_index());
+  h.tap(160, 120);
+  h.game.step(kDt);
+  EXPECT(h.game.phase() == Phase::PLAY);
+
+  Harness a(7), b(7), c(8);
+  a.to_play();
+  b.to_play();
+  c.to_play();
+  bool same = a.game.bubble_count() == b.game.bubble_count() && a.game.target() == b.game.target();
+  for (std::size_t i = 0; same && i < a.game.bubble_count(); ++i) {
+    same = a.game.bubble(i).x == b.game.bubble(i).x && a.game.bubble(i).y == b.game.bubble(i).y &&
+           a.game.bubble(i).color == b.game.bubble(i).color;
+  }
+  EXPECT(same);
+  bool differs = a.game.target() != c.game.target();
+  for (std::size_t i = 0; !differs && i < a.game.bubble_count() && i < c.game.bubble_count(); ++i) {
+    differs = a.game.bubble(i).x != c.game.bubble(i).x;
+  }
+  EXPECT(differs);
+}
+
+void test_correct_pop_celebrates_and_continues() {
+  Harness h;
+  h.to_play();
+  const Color target = h.game.target();
+  const int t = h.find(true);
+  EXPECT(t >= 0);
+  h.tap_bubble(t);
+  EXPECT(h.game.bubble(static_cast<std::size_t>(t)).state == BubbleState::PRESS);
+  h.run(0.1);  // squash, then pop
+  EXPECT(h.game.phase() == Phase::CELEBRATE);
+  EXPECT(h.game.rounds_completed() == 1);
+  EXPECT(h.fb.count_of(Cue::SUCCESS) == 1);
+  EXPECT(h.game.particle_count() > 0 && h.game.ring_count() > 0);
+  EXPECT(h.game.crab().clap > 0 && h.game.badge().happy > 0);
+  for (std::size_t i = 0; i < h.game.bubble_count(); ++i) EXPECT(h.game.bubble(i).state == BubbleState::LEAVE);
+  h.run(0.2);
+  EXPECT(h.fb.count_of(Cue::CELEBRATE) == 1);
+  EXPECT(h.fb.last()->variant == 0);  // small celebration
+  h.run(1.3);
+  EXPECT(h.game.phase() == Phase::PLAY);
+  EXPECT(h.game.target() != target);  // bag never repeats a colour back-to-back
+  EXPECT(h.game.bubble_count() == 2);
+}
+
+void test_wrong_pop_is_gentle_and_escalates_help() {
+  Harness h;
+  h.to_play();
+  int w = h.find(false);
+  h.tap_bubble(w);
+  h.run(0.1);
   EXPECT(h.game.phase() == Phase::PLAY);
   EXPECT(h.game.rounds_completed() == 0);
+  EXPECT(h.fb.any(Cue::NOTE));
+  EXPECT((h.fb.last()->variant & 0xF0) == cue::kOtherPop);
+  EXPECT(!h.fb.any(Cue::TRY_AGAIN));  // no buzzer, no failure state
+  EXPECT(h.game.hint() == 1);
+  EXPECT(h.game.crab().pointing);
+  EXPECT(h.game.bubble_count() == 1);
+  h.run(1.0);  // the popped bubble floats back up
+  EXPECT(h.game.bubble_count() == 2);
+  h.run(0.7);
+  w = h.find(false);
+  EXPECT(w >= 0);
+  h.tap_bubble(w);
+  h.run(0.1);
+  EXPECT(h.game.hint() == 2);  // helper hand + enlarged target
+  const int t = h.find(true);
+  EXPECT(t >= 0);
+  h.run(0.5);
+  EXPECT(h.game.bubble(static_cast<std::size_t>(t)).s > 1.1);
 }
 
-void test_round_invariants_and_progression() {
+void test_idle_hints() {
   Harness h;
-  h.enter_and_play();
-  for (int round = 0; round < 20; ++round) {
-    const std::size_t n = h.game.bubble_count();
-    EXPECT(n >= ColorPopGame::kMinBubbles && n <= ColorPopGame::kMaxBubbles);
-    EXPECT(h.target_index() >= 0);  // target always on screen
-    for (std::size_t i = 0; i < n; ++i) {
-      for (std::size_t j = i + 1; j < n; ++j) {
-        EXPECT(h.game.bubble(i).color != h.game.bubble(j).color);
-        EXPECT(!h.game.bubble(i).rect.overlaps(h.game.bubble(j).rect));
-      }
-    }
-    const Color previous = h.game.target();
-    h.tap_bubble(h.target_index());
-    EXPECT(h.game.phase() == Phase::CELEBRATE);
-    h.finish_celebration();
-    EXPECT(h.game.phase() == Phase::PLAY);
-    EXPECT(h.game.target() != previous);  // no immediate repeat
-  }
-  EXPECT(h.game.rounds_completed() == 20);
-  EXPECT(h.game.bubble_count() == ColorPopGame::kMaxBubbles);
-}
-
-void test_positions_are_randomized() {
-  bool layouts_differ = false;
-  Harness first(1);
-  first.enter_and_play();
-  for (uint32_t seed = 2; seed < 20 && !layouts_differ; ++seed) {
-    Harness other(seed);
-    other.enter_and_play();
-    for (std::size_t i = 0; i < first.game.bubble_count(); ++i) {
-      if (first.game.bubble(i).rect.x != other.game.bubble(i).rect.x ||
-          first.game.bubble(i).rect.y != other.game.bubble(i).rect.y) {
-        layouts_differ = true;
-      }
-    }
-  }
-  EXPECT(layouts_differ);
-}
-
-void test_same_seed_is_deterministic() {
-  Harness a(7), b(7);
-  a.enter_and_play();
-  b.enter_and_play();
-  for (int round = 0; round < 5; ++round) {
-    EXPECT(a.game.target() == b.game.target());
-    EXPECT(a.game.bubble_count() == b.game.bubble_count());
-    for (std::size_t i = 0; i < a.game.bubble_count(); ++i) {
-      EXPECT(a.game.bubble(i).color == b.game.bubble(i).color);
-      EXPECT(a.game.bubble(i).rect.x == b.game.bubble(i).rect.x);
-    }
-    a.tap_bubble(a.target_index());
-    b.say(intent_for(b.game.target()));
-    a.finish_celebration();
-    b.finish_celebration();
-  }
-}
-
-void test_voice_and_touch_equivalent() {
-  Harness touch(9), voice(9);
-  touch.enter_and_play();
-  voice.enter_and_play();
-  touch.tap_bubble(touch.target_index());
-  voice.say(intent_for(voice.game.target()));
-  EXPECT(touch.game.phase() == Phase::CELEBRATE && voice.game.phase() == Phase::CELEBRATE);
-  EXPECT(touch.game.rounds_completed() == 1 && voice.game.rounds_completed() == 1);
-  EXPECT(touch.fb.count_of(Cue::SUCCESS) == 1 && voice.fb.count_of(Cue::SUCCESS) == 1);
-}
-
-void test_wrong_answer_is_gentle() {
-  Harness h;
-  h.enter_and_play();
-  const int wrong = h.wrong_index();
-  h.tap_bubble(wrong);
-  EXPECT(h.game.phase() == Phase::PLAY);
-  EXPECT(h.game.wiggling() == wrong);
-  EXPECT(h.game.hint_active());
-  EXPECT(h.fb.count_of(Cue::TRY_AGAIN) == 1);
-  EXPECT(!h.game.bubble(static_cast<std::size_t>(wrong)).popped);
-  h.game.update(ColorPopGame::kHintMs);
-  EXPECT(h.game.wiggling() == -1 && !h.game.hint_active());
-  h.tap_bubble(h.target_index());  // still winnable, nothing lost
-  EXPECT(h.game.rounds_completed() == 1);
-}
-
-void test_colour_not_on_screen() {
-  Harness h;
-  h.enter_and_play();  // round 1 shows two colours
-  Intent absent = Intent::UNKNOWN;
-  for (Color c : {Color::RED, Color::BLUE, Color::GREEN, Color::YELLOW}) {
-    bool shown = false;
-    for (std::size_t i = 0; i < h.game.bubble_count(); ++i) shown |= h.game.bubble(i).color == c;
-    if (!shown) absent = intent_for(c);
-  }
-  h.say(absent);
-  EXPECT(h.game.phase() == Phase::PLAY && h.game.hint_active());
-  EXPECT(h.fb.count_of(Cue::TRY_AGAIN) == 1);
-}
-
-void test_repeated_input_during_celebration() {
-  Harness h;
-  h.enter_and_play();
-  const int target = h.target_index();
-  h.tap_bubble(target);
-  h.tap_bubble(target);
-  h.say(intent_for(h.game.target()));
-  h.tap_bubble(h.wrong_index());
-  EXPECT(h.game.rounds_completed() == 1);
-  EXPECT(h.fb.count_of(Cue::SUCCESS) == 1 && h.fb.count_of(Cue::TRY_AGAIN) == 0);
-}
-
-void test_again_help_and_badge_replay_prompt() {
-  Harness h;
-  h.enter_and_play();
+  h.to_play();
   const int prompts = h.fb.count_of(Cue::PROMPT);
+  h.run(5.4);
+  EXPECT(h.game.hint() == 1);  // idle 6 s from round start
+  EXPECT(h.fb.count_of(Cue::PROMPT) == prompts);
+  h.run(6.5);
+  EXPECT(h.fb.count_of(Cue::PROMPT) == prompts + 1);  // spoken once at 12 s
+  h.run(10);
+  EXPECT(h.fb.count_of(Cue::PROMPT) == prompts + 1);
+}
+
+void test_badge_crab_and_water_taps() {
+  Harness h;
+  h.to_play();
+  int prompts = h.fb.count_of(Cue::PROMPT);
+  h.tap(160, 30);
+  EXPECT(h.fb.count_of(Cue::PROMPT) == prompts + 1);
+  EXPECT(h.game.hint() == 0);
+  h.run(0.3);
+  h.tap(160, 30);  // double tap = help
+  EXPECT(h.game.hint() == 1);
+  h.tap(30, 220);
+  EXPECT(h.fb.last()->cue == Cue::REACTION && h.game.crab().giggle > 0);
+  const std::size_t rings = h.game.ring_count();
+  h.tap(300, 140);
+  if (h.fb.last()->cue == Cue::NOTE) {  // empty water, unless a bubble sits there
+    EXPECT(h.fb.last()->variant == cue::kRipple);
+    EXPECT(h.game.ring_count() == rings + 1);
+  }
+}
+
+void test_voice_matches_touch() {
+  Harness h;
+  h.to_play();
   h.say(Intent::AGAIN);
-  h.say(Intent::HELP);
-  const Rect& b = ColorPopGame::kTargetBadge;
-  h.game.handle(make_touch_event(static_cast<int16_t>(b.x + 10), static_cast<int16_t>(b.y + 10), h.t += 200));
-  EXPECT(h.fb.count_of(Cue::PROMPT) == prompts + 3);
-  EXPECT(h.game.hint_active() && h.game.rounds_completed() == 0);
-}
-
-void test_empty_tap_and_unrelated_intents_are_harmless() {
-  Harness h;
-  h.enter_and_play();
-  h.game.handle(make_touch_event(310, 100, h.t += 200));  // right margin, no slot
-  h.game.handle(make_touch_event(120, 150, h.t += 200));  // gap between slots
-  h.say(Intent::GO);
-  h.say(Intent::YES);
-  EXPECT(h.game.phase() == Phase::PLAY && h.game.rounds_completed() == 0);
-  EXPECT(h.fb.count_of(Cue::TRY_AGAIN) == 0);
-}
-
-void test_audio_disabled_keeps_visual_target() {
-  Harness h;
-  EXPECT(!h.ctx.audio_enabled);
-  h.enter_and_play();
-  // Every colour has its own pattern, so the badge/bubbles are readable without colour or audio.
-  const Color all[] = {Color::RED, Color::BLUE, Color::GREEN, Color::YELLOW};
-  for (std::size_t i = 0; i < kColorCount; ++i) {
-    for (std::size_t j = i + 1; j < kColorCount; ++j) EXPECT(pattern_for(all[i]) != pattern_for(all[j]));
+  EXPECT(h.fb.last()->cue == Cue::PROMPT);
+  Color absent = Color::RED;
+  for (Color c : {Color::RED, Color::BLUE, Color::GREEN, Color::YELLOW}) {
+    bool present = false;
+    for (std::size_t i = 0; i < h.game.bubble_count(); ++i) present = present || h.game.bubble(i).color == c;
+    if (!present) absent = c;
   }
-  NullFeedback silent;
-  Rng rng(3);
-  GameContext quiet(rng, silent);
-  ColorPopGame g;
-  g.enter(quiet);
-  g.update(ColorPopGame::kIntroMs);
-  EXPECT(g.phase() == Phase::PLAY && g.bubble_count() == 2);
+  h.say(intent_for(absent));
+  EXPECT(h.game.hint() >= 1 && h.fb.last()->cue == Cue::PROMPT);
+  h.say(intent_for(h.game.target()));
+  h.run(0.1);
+  EXPECT(h.game.phase() == Phase::CELEBRATE && h.game.rounds_completed() == 1);
 }
 
-void test_navigation_mid_animation_and_reentry() {
-  Harness h;
-  h.enter_and_play();
-  h.tap_bubble(h.target_index());
-  EXPECT(h.game.phase() == Phase::CELEBRATE);
-  h.game.exit();  // Home pressed mid-celebration
-  EXPECT(!h.game.active());
-  h.game.update(5000);  // stray update after exit is harmless
-  h.game.handle(make_voice_event(Intent::RED, 1));
-  h.game.enter(h.ctx);  // fresh start, no saved profile
-  EXPECT(h.game.phase() == Phase::INTRO && h.game.rounds_completed() == 0);
-}
-
-void test_through_scene_manager() {
-  ColorPopGame game;
-  GameEntry entries[] = {{GameId::COLOR_POP, Intent::COLORS, &game}};
-  RecordingFeedback fb;
-  SceneManager mgr(entries, 1, fb);
-  mgr.handle(make_voice_event(Intent::COLORS, 100));
-  EXPECT(game.active());
-  mgr.update(ColorPopGame::kIntroMs);
-  mgr.handle(make_voice_event(Intent::GO, 300));  // out of context: never reaches game
-  EXPECT(fb.count_of(Cue::TRY_AGAIN) == 0);
-  Intent say = Intent::UNKNOWN;
-  switch (game.target()) {
-    case Color::RED: say = Intent::RED; break;
-    case Color::BLUE: say = Intent::BLUE; break;
-    case Color::GREEN: say = Intent::GREEN; break;
-    case Color::YELLOW: say = Intent::YELLOW; break;
+void test_difficulty_caps_and_long_play() {
+  Harness h(99);
+  h.to_play();
+  std::size_t max_parts = 0, max_bubbles = 0, max_decor = 0;
+  for (int round = 0; round < 40; ++round) {
+    for (int guard = 0; guard < 600 && h.game.phase() != Phase::PLAY; ++guard) h.run(kDt);
+    h.run(0.7);
+    const int t = h.find(true);
+    EXPECT(t >= 0);
+    if (t < 0) break;
+    h.tap_bubble(t);
+    for (int k = 0; k < 6; ++k) {  // celebration taps make sparkles
+      h.run(0.12);
+      h.tap(60 + k * 40, 120);
+      if (h.game.particle_count() > max_parts) max_parts = h.game.particle_count();
+    }
+    if (h.game.bubble_count() > max_bubbles) max_bubbles = h.game.bubble_count();
+    if (h.game.decor_count() > max_decor) max_decor = h.game.decor_count();
+    if (round == 2) {
+      h.run(1.0);
+      h.run(0.8);
+      EXPECT(h.game.bubble_target_count() == 3);  // grows after 3 successes
+    }
   }
-  mgr.handle(make_voice_event(say, 500));
-  EXPECT(game.rounds_completed() == 1);
-  mgr.handle(make_touch_event(10, 10, 900));  // Home
-  EXPECT(!game.active() && mgr.mode() == SceneManager::Mode::MENU);
+  EXPECT(h.game.rounds_completed() == 40);
+  EXPECT(h.game.bubble_target_count() == 4);
+  EXPECT(max_parts <= ColorPopGame::kMaxParticles);
+  EXPECT(max_bubbles <= ColorPopGame::kMaxBubbles);
+  EXPECT(max_decor <= ColorPopGame::kMaxDecor);
+  EXPECT(h.fb.count_of(Cue::CELEBRATE) >= 39);
+  int big = 0;
+  for (int i = 0; i < h.fb.count && i < RecordingFeedback::kCapacity; ++i) {
+    big += h.fb.entries[i].cue == Cue::CELEBRATE && h.fb.entries[i].variant == 1;
+  }
+  EXPECT(big >= 5);  // every 5th success is the big one
 }
 
+void test_mulberry_matches_reference() {
+  // mulberry32(7) first outputs, computed with the reference JS function.
+  Mulberry32 r(7);
+  EXPECT(std::fabs(r.next() - 0.011704753153026104) < 1e-15);
+  EXPECT(std::fabs(r.next() - 0.061958257574588060) < 1e-15);
+  EXPECT(std::fabs(r.next() - 0.97690763277933002) < 1e-15);
+}
 }  // namespace
 
 int main() {
-  test_layout_is_toddler_safe();
-  test_intro_then_prompt();
-  test_intro_tap_skips_without_answering();
-  test_round_invariants_and_progression();
-  test_positions_are_randomized();
-  test_same_seed_is_deterministic();
-  test_voice_and_touch_equivalent();
-  test_wrong_answer_is_gentle();
-  test_colour_not_on_screen();
-  test_repeated_input_during_celebration();
-  test_again_help_and_badge_replay_prompt();
-  test_empty_tap_and_unrelated_intents_are_harmless();
-  test_audio_disabled_keeps_visual_target();
-  test_navigation_mid_animation_and_reentry();
-  test_through_scene_manager();
-  return little_arcade::testing::finish("color pop tests");
+  test_intro_then_first_round();
+  test_intro_skip_and_determinism();
+  test_correct_pop_celebrates_and_continues();
+  test_wrong_pop_is_gentle_and_escalates_help();
+  test_idle_hints();
+  test_badge_crab_and_water_taps();
+  test_voice_matches_touch();
+  test_difficulty_caps_and_long_play();
+  test_mulberry_matches_reference();
+  return testing::finish("color_pop_test");
 }

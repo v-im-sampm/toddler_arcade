@@ -1,0 +1,45 @@
+# Scripted Color Pop session replayed identically by the reference page
+# (golden.mjs, in Edge) and the C++ port (color_pop_reference_render).
+# Frames are 1/60 s steps from the INTRO phase (START screen skipped).
+# Commands run before that frame's update():
+#   seed <gameplay> <cosmetic>    grng / frng (Math.random) seeds
+#   tap <frame> <x> <y>           pointerdown in logical 320x240 pixels
+#   tap_target <frame>            tap the floating/rising target bubble
+#   tap_other <frame>             tap the first floating non-target bubble
+#   capture <frame>               save the frame drawn after that update
+#   end <frame>
+seed 1234 99
+capture 20
+capture 60
+capture 80
+capture 140
+tap_other 150
+capture 154
+capture 160
+capture 175
+tap_other 262
+capture 266
+capture 300
+capture 330
+tap_target 340
+capture 346
+capture 352
+capture 370
+tap 368 160 140
+capture 372
+capture 400
+tap 450 300 140
+capture 456
+tap 470 40 215
+capture 474
+capture 480
+tap_target 500
+tap_target 650
+tap_target 800
+tap_target 950
+capture 958
+capture 970
+capture 990
+capture 1020
+capture 1100
+end 1100

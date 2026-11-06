@@ -87,6 +87,9 @@ proof of panel color, frame rate or device memory.
 - [ ] Reviewed screenshots show a distinct layered setting, shaded focal art and coherent chrome in each required state
 - [ ] Quality replay covers the hint ladder, rapid taps, empty taps, and cue/visual pairing; animation never blocks input beyond its documented window
 - [ ] Safety lint, golden tests and budgets green
+- [ ] If the game has a reference sketch: the `tools/quality_bar_golden` diff passes every frame,
+      the audio score is a node-for-node port, and the device `[audio] render_max` stays well under
+      the block time (see `06` §4)
 - [ ] Narration recorded/rendered, loudness-normalised, provenance recorded
 - [ ] Web + phone + device builds run it. Device evidence attached: FPS p95, worst frame, heap/PSRAM
       minima, touch→sound latency

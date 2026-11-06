@@ -72,6 +72,16 @@ Slot positions are jittered by ±6 units per round (seeded) so the layout feels 
 Device: bubbles are baked sprites (base + highlight overlay). Squash and float are runtime scale and
 translate. Pinch is a baked sprite sheet at 12–15 fps. The background is a static cached layer.
 
+**As built (owner direction, 2026):** the shipped Color Pop is an exact port of
+[`quality_bar.html`](../reference/quality_bar.html), not the design above. Its scene, bubbles,
+motion and Web Audio score are reproduced line by line:
+- painter: `firmware/components/games/color_pop/view/color_pop_paint.cpp`, drawn with `ui/ctx2d`;
+- score: `firmware/components/audio/color_pop_score.cpp`;
+- verification: `tools/quality_bar_golden` (23/23 frames pass);
+- device evidence: `firmware/README.md`.
+
+Where this section and the reference disagree, the reference wins.
+
 ## 5. Audio
 - Identity: C major pentatonic, 104 BPM. Marimba + bubble plinks + shaker. Bed = waves. Layers rise
   with streaks of play and fall when idle.

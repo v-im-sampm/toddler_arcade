@@ -47,7 +47,7 @@ Detailed per-game facts are in each v2 game doc (`../games/*.md`, "v1 baseline" 
 | PSRAM free | 8,385,768 B | Before game content. PSRAM was essentially unused by v1 |
 | UI task stack | 11.7 KB free | |
 | Color Pop render + flush | avg 17.3 ms, max 42.1 ms, ≈ 4.9 K px per redraw | 10 s session, partial redraws |
-| SPI | 27 MHz, BGR, inverted, landscape via swap+mirror | |
+| SPI | 27 MHz in v1; 40 MHz validated on one board for v2 Color Pop (see `firmware/README.md`), BGR, inverted, landscape via swap+mirror | |
 | Audio | Full-duplex I2S0 at 16 kHz; game cue peak ≈ −18.6 dBFS at level 4; no brownout | Owner confirms audible. SPL, current and pop are **unmeasured** |
 
 **Derived constraint (important for v2):** a full 320×240 RGB565 frame is 153,600 B. At 27 MHz SPI
