@@ -136,9 +136,11 @@ void BeatSharksView::create(lv_obj_t* parent) {
   for (std::size_t r = 0; r < kRows; ++r) {
     lv_style_t& st = cell_styles_[r];
     lv_style_init(&st);
-    lv_style_set_radius(&st, 10);
+    lv_style_set_radius(&st, 12);
     lv_style_set_bg_color(&st, to_lv(art::kRowTints[r]));
-    lv_style_set_bg_opa(&st, LV_OPA_80);
+    lv_style_set_bg_grad_color(&st, to_lv(ui::mix(art::kRowTints[r], art::kRowColors[r], 0.14f)));
+    lv_style_set_bg_grad_dir(&st, LV_GRAD_DIR_VER);
+    lv_style_set_bg_opa(&st, LV_OPA_COVER);
     lv_style_set_border_color(&st, to_lv(art::kRowColors[r]));
     lv_style_set_border_width(&st, 2);
     for (std::size_t s = 0; s < kSteps; ++s) {
