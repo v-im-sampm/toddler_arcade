@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://little-arcade.local/schemas/game.manifest.schema.json",
+  "title": "Little Arcade v2 game manifest",
+  "description": "Declares everything the shell, pipeline and CI need to register, budget and test a game. Games are registered from manifests; no shell code edits.",
+  "type": "object",
+  "required": ["id", "version", "sdk", "template", "launcher", "capabilities", "voice", "audio_identity", "scenes", "assets", "budgets", "tests"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,31}$" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "sdk": { "type": "string", "description": "Minimum SDK semver range, e.g. '^0.1'." },
+    "template": { "enum": ["tap-choice", "free-play", "music-toy", "sequencer", "character-pet", "custom"] },
+    "world_location": { "type": "string", "description": "Place on Toy Box Island, e.g. 'Bubble Beach'." },
+    "launcher": {
+      "type": "object",
+      "required": ["tile_asset", "tile_idle_anim", "order"],
+      "additionalProperties": false,
+      "properties": {
+        "tile_asset": { "$ref": "#/$defs/assetId" },
+        "tile_idle_anim": { "$ref": "#/$defs/assetId" },
+        "tile_sound": { "$ref": "#/$defs/assetId" },
+        "voice_intent": { "type": ["string", "null"], "description": "Intent name from config/commands.json that launches this game from the menu, or null for tile-only." },
+        "order": { "type": "integer", "minimum": 0 },
+        "default_visible": { "type": "boolean", "default": true }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["music", "narration", "voice_intents", "microphone_sampler", "pointer_drag", "particles", "persistent_snapshot"] },
+      "description": "The shell denies any capability not declared. microphone_sampler requires privacy.recording."
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "recording": {
+          "type": "object",
+          "required": ["max_ms", "slots", "wipe_on"],
+          "additionalProperties": false,
+          "properties": {
+            "max_ms": { "type": "integer", "maximum": 3000 },
+            "slots": { "type": "integer", "minimum": 1, "maximum": 1 },
+            "wipe_on": {
+              "type": "array",
+              "items": { "enum": ["exit", "pause", "sleep", "parent_gate", "os_background"] },
+              "minItems": 5,
+              "uniqueItems": true
+            }
+          }
+        }
+      }
+    },
+    "voice": {
+      "type": "object",
+      "required": ["contexts", "intents"],
+      "additionalProperties": false,
+      "properties": {
+        "contexts": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "intents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["intent", "touch_equivalent"],
+            "additionalProperties": false,
+            "properties": {
+              "intent": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+              "touch_equivalent": { "type": "string", "description": "Node id or description of the touch action that does the same thing (proves touch completeness)." }
+            }
+          }
+        }
+      }
+    },
+    "audio_identity": {
+      "type": "object",
+      "required": ["key", "scale", "tempo_bpm"],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string", "pattern": "^[A-G](#|b)?$" },
+        "scale": { "enum": ["major_pentatonic", "minor_pentatonic", "major", "lydian", "mixolydian", "dorian", "chromatic_free"] },
+        "tempo_bpm": { "type": "number", "minimum": 40, "maximum": 160 },
+        "instruments": { "type": "array", "items": { "type": "string" } },
+        "ambience": { "$ref": "#/$defs/assetId" },
+        "music_layers": { "type": "array", "items": { "enum": ["bed", "low", "mid", "high"] }, "uniqueItems": true }
+      }
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "states"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "states": { "type": "array", "items": { "type": "string" }, "minItems": 2 },
+          "worst_frame_dirty_fraction": { "type": "number", "minimum": 0, "maximum": 1, "description": "Designed upper bound of screen area touched per frame on device (excluding transitions)." }
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "source"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/$defs/assetId" },
+          "kind": { "enum": ["image", "atlas", "anim_clip", "anim_rig", "sfx", "music_stem", "music_pattern", "narration", "ambience", "particle_preset", "scene", "palette"] },
+          "source": { "type": "string", "description": "Path under assets-src/ (relative to the game folder)." },
+          "device": { "type": "object", "description": "Pipeline overrides for the ESP32 export (format, dither, rate, bake).", "additionalProperties": true },
+          "provenance_ref": { "type": "string", "description": "Key into the asset provenance manifest (schemas/asset.provenance.schema.json)." }
+        }
+      }
+    },
+    "narration": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/$defs/assetId" },
+          "text": { "type": "string", "maxLength": 80 },
+          "variants": { "type": "array", "items": { "type": "string", "maxLength": 80 } },
+          "max_ms": { "type": "integer", "maximum": 2500 }
+        }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "required": ["device_flash_kib", "device_psram_kib", "web_kib"],
+      "additionalProperties": false,
+      "properties": {
+        "device_flash_kib": { "type": "integer", "minimum": 0 },
+        "device_psram_kib": { "type": "integer", "minimum": 0 },
+        "device_internal_ram_kib": { "type": "integer", "minimum": 0 },
+        "web_kib": { "type": "integer", "minimum": 0 },
+        "max_live_particles": { "type": "integer", "minimum": 0 },
+        "max_audio_voices": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "tuning": { "type": "string", "description": "Path to tuning.json (hot-reloadable gameplay numbers)." },
+    "tests": {
+      "type": "object",
+      "required": ["seed", "replays"],
+      "additionalProperties": false,
+      "properties": {
+        "seed": { "type": "integer" },
+        "replays": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["file", "covers"],
+            "additionalProperties": false,
+            "properties": {
+              "file": { "type": "string" },
+              "covers": { "type": "array", "items": { "type": "string" }, "description": "Acceptance criterion IDs from the game design doc." },
+              "device_bench": { "type": "boolean", "default": false }
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "capabilities": { "contains": { "const": "microphone_sampler" } } } },
+      "then": { "required": ["privacy"], "properties": { "privacy": { "required": ["recording"] } } }
+    }
+  ],
+  "$defs": {
+    "assetId": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)*$" }
+  }
+}

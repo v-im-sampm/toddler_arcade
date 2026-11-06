@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Little Arcade v2 – quality bar sketch (Color Pop)</title>
+<!--
+  REFERENCE SKETCH, NOT PRODUCTION CODE.
+  Purpose: show the intended *feel* of v2 (motion tokens, squash/stretch, idle life, particles,
+  harmonised pentatonic audio, hint ladder, touch ripples) on the 320×240 logical stage.
+  Values mirror ../design/tokens.json and ../schemas/examples/color_pop.tuning.json.
+  Particle cap defaults to the DEVICE cap (96) so the feel is achievable on the ESP32-S3.
+  All art is procedural and original; no external resources, no network, no storage, no mic.
+  Keys: D = debug HUD, R = reduced motion, P = toggle device/web particle cap. URL ?seed=N.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #1E2245; overflow: hidden;
+    touch-action: none; user-select: none; -webkit-user-select: none; }
+  #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,.45); }
+  #note { position: fixed; left: 8px; bottom: 6px; color: #9DB8FA; font: 12px system-ui, sans-serif; opacity: .7; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" aria-label="Color Pop quality bar sketch"></canvas></div>
+<div id="note">v2 reference sketch · 320×240 logical stage · D debug · R reduced motion · P particle cap</div>
+<script>
+'use strict';
+// ---------- tokens (subset of design/tokens.json) ----------
+const W = 320, H = 240;
+const TOK = {
+  ink: '#3B3550', paper: '#FFF8EC', cream: '#FFF3D6', hintGlow: '#FFE066',
+  skyTop: '#BFE6FF', seaTop: '#A9DBFB', seaBot: '#6FBDF2', sand: '#F3DDB0', sandShadow: '#DDB892',
+  squashPress: [1.12, 0.88], wiggleDeg: 6, wiggleMs: 360, glowPeriod: 0.9,
+  idleVisualHint: 6, idleSpokenHint: 12, autoHelpAfter: 2, maxInputBlock: 0.3,
+  springBouncy: { k: 380, c: 14 }, breathScale: 0.025, bob: 2, tapDebounce: 0.08,
+  deviceMaxParticles: 96, webMaxParticles: 400,
+};
+const COLORS = {
+  RED:    { base: '#EF4B4F', shadow: '#B8323A', light: '#FF9A92', pattern: 'heart', deg: 0 },
+  YELLOW: { base: '#FFD23F', shadow: '#C99A0E', light: '#FFEB9C', pattern: 'star',  deg: 1 },
+  GREEN:  { base: '#2DB26E', shadow: '#1E8452', light: '#8EE0B4', pattern: 'leaf',  deg: 2 },
+  BLUE:   { base: '#3A6FE8', shadow: '#2448A8', light: '#9DB8FA', pattern: 'wave',  deg: 4 },
+};
+const NAMES = ['RED', 'BLUE', 'GREEN', 'YELLOW'];
+const SLOTS = [[80, 104], [160, 100], [240, 104], [102, 166], [182, 170], [262, 166]];
+const R = 30, HIT = 40;
+
+// ---------- utils ----------
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+const easeOutBack = t => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const seed = parseInt(new URLSearchParams(location.search).get('seed') || '1234', 10);
+const grng = mulberry32(seed);          // gameplay RNG (deterministic per seed)
+const frng = Math.random;               // cosmetic RNG
+const inRect = (x, y, r) => x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3];
+
+// ---------- canvas ----------
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let scale = 1;
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  scale = Math.min(innerWidth / W, innerHeight / H) * 0.96;
+  cv.style.width = (W * scale) + 'px'; cv.style.height = (H * scale) + 'px';
+  cv.width = Math.round(W * scale * dpr); cv.height = Math.round(H * scale * dpr);
+  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+let reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let debug = false, maxParticles = TOK.deviceMaxParticles;
+
+// ---------- audio (Web Audio, C major pentatonic, conservative gain) ----------
+let ac = null, master = null, voices = [];
+const PENT = [0, 2, 4, 7, 9];
+function degFreq(deg, oct = 0) {
+  const o = Math.floor(deg / 5), i = ((deg % 5) + 5) % 5;
+  return 523.25 * Math.pow(2, (PENT[i] + 12 * (o + oct)) / 12);
+}
+function initAudio() {
+  if (ac) return;
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  const comp = ac.createDynamicsCompressor();
+  comp.threshold.value = -14; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.15;
+  master = ac.createGain(); master.gain.value = 0;
+  master.connect(comp); comp.connect(ac.destination);
+  master.gain.setTargetAtTime(0.35, ac.currentTime, 0.1);   // ramp in: never a loud start
+  startWaves();
+}
+function voiceOk(len) {
+  const now = ac.currentTime; voices = voices.filter(e => e > now);
+  if (voices.length >= 8) return false;                        // voice limit
+  voices.push(now + len); return true;
+}
+function env(g, t, peak, attack, dur) {
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+}
+function marimba(freq, when = 0, vel = 1, dur = 0.55) {
+  if (!ac || !voiceOk(dur)) return;
+  const t = ac.currentTime + when;
+  const g = ac.createGain(); env(g, t, 0.45 * vel, 0.003, dur);
+  const o1 = ac.createOscillator(); o1.type = 'sine'; o1.frequency.value = freq;
+  const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 3.99;
+  const g2 = ac.createGain(); env(g2, t, 0.18 * vel, 0.003, 0.09);
+  o1.connect(g); o2.connect(g2); g2.connect(g); g.connect(master);
+  o1.start(t); o2.start(t); o1.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
+}
+function plop(when = 0, vel = 1, hi = 1) {
+  if (!ac || !voiceOk(0.15)) return;
+  const t = ac.currentTime + when;
+  const o = ac.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(760 * hi, t); o.frequency.exponentialRampToValueAtTime(230 * hi, t + 0.07);
+  const g = ac.createGain(); env(g, t, 0.35 * vel, 0.003, 0.14);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.18);
+}
+function startWaves() {
+  const len = ac.sampleRate * 2, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
+  const g = ac.createGain(); g.gain.value = 0.018;
+  const lfo = ac.createOscillator(); lfo.frequency.value = 0.11;
+  const lg = ac.createGain(); lg.gain.value = 0.014; lfo.connect(lg); lg.connect(g.gain);
+  src.connect(lp); lp.connect(g); g.connect(master); src.start(); lfo.start();
+}
+const MOTIFS = {           // [degree, octave, time s, velocity] – re-orchestrated v1 motifs
+  RED:    [[0, -1, 0, 0.7], [0, -1, 0.2, 1]],
+  BLUE:   [[4, 0, 0, 0.8], [3, 0, 0.12, 0.8], [2, 0, 0.24, 0.9]],
+  GREEN:  [[2, 0, 0, 0.8], [3, 0, 0.1, 0.8], [4, 0, 0.2, 0.9]],
+  YELLOW: [[5, 0, 0, 0.7], [7, 0, 0.09, 0.7], [5, 0, 0.18, 0.7], [7, 0, 0.27, 0.8]],
+};
+const playMotif = name => MOTIFS[name].forEach(([d, o, t, v]) => marimba(degFreq(d, o), t, v));
+const celebrate = big => (big ? [0, 1, 2, 3, 4, 5, 7, 10] : [0, 2, 4, 5])
+  .forEach((d, i) => marimba(degFreq(d), i * (big ? 0.11 : 0.09), 0.8));
+
+// ---------- particles, rings, decor ----------
+let parts = [], rings = [], decor = [];
+function emit(x, y, n, o) {
+  n = Math.max(1, Math.round(n * (reduced ? 0.5 : 1)));
+  for (let i = 0; i < n; i++) {
+    if (parts.length >= maxParticles) parts.shift();            // evict oldest, never exceed cap
+    const a = frng() * Math.PI * 2, sp = lerp(o.speed[0], o.speed[1], frng()), life = lerp(o.life[0], o.life[1], frng());
+    parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - (o.up || 0), g: o.gravity, life, max: life,
+      shape: o.shape, color: o.colors[(frng() * o.colors.length) | 0], size: o.size * lerp(0.7, 1.3, frng()),
+      rot: frng() * 6.28, vr: (frng() - 0.5) * 8, add: !!o.additive });
+  }
+}
+const SPARKLE = { speed: [40, 110], life: [0.35, 0.7], gravity: 60, shape: 'star', size: 5, colors: ['#FFEB9C', '#FFFBEF'], additive: true };
+const CONFETTI = { speed: [60, 160], life: [0.9, 1.5], gravity: 140, shape: 'rect', size: 6, up: 60,
+  colors: ['#EF4B4F', '#FFD23F', '#2DB26E', '#3A6FE8', '#F06BB8'] };
+const ring = (x, y, r0, r1, dur, color, w) => rings.push({ x, y, r0, r1, t: 0, dur, color, w });
+function spawnDecor(x, y, r, vy) { decor.push({ x, y, r, vy, ph: frng() * 6.28 }); }
+
+// ---------- entities ----------
+const crab = { yOff: 40, look: [0, -1], blink: 3, clap: 0, giggle: 0, dance: 0, point: null };
+const badge = { sv: 0, happy: 0, lastTap: -9 };   // sv: press impulse, decays per frame
+let bubbles = [], respawns = [];
+const st = { phase: 'START', t: 0, round: 0, successes: 0, count: 2, target: null, last: null, bag: [],
+  misses: 0, hint: 0, idle: 0, spoken: false, roundAutoHelp: false, autoStreak: 0, celebrateFor: 0 };
+let time = 0;
+
+function nextTarget() {
+  if (!st.bag.length) {
+    st.bag = NAMES.slice();
+    for (let i = st.bag.length - 1; i > 0; i--) { const j = (grng() * (i + 1)) | 0; [st.bag[i], st.bag[j]] = [st.bag[j], st.bag[i]]; }
+    if (st.bag[st.bag.length - 1] === st.last) [st.bag[0], st.bag[st.bag.length - 1]] = [st.bag[st.bag.length - 1], st.bag[0]];
+  }
+  return st.bag.pop();
+}
+function makeBubble(color, slot, delay) {
+  const [sx, sy] = SLOTS[slot], jx = (grng() * 12 - 6), jy = (grng() * 12 - 6);
+  return { color, slot, bx: sx + jx, by: sy + jy, x: sx + jx, y: 250, state: 'rise', t: -delay,
+    s: 0.4, sv: 0, sx: 1, sy: 1, rot: 0, wig: 0, glow: 0, alpha: 1, ph: frng() * 6.28, lastTap: -9 };
+}
+function newRound() {
+  st.round++; st.misses = 0; st.hint = 0; st.idle = 0; st.spoken = false; st.roundAutoHelp = false;
+  st.target = nextTarget(); st.last = st.target;
+  const others = NAMES.filter(n => n !== st.target);
+  for (let i = others.length - 1; i > 0; i--) { const j = (grng() * (i + 1)) | 0; [others[i], others[j]] = [others[j], others[i]]; }
+  const colors = [st.target, ...others.slice(0, st.count - 1)];
+  const slots = [0, 1, 2, 3, 4, 5];
+  for (let i = 5; i > 0; i--) { const j = (grng() * (i + 1)) | 0; [slots[i], slots[j]] = [slots[j], slots[i]]; }
+  bubbles = colors.map((c, i) => makeBubble(c, slots[i], i * 0.12));
+  respawns = []; crab.point = null;
+  st.phase = 'PLAY'; st.t = 0;
+  badge.sv = -6;
+  setTimeout(() => playMotif(st.target), 250);                 // prompt is non-blocking
+}
+function startGame() { initAudio(); st.phase = 'INTRO'; st.t = 0; crab.yOff = 40; }
+
+// ---------- input ----------
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W, y = (e.clientY - r.top) / r.height * H;
+  crab.look = [x - 42, y - 190];
+  if (st.phase === 'START') { startGame(); return; }
+  if (ac && ac.state === 'suspended') ac.resume();
+  if (inRect(x, y, [0, 0, 56, 56])) { home(); return; }
+  if (inRect(x, y, [264, 0, 56, 56])) { ring(292, 28, 6, 24, 0.4, '#FFFFFF', 2); return; } // mic: disabled in sketch
+  if (st.phase === 'INTRO') { st.t = 99; return; }               // intro skippable
+  if (st.phase === 'CELEBRATE') {
+    if (st.t > TOK.maxInputBlock) { emit(x, y, 6, SPARKLE); marimba(degFreq((frng() * 5) | 0, 1), 0, 0.4, 0.3); }
+    return;
+  }
+  if (inRect(x, y, [132, 4, 56, 56])) {                          // badge: replay; double tap = help
+    if (time - badge.lastTap < 1) setHint(Math.max(st.hint, 1));
+    badge.lastTap = time; badge.sv = -8; playMotif(st.target); st.idle = 0; return;
+  }
+  let best = null, bd = HIT;
+  for (const b of bubbles) {
+    if (b.state !== 'float' && b.state !== 'rise') continue;
+    const d = Math.hypot(b.x - x, b.y - y); if (d < bd) { bd = d; best = b; }
+  }
+  if (best) {
+    if (time - best.lastTap < TOK.tapDebounce) return;
+    best.lastTap = time; best.state = 'press'; best.t = 0; st.idle = 0; return;
+  }
+  if (inRect(x, y, [4, 186, 76, 54])) { crab.giggle = 0.5; plop(0, 0.6, 1.6); return; }
+  ring(x, y, 3, 22, 0.5, '#FFFFFF', 2); spawnDecor(x, y, 3, -30);
+  marimba(degFreq(0, 1), 0, 0.3, 0.25); st.idle = 0;
+});
+addEventListener('keydown', e => {
+  if (e.key === 'd' || e.key === 'D') debug = !debug;
+  if (e.key === 'r' || e.key === 'R') reduced = !reduced;
+  if (e.key === 'p' || e.key === 'P') maxParticles = maxParticles === TOK.deviceMaxParticles ? TOK.webMaxParticles : TOK.deviceMaxParticles;
+});
+function home() { bubbles = []; parts = []; rings = []; st.phase = 'START'; st.t = 0; crab.yOff = 40; }
+function setHint(level) {
+  if (level > st.hint) {
+    const tb = bubbles.find(b => b.color === st.target && b.state === 'float');
+    if (tb) tb.wig = TOK.wiggleMs / 1000;
+  }
+  st.hint = level; if (level >= 2) st.roundAutoHelp = true;
+}
+
+function pop(b) {
+  const c = COLORS[b.color], isT = b.color === st.target;
+  b.state = 'gone';
+  const n = isT ? 14 : 7;
+  emit(b.x, b.y, n, { speed: [50, 130], life: [0.3, 0.6], gravity: 120, shape: 'circle', size: isT ? 5 : 4, colors: [c.base, c.light] });
+  ring(b.x, b.y, R * 0.8, R * 1.8, 0.45, c.light, isT ? 3 : 2);
+  if (isT) {
+    emit(b.x, b.y, 16, SPARKLE);
+    plop(0, 1); marimba(degFreq(c.deg), 0.03, 1);
+    crab.clap = 0.6; badge.happy = 1.2; badge.sv = -10;
+    st.successes++;
+    const big = st.successes % 5 === 0;
+    if (st.successes % 3 === 0 && st.count < 4) st.count++;
+    if (st.roundAutoHelp) { if (++st.autoStreak >= 2 && st.count > 2) { st.count--; st.autoStreak = 0; } } else st.autoStreak = 0;
+    for (const o of bubbles) if (o.state === 'float' || o.state === 'rise') { o.state = 'leave'; o.t = 0; }
+    respawns = [];
+    st.phase = 'CELEBRATE'; st.t = 0; st.celebrateFor = big ? 2.0 : 1.5;
+    setTimeout(() => celebrate(big), 180);
+    if (big) {
+      crab.dance = 2.0;
+      emit(160, 120, 36, CONFETTI);
+      if (!reduced) for (let i = 0; i < 20; i++) spawnDecor(10 + i * 16, 250 + frng() * 40, 4 + frng() * 6, -90 - frng() * 60);
+    }
+  } else {
+    plop(0, 0.55, 1.4); marimba(degFreq((grng() * 5) | 0, 1), 0.02, 0.45, 0.35);
+    st.misses++; setHint(st.misses >= TOK.autoHelpAfter ? 2 : 1);
+    respawns.push({ color: b.color, slot: b.slot, at: time + 1.0 });
+  }
+}
+
+// ---------- update ----------
+function update(dt) {
+  time += dt; st.t += dt;
+  if (st.phase === 'INTRO') {
+    crab.yOff = lerp(40, 0, easeOutBack(clamp(st.t / 0.6, 0, 1)));
+    if (st.t >= 1.2) { crab.yOff = 0; newRound(); }
+  } else if (st.phase === 'PLAY') {
+    st.idle += dt;
+    if (st.idle > TOK.idleVisualHint && st.hint < 1) setHint(1);
+    if (st.idle > TOK.idleSpokenHint && !st.spoken) { st.spoken = true; playMotif(st.target); badge.sv = -8; }
+  } else if (st.phase === 'CELEBRATE' && st.t >= st.celebrateFor) newRound();
+
+  for (const r of respawns.slice()) if (time >= r.at && st.phase === 'PLAY') {
+    respawns.splice(respawns.indexOf(r), 1);
+    const nb = makeBubble(r.color, r.slot, 0); bubbles.push(nb);
+  }
+  const tb = bubbles.find(b => b.color === st.target && (b.state === 'float' || b.state === 'rise'));
+  crab.point = st.hint >= 1 && tb ? [tb.x, tb.y] : null;
+  if (crab.point) crab.look = [tb.x - 42, tb.y - 190];
+
+  for (const b of bubbles) {
+    b.t += dt; b.ph += dt;
+    const isT = b.color === st.target;
+    let sTarget = 1;
+    if (st.phase === 'PLAY' && isT && st.hint >= 2) sTarget = 1.15 + 0.04 * Math.sin(time * 7);
+    if (b.state === 'rise') {
+      if (b.t < 0) { b.y = 260; continue; }
+      const k = clamp(b.t / 0.6, 0, 1); b.y = lerp(250, b.by, easeOutCubic(k));
+      if (k >= 1) b.state = 'float';
+    } else if (b.state === 'float') {
+      const m = reduced ? 0.3 : 1;
+      b.y = b.by + Math.sin(b.ph * 2.1) * TOK.bob * m; b.x = b.bx + Math.sin(b.ph * 1.3) * 1.5 * m;
+    } else if (b.state === 'press') {
+      b.sx = TOK.squashPress[1]; b.sy = TOK.squashPress[0] * 1.02;   // pre-pop stretch
+      if (b.t >= 0.08) pop(b);
+    } else if (b.state === 'leave') {
+      b.y -= dt * (60 + b.t * 120); b.x += Math.sin(b.ph * 3) * 0.4; b.alpha = clamp(1 - b.t / 0.9, 0, 1);
+      if (b.alpha <= 0) b.state = 'gone';
+    }
+    for (let i = 0; i < 2; i++) {                                    // spring substeps (stable at 60 Hz)
+      const h = dt / 2, a = -TOK.springBouncy.k * (b.s - sTarget) - TOK.springBouncy.c * b.sv;
+      b.sv += a * h; b.s += b.sv * h;
+    }
+    if (b.state !== 'press') {
+      const br = Math.sin(b.ph * 2 * Math.PI / 2.8) * TOK.breathScale * (reduced ? 0.4 : 1);
+      b.sx = lerp(b.sx, 1 + br, 0.25); b.sy = lerp(b.sy, 1 - br, 0.25);
+    }
+    b.wig = Math.max(0, b.wig - dt);
+    b.rot = b.wig > 0 ? Math.sin((1 - b.wig / (TOK.wiggleMs / 1000)) * Math.PI * 6) * TOK.wiggleDeg * Math.PI / 180 : 0;
+    b.glow = (st.phase === 'PLAY' && isT && st.hint >= 1) ? 0.5 + 0.5 * Math.sin(time * 2 * Math.PI / TOK.glowPeriod) : 0;
+  }
+  bubbles = bubbles.filter(b => b.state !== 'gone');
+
+  badge.happy = Math.max(0, badge.happy - dt);
+
+  crab.blink -= dt; if (crab.blink < -0.12) crab.blink = 2 + frng() * 4;
+  crab.clap = Math.max(0, crab.clap - dt); crab.giggle = Math.max(0, crab.giggle - dt); crab.dance = Math.max(0, crab.dance - dt);
+
+  for (const p of parts) { p.life -= dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; }
+  parts = parts.filter(p => p.life > 0);
+  for (const r of rings) r.t += dt; rings = rings.filter(r => r.t < r.dur);
+  if (decor.filter(d => d.r < 3.5).length < 4 && frng() < dt * 0.8) spawnDecor(90 + frng() * 220, 205, 1.5 + frng() * 1.5, -18 - frng() * 10);
+  for (const d of decor) { d.ph += dt; d.y += d.vy * dt; d.x += Math.sin(d.ph * 3) * 0.2; }
+  decor = decor.filter(d => d.y > -20);
+}
+
+// ---------- drawing helpers ----------
+function starPath(cx, cy, ro, ri, rot) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) { const r = i % 2 ? ri : ro, a = rot + i * Math.PI / 5; ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); }
+  ctx.closePath();
+}
+function glyph(kind, s, color) {
+  ctx.fillStyle = color; ctx.strokeStyle = color; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (kind === 'heart') {
+    ctx.beginPath(); ctx.moveTo(0, s * 0.55);
+    ctx.bezierCurveTo(-s * 1.1, -s * 0.1, -s * 0.5, -s * 0.95, 0, -s * 0.35);
+    ctx.bezierCurveTo(s * 0.5, -s * 0.95, s * 1.1, -s * 0.1, 0, s * 0.55); ctx.fill();
+  } else if (kind === 'star') { starPath(0, 0, s, s * 0.45, -Math.PI / 2); ctx.fill(); }
+  else if (kind === 'wave') {
+    ctx.lineWidth = 3;
+    for (const oy of [-s * 0.3, s * 0.3]) { ctx.beginPath();
+      for (let i = 0; i <= 20; i++) { const x = -s + i * s / 10; ctx.lineTo(x, oy + Math.sin(i / 20 * Math.PI * 4) * s * 0.22); } ctx.stroke(); }
+  } else if (kind === 'leaf') {
+    ctx.beginPath(); ctx.moveTo(-s * 0.8, s * 0.6);
+    ctx.quadraticCurveTo(-s * 0.8, -s * 0.8, s * 0.8, -s * 0.6);
+    ctx.quadraticCurveTo(s * 0.8, s * 0.8, -s * 0.8, s * 0.6); ctx.fill();
+  }
+}
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+// static background layer (cached once, like the device would)
+const bg = document.createElement('canvas'); bg.width = W * 2; bg.height = H * 2;
+(function paintBg() {
+  const b = bg.getContext('2d'); b.scale(2, 2);
+  let g = b.createLinearGradient(0, 0, 0, 70); g.addColorStop(0, TOK.skyTop); g.addColorStop(1, '#E6F5FF');
+  b.fillStyle = g; b.fillRect(0, 0, W, 70);
+  g = b.createLinearGradient(0, 64, 0, 205); g.addColorStop(0, TOK.seaTop); g.addColorStop(1, TOK.seaBot);
+  b.fillStyle = g; b.fillRect(0, 64, W, 145);
+  b.fillStyle = TOK.sand; b.beginPath(); b.moveTo(0, 204);
+  for (let x = 0; x <= W; x += 8) b.lineTo(x, 202 + Math.sin(x / 23) * 3);
+  b.lineTo(W, H); b.lineTo(0, H); b.fill();
+  const r = mulberry32(7); b.fillStyle = TOK.sandShadow;
+  for (let i = 0; i < 70; i++) { b.globalAlpha = 0.35 + r() * 0.3; b.beginPath(); b.arc(r() * W, 210 + r() * 30, 0.6 + r() * 1.2, 0, 7); b.fill(); }
+  b.globalAlpha = 1;
+})();
+
+function drawBackground() {
+  ctx.drawImage(bg, 0, 0, W, H);
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';                      // drifting clouds
+  for (const [ox, y, sp] of [[40, 22, 4], [210, 38, 2.6]]) {
+    const x = ((ox + time * sp * (reduced ? 0.3 : 1)) % (W + 80)) - 40;
+    ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.arc(x + 11, y - 4, 11, 0, 7); ctx.arc(x + 23, y, 8, 0, 7); ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.5; ctx.beginPath();  // horizon shimmer
+  for (let x = 0; x <= W; x += 6) ctx.lineTo(x, 67 + Math.sin(x / 14 + time * 1.2) * 1.2);
+  ctx.stroke();
+}
+function drawBubble(b) {
+  const c = COLORS[b.color];
+  ctx.save(); ctx.globalAlpha = b.alpha; ctx.translate(b.x, b.y); ctx.rotate(b.rot); ctx.scale(b.sx * b.s, b.sy * b.s);
+  if (b.glow > 0) {
+    ctx.strokeStyle = TOK.hintGlow; ctx.globalAlpha = b.alpha * (0.35 + 0.5 * b.glow); ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.arc(0, 0, R + 5 + 2 * b.glow, 0, 7); ctx.stroke(); ctx.globalAlpha = b.alpha;
+  }
+  ctx.fillStyle = 'rgba(59,53,80,0.15)'; ctx.beginPath(); ctx.ellipse(2, R + 6, R * 0.6, 4, 0, 0, 7); ctx.fill();
+  const g = ctx.createRadialGradient(-10, -12, 4, 0, 0, R);
+  g.addColorStop(0, c.light); g.addColorStop(0.55, c.base); g.addColorStop(1, c.shadow);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R, 0, 7); ctx.fill();
+  ctx.strokeStyle = c.shadow; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = `hsla(${(time * 60 + b.ph * 40) % 360},90%,80%,0.35)`; ctx.lineWidth = 2.5;  // iridescent rim
+  ctx.beginPath(); ctx.arc(0, 0, R - 3, -0.4 + b.ph * 0.3, 1.4 + b.ph * 0.3); ctx.stroke();
+  glyph(c.pattern, 12, 'rgba(255,255,255,0.9)');
+  ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.beginPath(); ctx.ellipse(-11, -14, 7, 4, -0.6, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(-3, -20, 1.8, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function drawCrab() {
+  const c = crab, body = '#FF8A2A', dark = '#C2621B';
+  ctx.save(); ctx.translate(42, 222 + c.yOff);
+  const jump = c.clap > 0 ? -Math.sin((1 - c.clap / 0.6) * Math.PI) * 8 : 0;
+  const dance = c.dance > 0 ? Math.sin(c.dance * 10) : 0;
+  ctx.translate(0, jump - Math.abs(dance) * 6);
+  ctx.rotate((c.giggle > 0 ? Math.sin(c.giggle * 40) * 0.12 : 0) + dance * 0.15);
+  const br = Math.sin(time * 2 * Math.PI / 2.8) * TOK.breathScale;
+  ctx.scale(1 + br, 1 - br);
+  ctx.strokeStyle = dark; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  for (const s of [-1, 1]) for (let i = 0; i < 3; i++) {                     // legs
+    ctx.beginPath(); ctx.moveTo(s * 14, -6 + i * 4); ctx.lineTo(s * (24 + i * 2), 2 + i * 3 + Math.sin(time * 6 + i) * 1); ctx.stroke();
+  }
+  const clapT = c.clap > 0 ? Math.abs(Math.sin((1 - c.clap / 0.6) * Math.PI * 3)) : 0;
+  for (const s of [-1, 1]) {                                                 // arms + claws
+    let cx = s * (30 - clapT * 14), cy = -24 - clapT * 6;
+    if (c.point && s === 1) {
+      const dx = c.point[0] - 42, dy = c.point[1] - 222, d = Math.hypot(dx, dy) || 1;
+      cx = 18 + dx / d * 18; cy = -16 + dy / d * 18;
+    }
+    ctx.beginPath(); ctx.moveTo(s * 14, -12); ctx.quadraticCurveTo(s * 22, -14, cx, cy); ctx.stroke();
+    const ang = Math.atan2(cy + 12, cx - s * 14);
+    ctx.fillStyle = body; ctx.beginPath(); ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, 9, ang + 0.45, ang + Math.PI * 2 - 0.45); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = dark; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 3;
+  }
+  ctx.fillStyle = body; ctx.beginPath(); ctx.ellipse(0, -10, 20, 13, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = dark; ctx.lineWidth = 2; ctx.stroke();
+  const ln = Math.hypot(c.look[0], c.look[1]) || 1, lx = c.look[0] / ln * 1.8, ly = c.look[1] / ln * 1.8;
+  for (const s of [-1, 1]) {                                                 // eye stalks
+    ctx.strokeStyle = dark; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(s * 6, -20); ctx.lineTo(s * 8, -31); ctx.stroke();
+    if (c.blink < 0) { ctx.beginPath(); ctx.moveTo(s * 8 - 4, -32); ctx.lineTo(s * 8 + 4, -32); ctx.stroke(); continue; }
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(s * 8, -33, 5, 0, 7); ctx.fill();
+    ctx.strokeStyle = dark; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.arc(s * 8 + lx, -33 + ly, 2.2, 0, 7); ctx.fill();
+  }
+  ctx.strokeStyle = TOK.ink; ctx.lineWidth = 2; ctx.beginPath();            // mouth
+  const happy = c.clap > 0 || c.dance > 0 || c.giggle > 0;
+  ctx.arc(0, -10, happy ? 6 : 4, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+  ctx.fillStyle = 'rgba(240,107,184,0.45)';
+  ctx.beginPath(); ctx.arc(-12, -8, 3, 0, 7); ctx.arc(12, -8, 3, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function drawChrome() {
+  ctx.fillStyle = TOK.cream; roundRect(6, 6, 44, 44, 14); ctx.fill();               // Home
+  ctx.strokeStyle = '#D9C7A3'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.moveTo(28, 15); ctx.lineTo(41, 27); ctx.lineTo(37, 27); ctx.lineTo(37, 39);
+  ctx.lineTo(19, 39); ctx.lineTo(19, 27); ctx.lineTo(15, 27); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 0.45; ctx.fillStyle = TOK.cream; roundRect(270, 6, 44, 44, 14); ctx.fill();   // Mic (disabled)
+  ctx.fillStyle = TOK.ink; roundRect(287, 14, 10, 18, 5); ctx.fill();
+  ctx.strokeStyle = TOK.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(292, 25, 9, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(292, 34); ctx.lineTo(292, 40); ctx.stroke(); ctx.globalAlpha = 1;
+}
+function drawBadge() {
+  if (!st.target || st.phase === 'START' || st.phase === 'INTRO') return;
+  const c = COLORS[st.target], bob = Math.sin(time * 2.2) * 1.5 * (reduced ? 0.3 : 1);
+  const press = 1 + clamp(-badge.sv * 0.012, -0.1, 0.12);
+  badge.sv *= 0.86;
+  ctx.save(); ctx.translate(160, 32 + bob); ctx.scale(press, 2 - press);
+  if (st.hint >= 1 && st.phase === 'PLAY') {
+    ctx.strokeStyle = TOK.hintGlow; ctx.lineWidth = 4; ctx.globalAlpha = 0.4 + 0.4 * Math.sin(time * 2 * Math.PI / TOK.glowPeriod);
+    ctx.beginPath(); ctx.arc(0, 0, 29, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = TOK.cream; ctx.beginPath(); ctx.arc(0, 0, 26, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#D9C7A3'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = c.base; ctx.beginPath(); ctx.arc(0, 0, 20, 0, 7); ctx.fill();
+  if (badge.happy > 0) {
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(-7, -4, 2.5, 0, 7); ctx.arc(7, -4, 2.5, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, 2, 8, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+  } else glyph(c.pattern, 10, 'rgba(255,255,255,0.95)');
+  ctx.restore();
+}
+function drawHelperHand() {
+  if (st.phase !== 'PLAY' || st.hint < 2) return;
+  const b = bubbles.find(o => o.color === st.target && o.state === 'float'); if (!b) return;
+  const y = b.y + 30 + Math.abs(Math.sin(time * 4)) * -6;
+  ctx.save(); ctx.translate(b.x + 14, y); ctx.rotate(-0.5);
+  ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = TOK.ink; ctx.lineWidth = 1.5;
+  roundRect(-4, -16, 8, 18, 4); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0, 6, 9, 8, 0, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+function drawFx() {
+  for (const d of decor) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, 7); ctx.stroke();
+  }
+  for (const r of rings) {
+    const k = r.t / r.dur; ctx.globalAlpha = 1 - k; ctx.strokeStyle = r.color; ctx.lineWidth = r.w;
+    ctx.beginPath(); ctx.arc(r.x, r.y, lerp(r.r0, r.r1, easeOutCubic(k)), 0, 7); ctx.stroke();
+  }
+  for (const p of parts) {
+    ctx.globalAlpha = clamp(p.life / p.max * 1.6, 0, 1);
+    ctx.globalCompositeOperation = p.add ? 'lighter' : 'source-over';
+    ctx.fillStyle = p.color;
+    if (p.shape === 'star') { starPath(p.x, p.y, p.size, p.size * 0.45, p.rot); ctx.fill(); }
+    else if (p.shape === 'rect') { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2); ctx.restore(); }
+    else { ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (0.5 + 0.5 * p.life / p.max), 0, 7); ctx.fill(); }
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+function drawStart() {
+  ctx.fillStyle = 'rgba(30,34,69,0.35)'; ctx.fillRect(0, 0, W, H);
+  const p = 1 + Math.sin(time * 3) * 0.04;
+  ctx.save(); ctx.translate(160, 120); ctx.scale(p, p);
+  ctx.fillStyle = TOK.cream; ctx.beginPath(); ctx.arc(0, 0, 36, 0, 7); ctx.fill();
+  ctx.fillStyle = '#2DB26E'; ctx.beginPath(); ctx.moveTo(-10, -16); ctx.lineTo(18, 0); ctx.lineTo(-10, 16); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+let fps = 60, frameMs = 0;
+function drawHud() {
+  if (!debug) return;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(176, 214, 144, 26);
+  ctx.fillStyle = parts.length > TOK.deviceMaxParticles ? '#FF9A92' : '#FFFFFF'; ctx.font = '8px monospace';
+  ctx.fillText(`fps ${fps.toFixed(0)} draw ${frameMs.toFixed(1)}ms p ${parts.length}/${maxParticles}`, 180, 224);
+  ctx.fillText(`seed ${seed} rnd ${st.round} n ${st.count} hint ${st.hint} ${reduced ? 'RM' : ''}`, 180, 235);
+}
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  update(dt);
+  const t0 = performance.now();
+  drawBackground();
+  for (const b of bubbles) if (b.t >= 0) drawBubble(b);
+  drawCrab(); drawHelperHand(); drawFx(); drawBadge(); drawChrome();
+  if (st.phase === 'START') drawStart();
+  frameMs = lerp(frameMs, performance.now() - t0, 0.1); fps = lerp(fps, 1 / Math.max(dt, 1e-3), 0.05);
+  drawHud();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

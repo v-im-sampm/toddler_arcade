@@ -1,0 +1,16 @@
+{
+  "$comment": "Example tuning.json for Color Pop. Every gameplay number lives here (hot-reloadable in the web dev server), not in code. Values start from v1 behaviour (firmware/components/games/color_pop/README.md).",
+  "intro_ms": 1200,
+  "bubbles_start": 2,
+  "bubbles_max": 4,
+  "add_bubble_after_successes": 3,
+  "slots": 6,
+  "no_consecutive_repeat_target": true,
+  "prompt_delay_after_intro_ms": 300,
+  "celebrate_ms": 1500,
+  "big_celebrate_every_n_rounds": 5,
+  "big_celebrate_ms": 2000,
+  "hint": { "visual_after_idle_ms": 6000, "spoken_after_idle_ms": 12000, "auto_help_after_misses": 2 },
+  "bubble": { "size_units": 72, "float_amplitude_units": 4, "float_period_ms": [2600, 3400], "drift_units": 6 },
+  "pop": { "particles": "color_pop.pop", "note_degree_by_color": { "RED": 0, "YELLOW": 1, "GREEN": 2, "BLUE": 4 } }
+}

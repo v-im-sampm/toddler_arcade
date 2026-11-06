@@ -1,0 +1,81 @@
+{
+  "id": "color_pop",
+  "version": "2.0.0",
+  "sdk": "^0.1",
+  "template": "tap-choice",
+  "world_location": "Bubble Beach",
+  "launcher": {
+    "tile_asset": "color_pop.tile",
+    "tile_idle_anim": "color_pop.tile_idle",
+    "tile_sound": "color_pop.tile_plink",
+    "voice_intent": "COLORS",
+    "order": 0,
+    "default_visible": true
+  },
+  "capabilities": ["music", "narration", "voice_intents", "particles"],
+  "voice": {
+    "contexts": ["colors", "global"],
+    "intents": [
+      { "intent": "RED", "touch_equivalent": "bubble with heart pattern" },
+      { "intent": "BLUE", "touch_equivalent": "bubble with wave pattern" },
+      { "intent": "GREEN", "touch_equivalent": "bubble with leaf pattern" },
+      { "intent": "YELLOW", "touch_equivalent": "bubble with star pattern" },
+      { "intent": "AGAIN", "touch_equivalent": "node prompt_badge (replays prompt)" },
+      { "intent": "HELP", "touch_equivalent": "node prompt_badge (replays prompt + hint)" }
+    ]
+  },
+  "audio_identity": {
+    "key": "C",
+    "scale": "major_pentatonic",
+    "tempo_bpm": 104,
+    "instruments": ["toybox.marimba", "toybox.bubble_plink", "toybox.shaker"],
+    "ambience": "color_pop.amb_waves",
+    "music_layers": ["bed", "low", "mid", "high"]
+  },
+  "scenes": [
+    {
+      "id": "beach",
+      "states": ["INTRO", "PROMPT", "PLAY", "HINT", "AUTO_HELP", "CELEBRATE", "BIG_CELEBRATE"],
+      "worst_frame_dirty_fraction": 0.35
+    }
+  ],
+  "assets": [
+    { "id": "color_pop.tile", "kind": "image", "source": "assets-src/tile.svg", "provenance_ref": "color_pop/tile" },
+    { "id": "color_pop.tile_idle", "kind": "anim_clip", "source": "assets-src/tile_idle.anim", "provenance_ref": "color_pop/tile_idle" },
+    { "id": "color_pop.tile_plink", "kind": "sfx", "source": "assets-src/audio/tile_plink.wav", "provenance_ref": "color_pop/tile_plink" },
+    { "id": "color_pop.bg", "kind": "image", "source": "assets-src/beach_bg.svg", "device": { "format": "rgb565", "dither": "bayer4", "static_layer": true }, "provenance_ref": "color_pop/bg" },
+    { "id": "color_pop.bubbles", "kind": "atlas", "source": "assets-src/bubbles/", "device": { "format": "rgb565a8" }, "provenance_ref": "color_pop/bubbles" },
+    { "id": "color_pop.crab", "kind": "anim_rig", "source": "assets-src/crab.rig", "device": { "bake": "spritesheet", "fps": 15 }, "provenance_ref": "color_pop/crab" },
+    { "id": "color_pop.pop", "kind": "particle_preset", "source": "assets-src/pop.particles.json", "provenance_ref": "color_pop/pop" },
+    { "id": "color_pop.amb_waves", "kind": "ambience", "source": "assets-src/audio/waves.wav", "provenance_ref": "color_pop/amb_waves" },
+    { "id": "color_pop.music", "kind": "music_pattern", "source": "assets-src/music/beach.pattern.json", "provenance_ref": "color_pop/music" }
+  ],
+  "narration": [
+    { "id": "color_pop.vo_intro", "text": "Let's pop some bubbles!", "max_ms": 1800 },
+    { "id": "color_pop.vo_find_red", "text": "Pop the red bubble!", "variants": ["Where's red?", "Can you find red?"], "max_ms": 1600 },
+    { "id": "color_pop.vo_find_blue", "text": "Pop the blue bubble!", "variants": ["Where's blue?", "Can you find blue?"], "max_ms": 1600 },
+    { "id": "color_pop.vo_find_green", "text": "Pop the green bubble!", "variants": ["Where's green?", "Can you find green?"], "max_ms": 1600 },
+    { "id": "color_pop.vo_find_yellow", "text": "Pop the yellow bubble!", "variants": ["Where's yellow?", "Can you find yellow?"], "max_ms": 1600 },
+    { "id": "color_pop.vo_hint", "text": "This one is red, like a heart!", "max_ms": 2000 },
+    { "id": "color_pop.vo_praise", "text": "Pop! You did it!", "variants": ["Yay!", "Great popping!", "Wow, red!"], "max_ms": 1200 }
+  ],
+  "budgets": {
+    "device_flash_kib": 900,
+    "device_psram_kib": 600,
+    "device_internal_ram_kib": 16,
+    "web_kib": 2500,
+    "max_live_particles": 64,
+    "max_audio_voices": 8
+  },
+  "tuning": "tuning.json",
+  "tests": {
+    "seed": 12648430,
+    "replays": [
+      { "file": "tests/replays/touch_only_10_rounds.replay", "covers": ["CP-1", "CP-2", "CP-5"], "device_bench": true },
+      { "file": "tests/replays/wrong_then_hint_then_autohelp.replay", "covers": ["CP-3"] },
+      { "file": "tests/replays/voice_answers.replay", "covers": ["CP-4"] },
+      { "file": "tests/replays/audio_off.replay", "covers": ["CP-6"] },
+      { "file": "tests/replays/mash_and_home_mid_celebrate.replay", "covers": ["CP-7", "CP-8"] }
+    ]
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://little-arcade.local/schemas/asset.provenance.schema.json",
+  "title": "Little Arcade v2 asset provenance manifest",
+  "description": "One entry per source asset (or per external source file). Required for every image, animation, sound, music and narration asset shipped on any platform. Extends v1 assets/manifest.json and assets/audio/animal_sounds/sources.json.",
+  "type": "object",
+  "required": ["version", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1 },
+    "entries": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["origin", "licence", "author", "created", "sha256"],
+        "additionalProperties": false,
+        "properties": {
+          "origin": { "enum": ["original_human", "original_procedural", "ai_assisted", "third_party"] },
+          "licence": { "type": "string", "description": "SPDX id (e.g. CC0-1.0, CC-BY-4.0, MIT) or 'proprietary-owned' for work owned by the project." },
+          "author": { "type": "string" },
+          "source_url": { "type": "string", "description": "Required for third_party." },
+          "retrieved": { "type": "string", "format": "date" },
+          "created": { "type": "string", "format": "date" },
+          "tool": { "type": "string", "description": "Authoring/generation tool and version." },
+          "ai": {
+            "type": "object",
+            "description": "Required when origin = ai_assisted.",
+            "required": ["model", "licence_terms_url", "prompt", "human_edits"],
+            "additionalProperties": false,
+            "properties": {
+              "model": { "type": "string" },
+              "licence_terms_url": { "type": "string" },
+              "prompt": { "type": "string" },
+              "human_edits": { "type": "string" }
+            }
+          },
+          "modifications": { "type": "string" },
+          "attribution_text": { "type": "string", "description": "Required if the licence needs attribution; shown in parent About screen." },
+          "sha256": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" },
+          "notes": { "type": "string" }
+        },
+        "allOf": [
+          { "if": { "properties": { "origin": { "const": "third_party" } } }, "then": { "required": ["source_url", "retrieved"] } },
+          { "if": { "properties": { "origin": { "const": "ai_assisted" } } }, "then": { "required": ["ai", "tool"] } }
+        ]
+      }
+    }
+  }
+}
