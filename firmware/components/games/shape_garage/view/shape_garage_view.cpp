@@ -5,6 +5,7 @@
 #include "little_arcade/games/shape_garage_art.hpp"
 #include "little_arcade/ui/chrome_view.hpp"
 #include "little_arcade/ui/palette.hpp"
+#include "little_arcade/ui/scene_art.hpp"
 
 namespace little_arcade::shape_garage {
 
@@ -33,6 +34,8 @@ lv_obj_t* box(lv_obj_t* parent, int x, int y, int w, int h, int radius, uint32_t
   lv_obj_set_size(object, w, h);
   lv_obj_set_style_radius(object, radius, 0);
   lv_obj_set_style_bg_color(object, to_lv(fill), 0);
+  lv_obj_set_style_bg_grad_color(object, to_lv(ui::mix(fill, ui::tok::kCream.light, 0.2f)), 0);
+  lv_obj_set_style_bg_grad_dir(object, LV_GRAD_DIR_VER, 0);
   lv_obj_set_style_bg_opa(object, LV_OPA_COVER, 0);
   lv_obj_set_style_border_color(object, to_lv(edge), 0);
   lv_obj_set_style_border_width(object, edge_width, 0);
@@ -66,16 +69,7 @@ void ShapeGarageView::create(lv_obj_t* parent) {
 
   lv_obj_set_style_bg_color(parent, to_lv(pal::kSky), 0);
   lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
-  lv_obj_t* header = plain(parent);
-  lv_obj_set_pos(header, 0, 0);
-  lv_obj_set_size(header, kScreenWidth, 62);
-  lv_obj_set_style_bg_color(header, to_lv(pal::kSkyDark), 0);
-  lv_obj_set_style_bg_opa(header, LV_OPA_COVER, 0);
-  lv_obj_t* ground = plain(parent);
-  lv_obj_set_pos(ground, 0, kScreenHeight - 10);
-  lv_obj_set_size(ground, kScreenWidth, 10);
-  lv_obj_set_style_bg_color(ground, to_lv(pal::kGround), 0);
-  lv_obj_set_style_bg_opa(ground, LV_OPA_COVER, 0);
+  ui::show_backdrop(parent, ui::World::WORKSHOP);
 
   if (robot_img_.allocate(art::kRobotImgW, art::kRobotImgH)) {
     ui::Canvas canvas = robot_img_.canvas();

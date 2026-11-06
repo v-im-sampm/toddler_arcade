@@ -31,8 +31,8 @@ class ColorPopGame final : public IGame {
   static constexpr std::size_t kMaxBubbles = 4;
   static constexpr std::size_t kSlotCount = 6;
   static constexpr Rect kSlots[kSlotCount] = {
-      {16, 72, 72, 72},  {124, 72, 72, 72},  {232, 72, 72, 72},
-      {16, 160, 72, 72}, {124, 160, 72, 72}, {232, 160, 72, 72},
+      {56, 80, 48, 48},  {136, 80, 48, 48},  {216, 80, 48, 48},
+      {56, 142, 48, 48}, {136, 142, 48, 48}, {216, 142, 48, 48},
   };
   // Shows the requested colour + pattern, so the game works with audio off.
   static constexpr Rect kTargetBadge{132, 4, 56, 56};

@@ -5,6 +5,7 @@
 #include "little_arcade/games/animal_sounds_art.hpp"
 #include "little_arcade/ui/chrome_view.hpp"
 #include "little_arcade/ui/palette.hpp"
+#include "little_arcade/ui/scene_art.hpp"
 
 namespace little_arcade::animal_sounds {
 namespace {
@@ -16,15 +17,6 @@ lv_obj_t* plain(lv_obj_t* parent) {
   lv_obj_t* obj = lv_obj_create(parent);
   lv_obj_remove_style_all(obj);
   lv_obj_remove_flag(obj, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
-  return obj;
-}
-
-lv_obj_t* band(lv_obj_t* parent, int y, int h, uint32_t rgb) {
-  lv_obj_t* obj = plain(parent);
-  lv_obj_set_pos(obj, 0, y);
-  lv_obj_set_size(obj, kScreenWidth, h);
-  lv_obj_set_style_bg_color(obj, to_lv(rgb), 0);
-  lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
   return obj;
 }
 
@@ -48,8 +40,7 @@ void AnimalSoundsView::set_visible(lv_obj_t* obj, bool visible) { set_flag_visib
 void AnimalSoundsView::create(lv_obj_t* parent) {
   lv_obj_set_style_bg_color(parent, to_lv(pal::kSky), 0);
   lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
-  band(parent, 0, 62, pal::kSkyDark);
-  band(parent, kScreenHeight - 10, 10, pal::kGround);
+  ui::show_backdrop(parent, ui::World::FARM);
 
   for (std::size_t i = 0; i < kAnimalCount; ++i) {
     if (animals_[i].allocate(art::kAnimalW, art::kAnimalH)) {

@@ -5,6 +5,7 @@
 #include "little_arcade/scene_manager.hpp"
 #include "little_arcade/ui/argb_image.hpp"
 #include "little_arcade/ui/chrome_view.hpp"
+#include "little_arcade/ui/fx.hpp"
 #include "lvgl.h"
 
 namespace little_arcade::ui {
@@ -39,6 +40,7 @@ class LauncherView {
 
   TileArtFn art_ = nullptr;
   Tile tiles_[SceneManager::kTilesPerPage];
+  Backdrop backdrop_;
   ArgbImage logo_;
   A8Image<32, 32> arrow_{};
   lv_obj_t* pager_ = nullptr;

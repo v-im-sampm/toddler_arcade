@@ -5,6 +5,7 @@
 #include "little_arcade/games/hatch_a_pet_art.hpp"
 #include "little_arcade/ui/chrome_view.hpp"
 #include "little_arcade/ui/palette.hpp"
+#include "little_arcade/ui/scene_art.hpp"
 
 namespace little_arcade::hatch_a_pet {
 
@@ -42,15 +43,6 @@ lv_obj_t* disc(lv_obj_t* parent, int d, uint32_t rgb, lv_opa_t opa = LV_OPA_COVE
   lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
   lv_obj_set_style_bg_color(o, to_lv(rgb), 0);
   lv_obj_set_style_bg_opa(o, opa, 0);
-  return o;
-}
-
-lv_obj_t* band(lv_obj_t* parent, int y, int h, uint32_t rgb) {
-  lv_obj_t* o = plain(parent);
-  lv_obj_set_pos(o, 0, y);
-  lv_obj_set_size(o, kScreenWidth, h);
-  lv_obj_set_style_bg_color(o, to_lv(rgb), 0);
-  lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
   return o;
 }
 
@@ -214,8 +206,7 @@ void HatchAPetView::create(lv_obj_t* parent) {
 
   lv_obj_set_style_bg_color(parent, to_lv(pal::kSky), 0);
   lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
-  band(parent, 0, 62, pal::kSkyDark);
-  band(parent, kScreenHeight - 10, 10, pal::kGround);
+  ui::show_backdrop(parent, ui::World::NEST);
 
   // Prompt badge: the current request as a picture; tap to hear it again.
   const Rect& br = G::kPromptBadge;

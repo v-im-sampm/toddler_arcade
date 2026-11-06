@@ -1,6 +1,6 @@
 # Shared UI helpers. The A8 rasterizer, colour painter, icon shapes and
 # launcher art are header-only and LVGL-free (host-tested); the views need LVGL.
-set(LA_UI_SRCS chrome_view.cpp argb_image.cpp launcher_view.cpp)
+set(LA_UI_SRCS chrome_view.cpp argb_image.cpp launcher_view.cpp fx.cpp)
 if(ESP_PLATFORM)
   idf_component_register(SRCS ${LA_UI_SRCS} INCLUDE_DIRS "include" REQUIRES core lvgl__lvgl PRIV_REQUIRES heap)
 else()
@@ -16,5 +16,7 @@ else()
     target_link_libraries(ui_raster_test PRIVATE little_arcade_ui_raster)
     la_host_test(ui_paint_test ${CMAKE_CURRENT_LIST_DIR}/test/ui_paint_test.cpp)
     target_link_libraries(ui_paint_test PRIVATE little_arcade_ui_raster)
+    la_host_test(ui_quality_kit_test ${CMAKE_CURRENT_LIST_DIR}/test/ui_quality_kit_test.cpp)
+    target_link_libraries(ui_quality_kit_test PRIVATE little_arcade_ui_raster)
   endif()
 endif()

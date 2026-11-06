@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "little_arcade/ui/palette.hpp"
+#include "little_arcade/ui/scene_art.hpp"
 
 namespace little_arcade::bubble_aquarium {
 namespace {
@@ -35,16 +36,7 @@ void paint(ui::ArgbImage& image, int w, int h, void (*fn)(ui::Canvas&)) {
 void BubbleAquariumView::create(lv_obj_t* parent) {
   lv_obj_set_style_bg_color(parent, to_lv(art::kWater), 0);
   lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
-  auto* horizon = plain(parent);
-  lv_obj_set_pos(horizon, 0, 62);
-  lv_obj_set_size(horizon, kScreenWidth, 3);
-  lv_obj_set_style_bg_color(horizon, to_lv(art::kDeepWater), 0);
-  lv_obj_set_style_bg_opa(horizon, LV_OPA_50, 0);
-  auto* sand = plain(parent);
-  lv_obj_set_pos(sand, 0, 222);
-  lv_obj_set_size(sand, kScreenWidth, 18);
-  lv_obj_set_style_bg_color(sand, to_lv(pal::kGround), 0);
-  lv_obj_set_style_bg_opa(sand, LV_OPA_COVER, 0);
+  ui::show_backdrop(parent, ui::World::REEF);
   for (std::size_t i = 0; i < kFishTypeCount; ++i) {
     if (fish_art_[i].allocate(art::kFishW, art::kFishH)) {
       ui::Canvas c = fish_art_[i].canvas();
@@ -67,29 +59,48 @@ void BubbleAquariumView::create(lv_obj_t* parent) {
 
   const Rect controls[] = {BubbleAquariumGame::kFoodButton, BubbleAquariumGame::kBubbleButton};
   lv_obj_t** buttons[] = {&food_button_, &bubble_button_};
+  const uint32_t fills[] = {ui::tok::kOrange.base, ui::tok::kTeal.base};
+  const uint32_t edges[] = {ui::tok::kOrange.shadow, ui::tok::kTeal.shadow};
   for (int i = 0; i < 2; ++i) {
+    auto* lip = plain(parent);
+    lv_obj_set_pos(lip, controls[i].x + 5, controls[i].y + 6);
+    lv_obj_set_size(lip, controls[i].w - 6, controls[i].h - 6);
+    lv_obj_set_style_radius(lip, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(lip, to_lv(edges[i]), 0);
+    lv_obj_set_style_bg_opa(lip, LV_OPA_COVER, 0);
     *buttons[i] = plain(parent);
     lv_obj_set_pos(*buttons[i], controls[i].x + 3, controls[i].y + 3);
     lv_obj_set_size(*buttons[i], controls[i].w - 6, controls[i].h - 6);
     lv_obj_set_style_radius(*buttons[i], LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(*buttons[i], to_lv(pal::kWhite), 0);
+    lv_obj_set_style_bg_color(*buttons[i], to_lv(fills[i]), 0);
+    lv_obj_set_style_bg_grad_color(*buttons[i],
+                                   to_lv(i == 0 ? ui::tok::kOrange.light : ui::tok::kTeal.light), 0);
+    lv_obj_set_style_bg_grad_dir(*buttons[i], LV_GRAD_DIR_VER, 0);
     lv_obj_set_style_bg_opa(*buttons[i], LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(*buttons[i], to_lv(pal::kChromeEdge), 0);
-    lv_obj_set_style_border_width(*buttons[i], 2, 0);
+    lv_obj_set_style_border_color(*buttons[i], to_lv(edges[i]), 0);
+    lv_obj_set_style_border_width(*buttons[i], 3, 0);
     lv_obj_set_style_outline_color(*buttons[i], to_lv(pal::kYellow), 0);
     lv_obj_set_style_outline_width(*buttons[i], 0, 0);
   }
-  auto* label = lv_label_create(food_button_);
-  lv_label_set_text_static(label, LV_SYMBOL_DOWN);
-  lv_obj_center(label);
+  auto* food_mark = image(food_button_, food_art_);
+  lv_image_set_scale(food_mark, 180);
+  lv_obj_center(food_mark);
   auto* bubble_mark = plain(bubble_button_);
   lv_obj_set_size(bubble_mark, 20, 20);
   lv_obj_center(bubble_mark);
   lv_obj_set_style_radius(bubble_mark, LV_RADIUS_CIRCLE, 0);
   lv_obj_set_style_bg_color(bubble_mark, to_lv(art::kWater), 0);
-  lv_obj_set_style_bg_opa(bubble_mark, LV_OPA_30, 0);
-  lv_obj_set_style_border_color(bubble_mark, to_lv(pal::kBlue), 0);
+  lv_obj_set_style_bg_grad_color(bubble_mark, to_lv(ui::tok::kWhite), 0);
+  lv_obj_set_style_bg_grad_dir(bubble_mark, LV_GRAD_DIR_VER, 0);
+  lv_obj_set_style_bg_opa(bubble_mark, LV_OPA_60, 0);
+  lv_obj_set_style_border_color(bubble_mark, to_lv(ui::tok::kTeal.shadow), 0);
   lv_obj_set_style_border_width(bubble_mark, 2, 0);
+  auto* bubble_glint = plain(bubble_button_);
+  lv_obj_set_size(bubble_glint, 5, 5);
+  lv_obj_set_pos(bubble_glint, 20, 17);
+  lv_obj_set_style_radius(bubble_glint, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_color(bubble_glint, to_lv(ui::tok::kWhite), 0);
+  lv_obj_set_style_bg_opa(bubble_glint, LV_OPA_COVER, 0);
 
   chest_ = plain(parent);
   lv_obj_set_pos(chest_, 142, 213);

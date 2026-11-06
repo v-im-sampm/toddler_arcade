@@ -5,6 +5,7 @@
 #include "little_arcade/games/feed_monster_art.hpp"
 #include "little_arcade/ui/chrome_view.hpp"
 #include "little_arcade/ui/palette.hpp"
+#include "little_arcade/ui/scene_art.hpp"
 
 namespace little_arcade::feed_monster {
 
@@ -72,13 +73,7 @@ void visible(lv_obj_t* obj, bool show) {
   }
 }
 
-void band(lv_obj_t* parent, int y, int h, uint32_t rgb) {
-  lv_obj_t* o = plain(parent);
-  lv_obj_set_pos(o, 0, y);
-  lv_obj_set_size(o, kScreenWidth, h);
-  lv_obj_set_style_bg_color(o, to_lv(rgb), 0);
-  lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
-}
+
 
 }  // namespace
 
@@ -98,8 +93,7 @@ void FeedMonsterView::create(lv_obj_t* parent) {
 
   lv_obj_set_style_bg_color(parent, to_lv(pal::kSky), 0);
   lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
-  band(parent, 0, 62, pal::kSkyDark);
-  band(parent, kScreenHeight - 10, 10, pal::kGround);
+  ui::show_backdrop(parent, ui::World::SNACK_SHACK);
 
   badge_ = card(parent, G::kRequestBadge, pal::kWhite);
   for (int i = 0; i < G::kMaxRequest; ++i) {

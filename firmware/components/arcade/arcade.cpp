@@ -165,18 +165,8 @@ void Arcade::create(lv_obj_t* screen) {
   lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
   for (int i = 1; i < 14; ++i) layers_[i] = full_screen(screen);  // [0] = Layer::NONE
   launcher_.create(layers_[static_cast<int>(Layer::MENU)], tile_art);
-  animal_sounds_view_.create(layers_[static_cast<int>(Layer::ANIMAL_SOUNDS)]);
-  color_view_.create(layers_[static_cast<int>(Layer::COLOR_POP)]);
-  hatch_view_.create(layers_[static_cast<int>(Layer::HATCH_A_PET)]);
-  rainbow_piano_view_.create(layers_[static_cast<int>(Layer::RAINBOW_PIANO)]);
-  robo_buddy_view_.create(layers_[static_cast<int>(Layer::ROBO_BUDDY)]);
-  shape_garage_view_.create(layers_[static_cast<int>(Layer::SHAPE_GARAGE)]);
-  feed_monster_view_.create(layers_[static_cast<int>(Layer::FEED_MONSTER)]);
-  sound_jar_view_.create(layers_[static_cast<int>(Layer::SOUND_JAR)]);
-  beat_sharks_view_.create(layers_[static_cast<int>(Layer::BEAT_SHARKS)]);
-  bubble_aquarium_view_.create(layers_[static_cast<int>(Layer::BUBBLE_AQUARIUM)]);
-  rocket_rescue_view_.create(layers_[static_cast<int>(Layer::ROCKET_RESCUE)]);
-  silly_faces_view_.create(layers_[static_cast<int>(Layer::SILLY_FACES)]);
+  // Game views are built when their game opens and destroyed when it closes
+  // (show_layer), so only one scene's LVGL objects ever exist at a time.
   chrome_.create(screen);  // above every layer
 
   // Sleep: dim everything; the next tap wakes (and is consumed).
@@ -222,22 +212,39 @@ Arcade::Layer Arcade::wanted_layer() const {
   }
 }
 
+void Arcade::create_view(Layer layer) {
+  lv_obj_t* parent = layers_[static_cast<int>(layer)];
+  switch (layer) {
+    case Layer::ANIMAL_SOUNDS: animal_sounds_view_.create(parent); break;
+    case Layer::COLOR_POP: color_view_.create(parent); break;
+    case Layer::HATCH_A_PET: hatch_view_.create(parent); break;
+    case Layer::RAINBOW_PIANO: rainbow_piano_view_.create(parent); break;
+    case Layer::ROBO_BUDDY: robo_buddy_view_.create(parent); break;
+    case Layer::SHAPE_GARAGE: shape_garage_view_.create(parent); break;
+    case Layer::FEED_MONSTER: feed_monster_view_.create(parent); break;
+    case Layer::SOUND_JAR: sound_jar_view_.create(parent); break;
+    case Layer::BEAT_SHARKS: beat_sharks_view_.create(parent); break;
+    case Layer::BUBBLE_AQUARIUM: bubble_aquarium_view_.create(parent); break;
+    case Layer::ROCKET_RESCUE: rocket_rescue_view_.create(parent); break;
+    case Layer::SILLY_FACES: silly_faces_view_.create(parent); break;
+    case Layer::NONE:
+    case Layer::MENU: break;
+  }
+}
+
 void Arcade::show_layer(Layer layer) {
   if (layer == shown_) return;
-  if (shown_ != Layer::NONE) set_visible(layers_[static_cast<int>(shown_)], false);
+  if (shown_ != Layer::NONE) {
+    lv_obj_t* old = layers_[static_cast<int>(shown_)];
+    set_visible(old, false);
+    if (shown_ != Layer::MENU) lv_obj_clean(old);  // free the closed game's objects
+  }
   shown_ = layer;
+  // Each view's create() fully (re)initialises its state, so a relaunched
+  // game starts its animation timing afresh.
+  create_view(layer);
   set_visible(layers_[static_cast<int>(layer)], true);
   chrome_.set_home_visible(layer != Layer::MENU);
-  // A (re)launched game restarts its animation timing.
-  if (layer == Layer::COLOR_POP) color_view_.reset();
-  if (layer == Layer::ANIMAL_SOUNDS) animal_sounds_view_.reset();
-  if (layer == Layer::HATCH_A_PET) hatch_view_.reset();
-  if (layer == Layer::RAINBOW_PIANO) rainbow_piano_view_.reset();
-  if (layer == Layer::ROBO_BUDDY) robo_buddy_view_.reset();
-  if (layer == Layer::SHAPE_GARAGE) shape_garage_view_.reset();
-  if (layer == Layer::FEED_MONSTER) feed_monster_view_.reset();
-  if (layer == Layer::SOUND_JAR) sound_jar_view_.reset();
-  if (layer == Layer::BEAT_SHARKS) beat_sharks_view_.reset();
 }
 
 void Arcade::tick(uint32_t now_ms) {

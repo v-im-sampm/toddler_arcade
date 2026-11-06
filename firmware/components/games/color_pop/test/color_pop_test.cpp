@@ -224,7 +224,7 @@ void test_empty_tap_and_unrelated_intents_are_harmless() {
   Harness h;
   h.enter_and_play();
   h.game.handle(make_touch_event(310, 100, h.t += 200));  // right margin, no slot
-  h.game.handle(make_touch_event(100, 150, h.t += 200));  // gap between slots
+  h.game.handle(make_touch_event(120, 150, h.t += 200));  // gap between slots
   h.say(Intent::GO);
   h.say(Intent::YES);
   EXPECT(h.game.phase() == Phase::PLAY && h.game.rounds_completed() == 0);

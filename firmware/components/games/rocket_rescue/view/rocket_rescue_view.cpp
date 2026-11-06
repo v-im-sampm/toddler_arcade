@@ -1,6 +1,7 @@
 #include "little_arcade/games/rocket_rescue_view.hpp"
 
 #include "little_arcade/ui/palette.hpp"
+#include "little_arcade/ui/scene_art.hpp"
 
 namespace little_arcade::rocket_rescue {
 namespace {
@@ -26,14 +27,7 @@ void paint(ui::ArgbImage& image, int w, int h, void (*fn)(ui::Canvas&)) {
 void RocketRescueView::create(lv_obj_t* parent) {
   lv_obj_set_style_bg_color(parent, to_lv(art::kSpace), 0);
   lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
-  for (int i = 0; i < 10; ++i) {
-    auto* star = plain(parent);
-    lv_obj_set_size(star, 3 + i % 2, 3 + i % 2);
-    lv_obj_set_pos(star, 18 + (i * 47) % 286, 8 + (i * 31) % 55);
-    lv_obj_set_style_radius(star, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(star, to_lv(pal::kWhite), 0);
-    lv_obj_set_style_bg_opa(star, LV_OPA_80, 0);
-  }
+  ui::show_backdrop(parent, ui::World::SPACE);
   for (std::size_t i = 0; i < kPlanetCount; ++i) {
     planets_[i].allocate(art::kPlanetW, art::kPlanetH);
     planet_[i] = lv_image_create(parent);
@@ -66,18 +60,31 @@ void RocketRescueView::create(lv_obj_t* parent) {
   const Rect rs[] = {RocketRescueGame::kGoButton, RocketRescueGame::kStopButton};
   lv_obj_t** buttons[] = {&go_, &stop_};
   const char* labels[] = {"GO", "STOP"};
-  const uint32_t colors[] = {pal::kGreen, pal::kPink};
+  const uint32_t colors[] = {ui::tok::kGreen.base, ui::tok::kPink.base};
+  const uint32_t edges[] = {ui::tok::kGreen.shadow, ui::tok::kPink.shadow};
   for (int i = 0; i < 2; ++i) {
+    auto* lip = plain(parent);
+    lv_obj_set_pos(lip, rs[i].x + 5, rs[i].y + 7);
+    lv_obj_set_size(lip, rs[i].w - 6, rs[i].h - 6);
+    lv_obj_set_style_radius(lip, 14, 0);
+    lv_obj_set_style_bg_color(lip, to_lv(edges[i]), 0);
+    lv_obj_set_style_bg_opa(lip, LV_OPA_COVER, 0);
     *buttons[i] = plain(parent);
     lv_obj_set_pos(*buttons[i], rs[i].x + 3, rs[i].y + 3);
     lv_obj_set_size(*buttons[i], rs[i].w - 6, rs[i].h - 6);
     lv_obj_set_style_radius(*buttons[i], 14, 0);
     lv_obj_set_style_bg_color(*buttons[i], to_lv(colors[i]), 0);
+    lv_obj_set_style_bg_grad_color(*buttons[i], to_lv(i == 0 ? ui::tok::kGreen.light : ui::tok::kPink.light), 0);
+    lv_obj_set_style_bg_grad_dir(*buttons[i], LV_GRAD_DIR_VER, 0);
     lv_obj_set_style_bg_opa(*buttons[i], LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(*buttons[i], to_lv(pal::kInk), 0);
-    lv_obj_set_style_border_width(*buttons[i], 2, 0);
+    lv_obj_set_style_border_color(*buttons[i], to_lv(edges[i]), 0);
+    lv_obj_set_style_border_width(*buttons[i], 3, 0);
     auto* label_obj = lv_label_create(*buttons[i]);
     lv_label_set_text_static(label_obj, labels[i]);
+#if LV_FONT_MONTSERRAT_18
+    lv_obj_set_style_text_font(label_obj, &lv_font_montserrat_18, 0);
+#endif
+    lv_obj_set_style_text_color(label_obj, to_lv(ui::tok::kInk), 0);
     lv_obj_center(label_obj);
   }
 }

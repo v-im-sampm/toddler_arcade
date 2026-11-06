@@ -2,64 +2,62 @@
 #include <cstdint>
 
 #include "little_arcade/games/color_pop.hpp"
-#include "little_arcade/ui/chrome_view.hpp"
+#include "little_arcade/ui/argb_image.hpp"
+#include "little_arcade/ui/fx.hpp"
+#include "little_arcade/ui/motion.hpp"
 #include "lvgl.h"
 
 namespace little_arcade::color_pop {
 
-// LVGL renderer for ColorPopGame (layout: docs/mockups/color_pop.html).
-// create() builds every object once. sync() reads the game's accessors and
-// only touches properties that changed since the previous frame, so a still
-// scene invalidates nothing. No heap use after create(). Objects are not
-// clickable: the owner routes touches to the game as InputEvents.
+// Procedural Color Pop renderer in the quality-bar beach style. Only game
+// logic owns input; this view paints cached sprites and bounded shared effects.
 class ColorPopView {
  public:
-  static constexpr int kPatternPx = 40;
-
   void create(lv_obj_t* parent);
   void sync(const ColorPopGame& game, uint32_t now_ms);
-  // Restart animation timing (called when the game is re-entered).
-  void reset() { initialised_ = false; }
 
  private:
-  struct BubbleObjs {
-    lv_obj_t* shadow = nullptr;
-    lv_obj_t* body = nullptr;
-    lv_obj_t* icon = nullptr;
-  };
-  // Last values applied to LVGL, used to skip redundant invalidations.
   struct BubbleCache {
     int color = -1;
+    int scale_x = -1;
+    int scale_y = -1;
+    int rotation = -1;
     int16_t x = -1;
     int16_t y = -1;
-    int16_t dx = 0;
-    int16_t glow_pad = -1;
-    bool visible = true;
+    bool visible = false;
   };
-  static constexpr int kSparkles = 12;
 
-  void sync_badge(const ColorPopGame& game, uint32_t now_ms);
-  void sync_bubble(std::size_t i, const ColorPopGame& game, uint32_t now_ms);
-  void sync_sparkles(const ColorPopGame& game, uint32_t now_ms);
+  void paint_bubble(ui::ArgbImage& image, Color color);
+  void paint_badge(ui::ArgbImage& image, const ui::tok::Hue* hue, bool happy);
+  void paint_crab(ui::Canvas& canvas);
+  void paint_pattern(ui::Canvas& canvas, Pattern pattern, float cx, float cy, float size, uint32_t color);
+  void sync_badge(const ColorPopGame& game);
+  void sync_bubbles(const ColorPopGame& game, uint32_t now_ms);
+  void sync_effects(const ColorPopGame& game, uint32_t now_ms);
 
-  ui::A8Image<kPatternPx, kPatternPx> patterns_[kColorCount]{};
-  BubbleObjs bubbles_[ColorPopGame::kMaxBubbles];
+  ui::ArgbImage bubble_art_[kColorCount]{};
+  ui::ArgbImage badge_art_[kColorCount + 2]{};
+  ui::ArgbImage crab_art_{};
+  ui::ArgbImage hand_art_{};
+  lv_obj_t* bubbles_[ColorPopGame::kMaxBubbles]{};
+  lv_obj_t* shadows_[ColorPopGame::kMaxBubbles]{};
   BubbleCache cache_[ColorPopGame::kMaxBubbles];
   lv_obj_t* badge_ = nullptr;
-  lv_obj_t* badge_fill_ = nullptr;
-  lv_obj_t* badge_icon_ = nullptr;
   lv_obj_t* badge_question_ = nullptr;
-  lv_obj_t* ring_ = nullptr;
-  lv_obj_t* sparkles_[kSparkles]{};
-
+  lv_obj_t* hint_ring_ = nullptr;
+  lv_obj_t* helper_hand_ = nullptr;
+  lv_obj_t* crab_ = nullptr;
+  lv_obj_t* intro_play_ = nullptr;
+  ui::FxLayer fx_;
+  ui::motion::Spring crab_spring_{};
   Phase last_phase_ = Phase::INTRO;
-  uint32_t phase_start_ms_ = 0;
-  int last_wiggle_ = -1;
+  uint32_t last_round_ = 0;
+  uint32_t last_hint_ms_ = 0;
   uint32_t wiggle_start_ms_ = 0;
-  int badge_color_ = -2;
-  int16_t badge_pad_ = -1;
-  bool sparkles_visible_ = true;
-  bool initialised_ = false;
+  int last_wiggle_ = -1;
+  int badge_variant_ = -1;
+  uint32_t last_ms_ = 0;
+  bool have_time_ = false;
 };
 
 }  // namespace little_arcade::color_pop

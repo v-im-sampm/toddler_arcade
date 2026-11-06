@@ -33,6 +33,13 @@ ASCII sketch + a table of nodes with rect, role, and min size. Respect the Home 
 For each primary target, record its visible bounds, hit bounds, spacing, state-dependent visibility,
 and touch/voice alternative. Show how answer sets remain distinguishable without colour or sound.
 
+### 3.4 Visual quality and renderer
+Describe the setting, focal point, palette and material cues. Each scene needs a layered, colored
+backdrop; each primary object needs a colored outline, highlight and shadow; controls use the shared
+cream/ink chrome. Name the idle, touch, success and hint responses that a screenshot reviewer should
+be able to see. Use the ESP-IDF/LVGL shared visual kit rather than inventing per-game token or
+particle systems; add a new world or emitter only with a documented reason and measured budget.
+
 ## 4. Characters and animation
 | Element | Idle | Press | Release | Success | Hint | Other |
 |---|---|---|---|---|---|
@@ -74,8 +81,10 @@ scene/state produces it.
 
 At minimum, criteria cover: first visual response to touch, empty-space touch, idle/press/release/
 success/hint states, a complete help ladder, touch-only and audio-off completion, reduced motion,
-rapid taps/capped effects, and the game's worst-case visual/audio/memory budgets. Link each criterion
-to a replay or an explicit review/bench method; do not claim device evidence from a preview.
+rapid taps/capped effects, and the game's worst-case visual/audio/memory budgets. Include reviewed
+320×240 captures of the menu, idle, interaction, hint and celebration states plus Home/re-entry.
+Link each criterion to a replay or an explicit review/bench method; do not claim device evidence
+from a preview.
 
 ## 11. Later / stretch
 Ideas explicitly out of scope for this version.

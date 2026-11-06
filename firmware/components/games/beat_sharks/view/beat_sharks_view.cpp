@@ -3,6 +3,7 @@
 #include "little_arcade/games/beat_sharks_art.hpp"
 #include "little_arcade/ui/chrome_view.hpp"
 #include "little_arcade/ui/palette.hpp"
+#include "little_arcade/ui/scene_art.hpp"
 
 namespace little_arcade::beat_sharks {
 
@@ -102,10 +103,7 @@ void BeatSharksView::create(lv_obj_t* parent) {
 
   lv_obj_set_style_bg_color(parent, to_lv(art::kWater), 0);
   lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
-  lv_obj_t* sky = plain(parent);
-  lv_obj_set_size(sky, kScreenWidth, 58);
-  lv_obj_set_style_bg_color(sky, to_lv(pal::kSky), 0);
-  lv_obj_set_style_bg_opa(sky, LV_OPA_COVER, 0);
+  ui::show_backdrop(parent, ui::World::REEF);
 
   play_ = button(parent, G::kPlayButton, 4, pal::kWhite);
   play_img_ = image(play_, play_icon_);

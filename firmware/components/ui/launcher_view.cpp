@@ -2,6 +2,9 @@
 
 #include "little_arcade/ui/launcher_art.hpp"
 #include "little_arcade/ui/palette.hpp"
+#include "little_arcade/ui/scene_art.hpp"
+#include "little_arcade/ui/shade.hpp"
+#include "little_arcade/ui/tokens.hpp"
 
 namespace little_arcade::ui {
 
@@ -38,8 +41,9 @@ void LauncherView::create(lv_obj_t* parent, TileArtFn art) {
   art_ = art;
   lv_obj_set_style_bg_color(parent, to_lv(pal::kSky), 0);
   lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
-  box(parent, 0, 0, kScreenWidth, 62, pal::kSkyDark, LV_OPA_COVER, 0);
-  box(parent, 0, kScreenHeight - 10, kScreenWidth, 10, pal::kGround, LV_OPA_COVER, 0);
+  Canvas bg = backdrop_.begin();
+  if (bg.px) scene_art::paint(bg, World::BRIDGE);
+  backdrop_.show(parent);
 
   if (logo_.allocate(kLogoW, kLogoH)) {
     Canvas c = logo_.canvas();
@@ -53,10 +57,10 @@ void LauncherView::create(lv_obj_t* parent, TileArtFn art) {
   for (std::size_t slot = 0; slot < SceneManager::kTilesPerPage; ++slot) {
     const Rect& r = SceneManager::kTileRects[slot];
     Tile& t = tiles_[slot];
-    t.shadow = box(parent, r.x + 5, r.y + 6, r.w - 6, r.h - 6, pal::kInk, LV_OPA_20, 14);
-    t.card = box(parent, r.x + 2, r.y + 2, r.w - 6, r.h - 6, pal::kWhite, LV_OPA_COVER, 14);
-    lv_obj_set_style_border_color(t.card, to_lv(pal::kInk), 0);
-    lv_obj_set_style_border_width(t.card, 3, 0);
+    t.shadow = box(parent, r.x + 5, r.y + 7, r.w - 6, r.h - 6, tok::kBrown.shadow, LV_OPA_50, 16);
+    t.card = box(parent, r.x + 2, r.y + 2, r.w - 6, r.h - 6, tok::kCream.light, LV_OPA_COVER, 16);
+    lv_obj_set_style_border_color(t.card, to_lv(tok::kCream.shadow), 0);
+    lv_obj_set_style_border_width(t.card, 2, 0);
     lv_obj_set_style_clip_corner(t.card, true, 0);
     t.art = lv_image_create(t.card);
     lv_obj_remove_flag(t.art, LV_OBJ_FLAG_CLICKABLE);
@@ -96,6 +100,8 @@ void LauncherView::sync(const SceneManager& scenes) {
     if (!entry) continue;
     const TileArt art = art_ ? art_(entry->id) : TileArt{};
     lv_obj_set_style_bg_color(t.card, to_lv(art.bg_rgb), 0);
+    lv_obj_set_style_bg_grad_color(t.card, to_lv(mix(art.bg_rgb, tok::kCream.light, 0.22f)), 0);
+    lv_obj_set_style_bg_grad_dir(t.card, LV_GRAD_DIR_VER, 0);
     set_visible(t.art, art.image != nullptr);
     if (art.image) lv_image_set_src(t.art, art.image);
   }

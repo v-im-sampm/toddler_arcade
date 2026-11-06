@@ -4,6 +4,7 @@
 
 #include "little_arcade/ui/chrome_view.hpp"
 #include "little_arcade/ui/palette.hpp"
+#include "little_arcade/ui/scene_art.hpp"
 
 namespace little_arcade::robo_buddy {
 
@@ -47,6 +48,8 @@ lv_obj_t* RoboBuddyView::shape(lv_obj_t* parent, int x, int y, int w, int h, int
   lv_obj_set_size(object, w, h);
   lv_obj_set_style_radius(object, radius, 0);
   lv_obj_set_style_bg_color(object, to_lv(fill), 0);
+  lv_obj_set_style_bg_grad_color(object, to_lv(ui::mix(fill, ui::tok::kWhite, 0.18f)), 0);
+  lv_obj_set_style_bg_grad_dir(object, LV_GRAD_DIR_VER, 0);
   lv_obj_set_style_bg_opa(object, LV_OPA_COVER, 0);
   lv_obj_set_style_border_color(object, to_lv(border), 0);
   lv_obj_set_style_border_width(object, border_width, 0);
@@ -65,12 +68,7 @@ void RoboBuddyView::create(lv_obj_t* parent) {
   using G = RoboBuddyGame;
   lv_obj_set_style_bg_color(parent, to_lv(pal::kSky), 0);
   lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
-
-  lv_obj_t* ground = plain(parent);
-  lv_obj_set_pos(ground, 0, 224);
-  lv_obj_set_size(ground, kScreenWidth, 16);
-  lv_obj_set_style_bg_color(ground, to_lv(pal::kGround), 0);
-  lv_obj_set_style_bg_opa(ground, LV_OPA_COVER, 0);
+  ui::show_backdrop(parent, ui::World::WORKSHOP);
 
   lv_obj_t* shadow = shape(parent, 119, 207, 82, 12, LV_RADIUS_CIRCLE, pal::kInk, pal::kInk, 0);
   lv_obj_set_style_bg_opa(shadow, LV_OPA_20, 0);

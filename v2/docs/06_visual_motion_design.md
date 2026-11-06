@@ -142,6 +142,29 @@ Each game documents its worst-case concurrent emitters and uses a hard cap; reac
 degrade gracefully (for example, skip the oldest cosmetic emission), never allocate in the frame
 path or delay input.
 
+### 4.5 Shared firmware visual kit
+For ESP-IDF/LVGL games, use the shared renderer primitives in
+`firmware/components/ui/include/little_arcade/ui/`: `tokens.hpp` for palette and motion values,
+`shade.hpp` for shaded original art, `motion.hpp` for bounded transforms, `particles.hpp` and
+`fx.hpp` for pooled effects, and `scene_art.hpp` for the shared world backdrops. A game may add
+game-specific art and reactions, but must not replace these with flat placeholder circles or a
+single solid-color screen.
+
+Every rendered scene must have a recognizable setting with at least two tonal layers, a focal
+character or object with a darker colored outline, highlight and shadow, and the same cream/ink
+chrome language. Answer objects remain readable without color alone. Effects are additive: keep
+the view responsive, reuse the fixed pools, and paint static art at scene creation rather than in
+the frame loop. The current firmware particle layer caps a scene at 48 live particles; changing that
+cap requires device-budget evidence.
+
+The quality-bar sketch is the visual floor for richness and responsiveness, not a pixel-match target:
+keep its soft gradients, saturated-but-gentle color, glossy volume, calm scene life, and clear touch
+feedback while designing original game-specific scenes. Review a 320×240 simulator capture of every
+game, including a representative interaction, hint, celebration, and a Home/re-entry cycle. Fix
+obvious flat areas, clipped art, weak contrast, and cramped compositions before calling the visual
+review complete. Simulator screenshots are host evidence only; real-panel quality and performance
+still require an on-device review.
+
 ## 5. Rendering strategy on the device (constraints from `01_v1_baseline.md` §2)
 - A full-frame push at 27 MHz is ≈ 45 ms, so **design scenes so that most frames touch < 35 % of
   the screen**:
@@ -176,4 +199,7 @@ path or delay input.
 - [ ] Reduced-motion mode preserves all essential cues and stays within the motion safety tokens
 - [ ] No flashes > 3 Hz; no large red flash; luminance check passes
 - [ ] Particle/entity/voice caps and device worst-frame dirty area are recorded and within budget
+- [ ] 320×240 screenshots show the intended depth, palette and focal hierarchy in idle, interaction,
+      hint and celebration states; screenshots are reviewed for clipping and visual flatness
+- [ ] Re-entry recreates the scene without stale view state, leaked LVGL objects or a blank backdrop
 - [ ] Looks right on the real panel (owner photo) and at 3× on phone

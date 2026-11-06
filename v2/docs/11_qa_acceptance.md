@@ -39,6 +39,9 @@
      every touch has a same-frame visual acknowledgement; every audio cue has a visual counterpart;
      input remains available during nonessential animation; particle/voice caps hold during mashing.
      The quality-bar sketch is a reference for feel, not a golden image to copy.
+   - **Visual craft:** reviewed 320×240 captures for every game's idle, interaction, hint and
+     celebration states. Reject placeholder-flat scenes, clipped focal art, missing highlights or
+     shadows, and inconsistent chrome. Include a Home/re-entry capture to expose stale view state.
 5. **Device bench:** replays on the board. Collect FPS p50/p95/p99, the worst-frame dirty area,
    particle count, heap/PSRAM minima, audio CPU, underruns, and touch→visual/sound latency. Report
    both normal and reduced-motion results; never present a browser preview as device evidence.

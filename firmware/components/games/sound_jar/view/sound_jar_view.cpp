@@ -3,6 +3,7 @@
 #include "little_arcade/games/sound_jar_art.hpp"
 #include "little_arcade/ui/chrome_view.hpp"
 #include "little_arcade/ui/palette.hpp"
+#include "little_arcade/ui/scene_art.hpp"
 // Not re-exported by lvgl.h in 9.5; needed to drop the stale waveform raster.
 #include "src/misc/cache/instance/lv_image_cache.h"
 
@@ -23,15 +24,6 @@ lv_obj_t* plain(lv_obj_t* parent) {
   lv_obj_t* o = lv_obj_create(parent);
   lv_obj_remove_style_all(o);
   lv_obj_remove_flag(o, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
-  return o;
-}
-
-lv_obj_t* band(lv_obj_t* parent, int y, int h, uint32_t rgb) {
-  lv_obj_t* o = plain(parent);
-  lv_obj_set_pos(o, 0, y);
-  lv_obj_set_size(o, kScreenWidth, h);
-  lv_obj_set_style_bg_color(o, to_lv(rgb), 0);
-  lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
   return o;
 }
 
@@ -100,8 +92,7 @@ void SoundJarView::create(lv_obj_t* parent) {
 
   lv_obj_set_style_bg_color(parent, to_lv(pal::kSky), 0);
   lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
-  band(parent, 0, 60, pal::kSkyDark);
-  band(parent, kScreenHeight - 6, 6, pal::kGround);
+  ui::show_backdrop(parent, ui::World::ECHO_CAVE);
 
   record_ = button(parent, SoundJarGame::kRecordButton, 4, pal::kWhite);
   lv_obj_set_style_radius(record_, LV_RADIUS_CIRCLE, 0);

@@ -3,6 +3,7 @@
 #include "little_arcade/games/rainbow_piano_art.hpp"
 #include "little_arcade/ui/chrome_view.hpp"
 #include "little_arcade/ui/palette.hpp"
+#include "little_arcade/ui/scene_art.hpp"
 
 namespace little_arcade::rainbow_piano {
 
@@ -14,15 +15,6 @@ lv_obj_t* plain(lv_obj_t* parent) {
   lv_obj_t* o = lv_obj_create(parent);
   lv_obj_remove_style_all(o);
   lv_obj_remove_flag(o, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
-  return o;
-}
-
-lv_obj_t* band(lv_obj_t* parent, int y, int h, uint32_t rgb) {
-  lv_obj_t* o = plain(parent);
-  lv_obj_set_pos(o, 0, y);
-  lv_obj_set_size(o, kScreenWidth, h);
-  lv_obj_set_style_bg_color(o, to_lv(rgb), 0);
-  lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
   return o;
 }
 
@@ -66,8 +58,7 @@ void RainbowPianoView::create(lv_obj_t* parent) {
 
   lv_obj_set_style_bg_color(parent, to_lv(pal::kSky), 0);
   lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
-  band(parent, 0, 62, pal::kSkyDark);
-  band(parent, kScreenHeight - 10, 10, pal::kGround);
+  ui::show_backdrop(parent, ui::World::BRIDGE);
   if (banner_.ready()) {
     banner_obj_ = image(parent, banner_.dsc());
     lv_obj_align(banner_obj_, LV_ALIGN_TOP_MID, 0, 6);

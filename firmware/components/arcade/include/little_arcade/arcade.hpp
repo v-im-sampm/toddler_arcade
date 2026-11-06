@@ -70,7 +70,8 @@ class Arcade {
     beat_sharks_.attach_sampler(sampler);
   }
 
-  // Builds every scene's objects once on `screen`.
+  // Builds the launcher, chrome and overlays on `screen`. Game views are built
+  // on entry and destroyed on exit, so only one scene is alive at a time.
   void create(lv_obj_t* screen);
   // Raw touch-panel state, sampled every UI loop: drives the hidden parent
   // gate (hold the Mic corner 5 s) and forwards new presses to touch().
@@ -110,6 +111,7 @@ class Arcade {
 
   Layer wanted_layer() const;
   void show_layer(Layer layer);
+  void create_view(Layer layer);
 
   animal_sounds::AnimalSoundsGame animal_sounds_;
   color_pop::ColorPopGame color_pop_;

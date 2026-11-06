@@ -51,6 +51,24 @@ struct Options {
   bool mic = true;      // Sound Jar uses the PC microphone (--no-mic turns it off)
   uint32_t volume = 0;  // parent-saved level stand-in; 0 = muted (default)
   std::string shots;
+  bool snap = false;
+  std::string game_name = "color_pop";
+  std::string taps;    // snap: "x,y@ms;x,y@ms" relative to the game launch
+  std::string at;      // snap: "ms,ms" extra screenshot times
+  bool reenter = false;  // snap: go Home and relaunch, then screenshot again
+};
+
+struct GameName {
+  const char* name;
+  GameId id;
+};
+constexpr GameName kGameNames[] = {
+    {"color_pop", GameId::COLOR_POP},       {"hatch_a_pet", GameId::HATCH_A_PET},
+    {"rainbow_piano", GameId::RAINBOW_PIANO}, {"robo_buddy", GameId::ROBO_BUDDY},
+    {"shape_garage", GameId::SHAPE_GARAGE}, {"animal_sounds", GameId::ANIMAL_SOUNDS},
+    {"rocket_rescue", GameId::ROCKET_RESCUE}, {"silly_faces", GameId::SILLY_FACES},
+    {"feed_monster", GameId::FEED_MONSTER}, {"bubble_aquarium", GameId::BUBBLE_AQUARIUM},
+    {"sound_jar", GameId::SOUND_JAR},       {"beat_sharks", GameId::BEAT_SHARKS},
 };
 
 const char* cue_name(Cue c) {
@@ -1279,6 +1297,122 @@ int run_interactive(const Options& opt) {
   return 0;
 }
 
+// Snapshot mode: any game. Launches it from the launcher (paging as needed),
+// replays scripted taps and writes screenshots at fixed times after launch,
+// 120 ms and 450 ms after each tap, and optionally after Home + relaunch.
+// Prints the LVGL pool high-water mark. Desktop only, not hardware evidence.
+int run_snap(const Options& opt) {
+  static BenchState state{};
+  g_bench = &state;
+  lv_tick_set_cb(sim_tick);
+  lv_display_t* disp = lv_display_create(kW, kH);
+  lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565);
+  lv_display_set_buffers(disp, state.buf1, state.buf2, sizeof(state.buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
+  lv_display_set_flush_cb(disp, bench_flush);
+  static ConsoleFeedback feedback;
+  feedback.quiet = true;
+  static Arcade arcade(feedback, opt.seed ? opt.seed : 1234);
+  arcade.create(lv_screen_active());
+
+  struct Tap { int x, y; uint32_t ms; };
+  std::vector<Tap> taps;
+  for (std::size_t p = 0; p < opt.taps.size();) {
+    std::size_t e = opt.taps.find(';', p);
+    if (e == std::string::npos) e = opt.taps.size();
+    Tap t{};
+    if (std::sscanf(opt.taps.substr(p, e - p).c_str(), "%d,%d@%u", &t.x, &t.y, &t.ms) == 3) taps.push_back(t);
+    p = e + 1;
+  }
+  std::vector<uint32_t> times = {100, 600, 1500, 3000, 6000};
+  for (std::size_t p = 0; p < opt.at.size();) {
+    std::size_t e = opt.at.find(',', p);
+    if (e == std::string::npos) e = opt.at.size();
+    times.push_back(static_cast<uint32_t>(std::strtoul(opt.at.substr(p, e - p).c_str(), nullptr, 10)));
+    p = e + 1;
+  }
+  struct Pending { uint32_t at; std::string name; };
+  std::vector<Pending> pending;
+  const std::string base = opt.shots + "/" + opt.game_name + "_";
+  auto shoot = [&](const std::string& name) {
+    const std::string path = base + name + ".bmp";
+    lv_obj_invalidate(lv_screen_active());
+    lv_refr_now(disp);
+    std::printf("shot %s %s\n", path.c_str(), write_bmp(path, state.frame) ? "ok" : "FAILED");
+  };
+
+  auto launch = [&](uint32_t now) {
+    const SceneManager& sm = arcade.scenes();
+    for (std::size_t slot = 0; slot < SceneManager::kTilesPerPage; ++slot) {
+      const GameEntry* e = sm.tile(slot);
+      if (e && e->id == opt.game) {
+        tap(arcade, SceneManager::kTileRects[slot], now);
+        return true;
+      }
+    }
+    tap(arcade, SceneManager::kNextPageButton, now);
+    return false;
+  };
+
+  const uint32_t total_ms = opt.seconds * 1000;
+  uint32_t launched_at = 0, next_try = 400, home_at = 0, relaunch_at = 0;
+  bool launched = false, menu_shot = false, went_home = false, relaunched = false;
+  std::size_t next_tap = 0;
+  uint32_t lv_max = 0;
+  while (g_sim_now < total_ms + 4000) {
+    g_sim_now += opt.frame_ms;
+    if (!launched && g_sim_now >= next_try) {
+      if (!menu_shot) {
+        shoot("menu");
+        menu_shot = true;
+      }
+      launched = launch(g_sim_now);
+      next_try = g_sim_now + 100;
+      if (launched) {
+        launched_at = g_sim_now;
+        for (uint32_t t : times) pending.push_back({launched_at + t, "t" + std::to_string(t)});
+      }
+    }
+    if (launched && !went_home && next_tap < taps.size() && g_sim_now - launched_at >= taps[next_tap].ms) {
+      const Tap& t = taps[next_tap];
+      arcade.touch(static_cast<int16_t>(t.x), static_cast<int16_t>(t.y), g_sim_now);
+      pending.push_back({g_sim_now + 120, "tap" + std::to_string(next_tap) + "_a"});
+      pending.push_back({g_sim_now + 450, "tap" + std::to_string(next_tap) + "_b"});
+      ++next_tap;
+    }
+    if (launched && opt.reenter && !went_home && g_sim_now - launched_at >= total_ms) {
+      tap(arcade, kHomeButton, g_sim_now);
+      went_home = true;
+      home_at = g_sim_now;
+    }
+    if (went_home && !relaunched && g_sim_now - home_at >= 600) {
+      if (launch(g_sim_now)) {
+        relaunched = true;
+        relaunch_at = g_sim_now;
+        pending.push_back({relaunch_at + 1500, "reenter"});
+      }
+    }
+    arcade.tick(g_sim_now);
+    lv_timer_handler();
+    lv_mem_monitor_t mem;
+    lv_mem_monitor(&mem);
+    lv_max = std::max<uint32_t>(lv_max, static_cast<uint32_t>(mem.total_size - mem.free_size));
+    for (auto it = pending.begin(); it != pending.end();) {
+      if (g_sim_now >= it->at) {
+        shoot(it->name);
+        it = pending.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    if (launched && !opt.reenter && g_sim_now - launched_at >= total_ms && pending.empty()) break;
+    if (relaunched && pending.empty()) break;
+  }
+  std::printf("JSON {\"mode\":\"snap\",\"platform\":\"host-desktop\",\"game\":\"%s\",\"launched\":%s,"
+              "\"lv_pool_used_max\":%u}\n",
+              opt.game_name.c_str(), launched ? "true" : "false", lv_max);
+  return launched ? 0 : 1;
+}
+
 bool parse(int argc, char** argv, Options& opt) {
   for (int i = 1; i < argc; ++i) {
     const std::string a = argv[i];
@@ -1292,25 +1426,23 @@ bool parse(int argc, char** argv, Options& opt) {
       opt.bench = true;
     } else if (a == "--game" && i + 1 < argc) {
       const std::string g = argv[++i];
-      if (g == "color_pop") {
-        opt.game = GameId::COLOR_POP;
-      } else if (g == "hatch_a_pet") {
-        opt.game = GameId::HATCH_A_PET;
-      } else if (g == "feed_monster") {
-        opt.game = GameId::FEED_MONSTER;
-      } else if (g == "rainbow_piano") {
-        opt.game = GameId::RAINBOW_PIANO;
-      } else if (g == "robo_buddy") {
-        opt.game = GameId::ROBO_BUDDY;
-      } else if (g == "animal_sounds") {
-        opt.game = GameId::ANIMAL_SOUNDS;
-      } else if (g == "sound_jar") {
-        opt.game = GameId::SOUND_JAR;
-      } else if (g == "beat_sharks") {
-        opt.game = GameId::BEAT_SHARKS;
-      } else {
-        return false;
+      bool found = false;
+      for (const GameName& n : kGameNames) {
+        if (g == n.name) {
+          opt.game = n.id;
+          opt.game_name = n.name;
+          found = true;
+        }
       }
+      if (!found) return false;
+    } else if (a == "--snap") {
+      opt.snap = true;
+    } else if (a == "--reenter") {
+      opt.reenter = true;
+    } else if (a == "--taps" && i + 1 < argc) {
+      opt.taps = argv[++i];
+    } else if (a == "--at" && i + 1 < argc) {
+      opt.at = argv[++i];
     } else if (a == "--seconds") {
       if (!next(opt.seconds) || opt.seconds == 0) return false;
     } else if (a == "--seed") {
@@ -1343,12 +1475,14 @@ int main(int argc, char** argv) {
     std::printf(
         "usage: little_arcade_sim [--zoom N] [--seed N] [--mute] [--no-mic] [--volume 0..6]\n"
         "       little_arcade_sim --bench [--game animal_sounds|beat_sharks|color_pop|feed_monster|hatch_a_pet|rainbow_piano|robo_buddy|sound_jar] [--seconds N] [--seed N]\n"
-        "                         [--frame-ms N] [--shots DIR]\n");
+        "                         [--frame-ms N] [--shots DIR]\n"
+        "       little_arcade_sim --snap --game NAME --shots DIR [--seconds N] [--taps \"x,y@ms;...\"] [--at \"ms,...\"] [--reenter]\n");
     return 2;
   }
   SDL_SetMainReady();
   std::setvbuf(stdout, nullptr, _IONBF, 0);
   lv_init();
+  if (opt.snap) return run_snap(opt);
   if (opt.bench) {
     if (opt.game == GameId::SOUND_JAR) return run_sound_jar_bench(opt);
     if (opt.game == GameId::BEAT_SHARKS) return run_beat_sharks_bench(opt);

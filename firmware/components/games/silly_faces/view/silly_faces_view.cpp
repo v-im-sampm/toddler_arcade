@@ -1,6 +1,7 @@
 #include "little_arcade/games/silly_faces_view.hpp"
 
 #include "little_arcade/ui/palette.hpp"
+#include "little_arcade/ui/scene_art.hpp"
 
 namespace little_arcade::silly_faces {
 namespace {
@@ -15,11 +16,19 @@ lv_obj_t* plain(lv_obj_t* parent) {
 void paint_button(lv_obj_t* o, uint32_t fill, int radius = 13) {
   lv_obj_set_style_radius(o, radius, 0);
   lv_obj_set_style_bg_color(o, to_lv(fill), 0);
+  lv_obj_set_style_bg_grad_color(o, to_lv(ui::mix(fill, ui::tok::kCream.light, 0.24f)), 0);
+  lv_obj_set_style_bg_grad_dir(o, LV_GRAD_DIR_VER, 0);
   lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
-  lv_obj_set_style_border_color(o, to_lv(pal::kInk), 0);
+  lv_obj_set_style_border_color(o, to_lv(ui::tok::kInk), 0);
   lv_obj_set_style_border_width(o, 2, 0);
 }
 lv_obj_t* button(lv_obj_t* parent, const Rect& r, const char* text, uint32_t fill) {
+  lv_obj_t* shadow = plain(parent);
+  lv_obj_set_pos(shadow, r.x + 5, r.y + 6);
+  lv_obj_set_size(shadow, r.w - 6, r.h - 6);
+  lv_obj_set_style_radius(shadow, r.w > r.h ? 14 : LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_color(shadow, to_lv(ui::tok::kInk), 0);
+  lv_obj_set_style_bg_opa(shadow, LV_OPA_30, 0);
   auto* o = plain(parent);
   lv_obj_set_pos(o, r.x + 2, r.y + 2);
   lv_obj_set_size(o, r.w - 4, r.h - 4);
@@ -34,6 +43,7 @@ lv_obj_t* button(lv_obj_t* parent, const Rect& r, const char* text, uint32_t fil
 void SillyFacesView::create(lv_obj_t* parent) {
   lv_obj_set_style_bg_color(parent, to_lv(pal::kSky), 0);
   lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
+  lv_obj_t* backdrop = ui::show_backdrop(parent, ui::World::MIRROR_POND);
   face_art_.allocate(art::kFaceW, art::kFaceH);
   face_ = lv_image_create(parent);
   lv_obj_remove_flag(face_, LV_OBJ_FLAG_CLICKABLE);
@@ -55,6 +65,7 @@ void SillyFacesView::create(lv_obj_t* parent) {
   lv_obj_move_to_index(eyes_zone_, 0);
   lv_obj_move_to_index(mouth_zone_, 1);
   lv_obj_move_to_index(face_, 2);
+  if (backdrop) lv_obj_move_to_index(backdrop, 0);
   show_button_ = button(parent, SillyFacesGame::kShowButton, "SHOW", pal::kGreen);
   mix_button_ = button(parent, SillyFacesGame::kMixButton, "MIX", pal::kYellow);
   next_button_ = button(parent, SillyFacesGame::kNewMonsterButton, "NEW", pal::kPink);
