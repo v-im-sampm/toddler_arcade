@@ -2,12 +2,15 @@
 
 #include "little_arcade/games/animal_sounds_art.hpp"
 #include "little_arcade/games/beat_sharks_art.hpp"
+#include "little_arcade/games/bubble_aquarium_art.hpp"
 #include "little_arcade/games/color_pop_art.hpp"
 #include "little_arcade/games/feed_monster_art.hpp"
 #include "little_arcade/games/hatch_a_pet_art.hpp"
 #include "little_arcade/games/rainbow_piano_art.hpp"
 #include "little_arcade/games/robo_buddy_art.hpp"
+#include "little_arcade/games/rocket_rescue_art.hpp"
 #include "little_arcade/games/shape_garage_art.hpp"
+#include "little_arcade/games/silly_faces_art.hpp"
 #include "little_arcade/games/sound_jar_art.hpp"
 #include "little_arcade/ui/palette.hpp"
 
@@ -27,6 +30,9 @@ ui::ArgbImage g_shape_garage_tile;
 ui::ArgbImage g_feed_monster_tile;
 ui::ArgbImage g_sound_jar_tile;
 ui::ArgbImage g_beat_sharks_tile;
+ui::ArgbImage g_bubble_aquarium_tile;
+ui::ArgbImage g_rocket_rescue_tile;
+ui::ArgbImage g_silly_faces_tile;
 
 ui::TileArt tile_art(GameId id) {
   switch (id) {
@@ -48,6 +54,14 @@ ui::TileArt tile_art(GameId id) {
       return {g_sound_jar_tile.ready() ? g_sound_jar_tile.dsc() : nullptr, 0xFFE3EE};
     case GameId::BEAT_SHARKS:
       return {g_beat_sharks_tile.ready() ? g_beat_sharks_tile.dsc() : nullptr, 0xD6F0FA};
+    case GameId::BUBBLE_AQUARIUM:
+      return {g_bubble_aquarium_tile.ready() ? g_bubble_aquarium_tile.dsc() : nullptr,
+              bubble_aquarium::art::kWater};
+    case GameId::ROCKET_RESCUE:
+      return {g_rocket_rescue_tile.ready() ? g_rocket_rescue_tile.dsc() : nullptr,
+              rocket_rescue::art::kSpace};
+    case GameId::SILLY_FACES:
+      return {g_silly_faces_tile.ready() ? g_silly_faces_tile.dsc() : nullptr, 0xF1E9FF};
     default:
       return {};
   }
@@ -88,7 +102,10 @@ Arcade::Arcade(IFeedback& feedback, uint32_t seed, uint8_t volume_level, bool mi
                 {GameId::FEED_MONSTER, Intent::COUNTING, &feed_monster_},
                 // No spoken launcher name: kids open Sound Jar from its tile.
                 {GameId::SOUND_JAR, Intent::UNKNOWN, &sound_jar_},
-                {GameId::BEAT_SHARKS, Intent::UNKNOWN, &beat_sharks_}},
+                {GameId::BEAT_SHARKS, Intent::UNKNOWN, &beat_sharks_},
+                {GameId::BUBBLE_AQUARIUM, Intent::FISH, &bubble_aquarium_},
+                {GameId::ROCKET_RESCUE, Intent::SPACE, &rocket_rescue_},
+                {GameId::SILLY_FACES, Intent::FACES, &silly_faces_}},
       feedback_(feedback),
       scenes_(entries_, kGameCount, feedback, config_for(seed)),
       gate_(seed, volume_level, mic_enabled) {
@@ -132,9 +149,21 @@ void Arcade::create(lv_obj_t* screen) {
     ui::Canvas c = g_beat_sharks_tile.canvas();
     beat_sharks::art::paint_tile_art(c);
   }
+  if (g_bubble_aquarium_tile.allocate(ui::LauncherView::kTileArtW, ui::LauncherView::kTileArtH)) {
+    ui::Canvas c = g_bubble_aquarium_tile.canvas();
+    bubble_aquarium::art::paint_fish(c, bubble_aquarium::FishType::STRIPEY);
+  }
+  if (g_rocket_rescue_tile.allocate(ui::LauncherView::kTileArtW, ui::LauncherView::kTileArtH)) {
+    ui::Canvas c = g_rocket_rescue_tile.canvas();
+    rocket_rescue::art::paint_rocket(c);
+  }
+  if (g_silly_faces_tile.allocate(ui::LauncherView::kTileArtW, ui::LauncherView::kTileArtH)) {
+    ui::Canvas c = g_silly_faces_tile.canvas();
+    silly_faces::art::paint_tile_art(c);
+  }
 
   lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
-  for (int i = 1; i < 11; ++i) layers_[i] = full_screen(screen);  // [0] = Layer::NONE
+  for (int i = 1; i < 14; ++i) layers_[i] = full_screen(screen);  // [0] = Layer::NONE
   launcher_.create(layers_[static_cast<int>(Layer::MENU)], tile_art);
   animal_sounds_view_.create(layers_[static_cast<int>(Layer::ANIMAL_SOUNDS)]);
   color_view_.create(layers_[static_cast<int>(Layer::COLOR_POP)]);
@@ -145,6 +174,9 @@ void Arcade::create(lv_obj_t* screen) {
   feed_monster_view_.create(layers_[static_cast<int>(Layer::FEED_MONSTER)]);
   sound_jar_view_.create(layers_[static_cast<int>(Layer::SOUND_JAR)]);
   beat_sharks_view_.create(layers_[static_cast<int>(Layer::BEAT_SHARKS)]);
+  bubble_aquarium_view_.create(layers_[static_cast<int>(Layer::BUBBLE_AQUARIUM)]);
+  rocket_rescue_view_.create(layers_[static_cast<int>(Layer::ROCKET_RESCUE)]);
+  silly_faces_view_.create(layers_[static_cast<int>(Layer::SILLY_FACES)]);
   chrome_.create(screen);  // above every layer
 
   // Sleep: dim everything; the next tap wakes (and is consumed).
@@ -183,6 +215,9 @@ Arcade::Layer Arcade::wanted_layer() const {
     case GameId::FEED_MONSTER: return Layer::FEED_MONSTER;
     case GameId::SOUND_JAR: return Layer::SOUND_JAR;
     case GameId::BEAT_SHARKS: return Layer::BEAT_SHARKS;
+    case GameId::BUBBLE_AQUARIUM: return Layer::BUBBLE_AQUARIUM;
+    case GameId::ROCKET_RESCUE: return Layer::ROCKET_RESCUE;
+    case GameId::SILLY_FACES: return Layer::SILLY_FACES;
     default: return Layer::MENU;
   }
 }
@@ -228,6 +263,9 @@ void Arcade::tick(uint32_t now_ms) {
     case Layer::FEED_MONSTER: feed_monster_view_.sync(feed_monster_, now_ms); break;
     case Layer::SOUND_JAR: sound_jar_view_.sync(sound_jar_); break;
     case Layer::BEAT_SHARKS: beat_sharks_view_.sync(beat_sharks_); break;
+    case Layer::BUBBLE_AQUARIUM: bubble_aquarium_view_.sync(bubble_aquarium_, now_ms); break;
+    case Layer::ROCKET_RESCUE: rocket_rescue_view_.sync(rocket_rescue_, now_ms); break;
+    case Layer::SILLY_FACES: silly_faces_view_.sync(silly_faces_, now_ms); break;
     case Layer::NONE: break;
   }
   // Opening the grown-up gate drops anything recorded (privacy).

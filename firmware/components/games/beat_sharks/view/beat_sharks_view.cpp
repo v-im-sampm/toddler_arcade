@@ -13,8 +13,9 @@ using G = BeatSharksGame;
 
 constexpr int kFillMaxW = 36;
 constexpr int kFinY = kScreenHeight - art::kFinH;
-constexpr int kHopPx = 3;
-constexpr int kWavePx = 4;
+// Keep active-column feedback gentle and position-only (no pulsing/flashing).
+constexpr int kHopPx = 2;
+constexpr int kWavePx = 2;
 constexpr uint32_t kWaveStepMs = 90;
 
 lv_obj_t* plain(lv_obj_t* parent) {

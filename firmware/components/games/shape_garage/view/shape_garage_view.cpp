@@ -184,7 +184,7 @@ void ShapeGarageView::sync(const ShapeGarageGame& game, uint32_t now_ms) {
     }
   }
   const bool dancing = game.phase() == Phase::CELEBRATE;
-  const float bob = dancing ? std::sin(static_cast<float>(now_ms - phase_start_ms_) / 115.0f) * 3.0f : 0.0f;
+  const float bob = dancing ? std::sin(static_cast<float>(now_ms - phase_start_ms_) / 150.0f) * 2.0f : 0.0f;
   const int32_t bob_y = round_i(bob);
   if (robot_ && robot_y_ != 38 + bob_y) {
     robot_y_ = 38 + bob_y;
@@ -237,7 +237,7 @@ void ShapeGarageView::sync(const ShapeGarageGame& game, uint32_t now_ms) {
     int32_t piece_y = tray_rect.y - (selected ? 12 : 0);
     if (game.wiggling() == static_cast<int>(i)) {
       const float elapsed = static_cast<float>(now_ms - wiggle_start_ms_);
-      piece_y += round_i(std::sin(elapsed / 42.0f) * (1.0f - std::fmin(1.0f, elapsed / G::kWiggleMs)) * 4.0f);
+      piece_y += round_i(std::sin(elapsed / 52.0f) * (1.0f - std::fmin(1.0f, elapsed / G::kWiggleMs)) * 3.0f);
     }
     if (i != snapping_piece) {
       const int32_t piece_x = tray_rect.x;

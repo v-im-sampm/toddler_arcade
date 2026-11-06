@@ -5,6 +5,8 @@
 #include "little_arcade/games/animal_sounds_view.hpp"
 #include "little_arcade/games/beat_sharks.hpp"
 #include "little_arcade/games/beat_sharks_view.hpp"
+#include "little_arcade/games/bubble_aquarium.hpp"
+#include "little_arcade/games/bubble_aquarium_view.hpp"
 #include "little_arcade/games/color_pop.hpp"
 #include "little_arcade/games/color_pop_view.hpp"
 #include "little_arcade/games/feed_monster.hpp"
@@ -15,8 +17,12 @@
 #include "little_arcade/games/rainbow_piano_view.hpp"
 #include "little_arcade/games/robo_buddy.hpp"
 #include "little_arcade/games/robo_buddy_view.hpp"
+#include "little_arcade/games/rocket_rescue.hpp"
+#include "little_arcade/games/rocket_rescue_view.hpp"
 #include "little_arcade/games/shape_garage.hpp"
 #include "little_arcade/games/shape_garage_view.hpp"
+#include "little_arcade/games/silly_faces.hpp"
+#include "little_arcade/games/silly_faces_view.hpp"
 #include "little_arcade/games/sound_jar.hpp"
 #include "little_arcade/games/sound_jar_view.hpp"
 #include "little_arcade/parent_view.hpp"
@@ -44,7 +50,10 @@ class Arcade {
     ANIMAL_SOUNDS,
     FEED_MONSTER,
     SOUND_JAR,
-    BEAT_SHARKS
+    BEAT_SHARKS,
+    BUBBLE_AQUARIUM,
+    ROCKET_RESCUE,
+    SILLY_FACES
   };
 
   // `volume_level` is the parent-saved level (0 = muted, the default);
@@ -97,7 +106,7 @@ class Arcade {
   const beat_sharks::BeatSharksGame& beat_sharks() const { return beat_sharks_; }
 
  private:
-  static constexpr std::size_t kGameCount = 9;
+  static constexpr std::size_t kGameCount = 12;
 
   Layer wanted_layer() const;
   void show_layer(Layer layer);
@@ -111,6 +120,9 @@ class Arcade {
   feed_monster::FeedMonsterGame feed_monster_;
   sound_jar::SoundJarGame sound_jar_;
   beat_sharks::BeatSharksGame beat_sharks_;
+  bubble_aquarium::BubbleAquariumGame bubble_aquarium_;
+  rocket_rescue::RocketRescueGame rocket_rescue_;
+  silly_faces::SillyFacesGame silly_faces_;
   GameEntry entries_[kGameCount];
   IFeedback& feedback_;
   SceneManager scenes_;
@@ -127,8 +139,11 @@ class Arcade {
   feed_monster::FeedMonsterView feed_monster_view_;
   sound_jar::SoundJarView sound_jar_view_;
   beat_sharks::BeatSharksView beat_sharks_view_;
+  bubble_aquarium::BubbleAquariumView bubble_aquarium_view_;
+  rocket_rescue::RocketRescueView rocket_rescue_view_;
+  silly_faces::SillyFacesView silly_faces_view_;
   ui::ChromeView chrome_;
-  lv_obj_t* layers_[11]{};
+  lv_obj_t* layers_[14]{};
   lv_obj_t* sleep_overlay_ = nullptr;
   Layer shown_ = Layer::NONE;
   bool sleeping_ = false;

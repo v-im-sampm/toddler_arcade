@@ -93,6 +93,9 @@ const char* layer_name(Arcade::Layer l) {
     case Arcade::Layer::FEED_MONSTER: return "feed_monster";
     case Arcade::Layer::SOUND_JAR: return "sound_jar";
     case Arcade::Layer::BEAT_SHARKS: return "beat_sharks";
+    case Arcade::Layer::BUBBLE_AQUARIUM: return "bubble_aquarium";
+    case Arcade::Layer::ROCKET_RESCUE: return "rocket_rescue";
+    case Arcade::Layer::SILLY_FACES: return "silly_faces";
     case Arcade::Layer::NONE: break;
   }
   return "none";

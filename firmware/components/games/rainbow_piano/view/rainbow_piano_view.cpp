@@ -102,7 +102,8 @@ void RainbowPianoView::create(lv_obj_t* parent) {
     lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(o, to_lv(pal::kInk), 0);
     lv_obj_set_style_border_width(o, 2, 0);
-    lv_obj_set_style_outline_color(o, to_lv(pal::kWhite), 0);
+    // Warm, high-contrast key flash is the touch/sound feedback; no rapid animation.
+    lv_obj_set_style_outline_color(o, to_lv(pal::kYellow), 0);
     lv_obj_set_style_outline_width(o, 0, 0);
     keys_[i] = o;
     if (key_icons_[i].ready()) {
@@ -172,7 +173,7 @@ void RainbowPianoView::sync(const RainbowPianoGame& game) {
     if (lit == shown_key_lit_[i]) continue;
     shown_key_lit_[i] = lit;
     lv_obj_set_style_outline_width(keys_[i], lit ? 4 : 0, 0);
-    lv_obj_set_style_border_color(keys_[i], to_lv(lit ? pal::kWhite : pal::kInk), 0);
+    lv_obj_set_style_border_color(keys_[i], to_lv(lit ? pal::kYellow : pal::kInk), 0);
   }
 }
 

@@ -13,6 +13,11 @@ v2 is three things:
 3. **A pipeline:** artists and designers author in real tools. The pipeline produces optimised,
    budget-checked assets for every target automatically.
 
+The runnable [quality-bar sketch](../reference/quality_bar.html) is the visual and interaction
+reference for this document. It demonstrates the intended level of response and polish; it is not
+production code, a required art style, or evidence of device performance. Every game applies the
+shared standards below through its own original characters, setting, and mechanics.
+
 ## Design pillars
 | Pillar | Means | Does not mean |
 |---|---|---|
@@ -63,6 +68,23 @@ v2 is three things:
 - Live preview in a browser with hot reload of logic, tuning values and assets.
 - Headless deterministic replays and golden images/audio in CI for every game.
 - Budgets (flash, RAM, frame time, audio CPU) are checked per game.
+
+### Per-game quality gate
+Every game's design and implementation must make these observable, not just describe them:
+
+| Check | Required evidence |
+|---|---|
+| Touch feels immediate | First visual acknowledgement is visible within the `PF-3` budget; touch ripple or an equally clear local response appears even on empty space. |
+| Every interaction is alive | Each primary object has a calm idle state and distinct press/release, success, and hint responses. Effects never delay the next input beyond the documented, ≤300 ms exception. |
+| Help is kind | The idle → visual → optional spoken → auto-help ladder is specified and replay-tested. A non-target action stays playful and is never penalized or scored negatively. |
+| Sound belongs to the game | The game declares its musical identity; frequent sounds use its scale, are enveloped and capped, and have a visual counterpart. Audio-off play remains complete. |
+| Device budget is real | Particle/voice/entity pools have explicit caps; worst-frame area and memory budgets are named and tested. A preview is not device evidence. |
+| Motion is safe and adjustable | Reduced-motion behavior and luminance/flash checks are specified and tested. Ambient motion remains slower and quieter than interaction feedback. |
+
+Use the [game design template](../games/_TEMPLATE.md) to record these choices and the
+[authoring workflow](09_game_sdk_authoring.md) to turn each check into acceptance criteria and
+replay evidence. A game is not quality-bar complete until its criteria pass on the required evidence
+tiers in [QA acceptance](11_qa_acceptance.md).
 
 ## Anti-goals
 - No open-world, no progression grind, no collectibles that create compulsion loops, no streaks.

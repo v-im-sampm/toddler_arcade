@@ -73,7 +73,8 @@ void paint_icon(ui::ArgbImage& img, int size, void (*painter)(ui::Canvas&)) {
 // Side-to-side "nope, try again" shake that fades out; no failure sound.
 int wiggle_dx(uint32_t ms) {
   if (ms == 0) return 0;
-  static constexpr int kSteps[] = {0, 6, 0, -6};
+  // A soft nudge instead of a jar-rattle shake.
+  static constexpr int kSteps[] = {0, 4, 0, -4};
   return kSteps[(ms / 50) % 4] * static_cast<int>(ms) / static_cast<int>(SoundJarGame::kWiggleMs);
 }
 }  // namespace

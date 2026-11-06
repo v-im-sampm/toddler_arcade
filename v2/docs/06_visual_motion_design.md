@@ -3,6 +3,10 @@
 Numeric values live in [`../design/tokens.json`](../design/tokens.json). This document explains them.
 Generated constants are the only way code should consume them.
 
+The runnable [`../reference/quality_bar.html`](../reference/quality_bar.html) is a feel reference,
+not production code. Match its immediacy, calm idle life, tactile feedback, coherent sound, and
+readable help; do not copy its character, scene, or implementation.
+
 ## 1. Art direction: "Toy Box Island"
 All games live in one original world, **Toy Box Island**: a soft, rounded, sunny place made of
 felt, wood and jelly. Each game is a spot on the island:
@@ -88,6 +92,14 @@ A **character bible** (turnarounds, expression sheet, colour callouts) is an ear
    units for ≤ 300 ms, and it is disabled under reduced motion). No spinning faster than 1 rev/s.
 5. **Readable timing.** Important reactions last ≥ 400 ms so a toddler sees them. Celebrations run
    1.2–2.0 s and are skippable by tapping (never block input longer than 300 ms).
+6. **Feedback is complete.** Every primary object defines idle, press, release, success, and hint
+   states. Every touch is acknowledged at its location, including a tap on empty space. The input
+   response is drawn immediately; longer effects continue without holding the input path.
+7. **Hints reduce effort, not agency.** State the idle visual hint, optional spoken reminder, and
+   auto-help timing in the game tuning. Keep the requested target identifiable without relying on
+   sound, reading, or hue alone.
+8. **Reduced motion is a designed mode.** Keep state changes and target cues clear while reducing
+   ambient movement, particle count, and large celebrations according to the safety tokens.
 
 ### 4.2 Motion tokens (see `tokens.json → motion`)
 | Token | Value | Use |
@@ -126,6 +138,10 @@ Use data-defined emitters with pooled particles. Device cap: 96 live particles t
 - rate/burst, lifetime range, velocity cone, gravity, drag;
 - spin, scale-over-life curve, colour ramp (palette indices), additive flag.
 
+Each game documents its worst-case concurrent emitters and uses a hard cap; reaching the cap must
+degrade gracefully (for example, skip the oldest cosmetic emission), never allocate in the frame
+path or delay input.
+
 ## 5. Rendering strategy on the device (constraints from `01_v1_baseline.md` §2)
 - A full-frame push at 27 MHz is ≈ 45 ms, so **design scenes so that most frames touch < 35 % of
   the screen**:
@@ -153,7 +169,11 @@ Use data-defined emitters with pooled particles. Device cap: 96 live particles t
 ## 7. Review checklist (per screen)
 - [ ] One focal point; silhouettes readable as a 32 px thumbnail
 - [ ] Colour + shape/pattern cues; passes CVD simulation
-- [ ] Every interactive element has idle, press, release, success and hint states
+- [ ] Every primary object has idle, press, release, success and hint states; each state is reachable and visibly distinct
+- [ ] Touch ripple or equivalent immediate acknowledgement appears on target and empty-space taps
+- [ ] Idle visual/spoken hints and auto-help are timed, gentle, and replay-testable
+- [ ] Sound cues are scale-safe, bounded, and paired with visible feedback; audio-off play is complete
+- [ ] Reduced-motion mode preserves all essential cues and stays within the motion safety tokens
 - [ ] No flashes > 3 Hz; no large red flash; luminance check passes
-- [ ] Device worst-frame dirty area recorded and within budget
+- [ ] Particle/entity/voice caps and device worst-frame dirty area are recorded and within budget
 - [ ] Looks right on the real panel (owner photo) and at 3× on phone

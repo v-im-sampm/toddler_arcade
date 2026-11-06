@@ -434,7 +434,7 @@ void HatchAPetView::sync_egg(const HatchAPetGame& game, uint32_t now_ms) {
   if (wobble_armed_) {
     const float k = 1.0f - static_cast<float>(now_ms - wobble_start_ms_) / static_cast<float>(G::kWobbleMs);
     if (k > 0.0f) {
-      wob = std::sin((1.0f - k) * kPi * 4.0f) * 0.14f * k;
+      wob = std::sin((1.0f - k) * kPi * 4.0f) * 0.09f * k;
     } else {
       wobble_armed_ = false;
     }
@@ -525,7 +525,7 @@ void HatchAPetView::sync_pet(const HatchAPetGame& game, uint32_t now_ms) {
       r = 0.0f;
     }
   }
-  const float hop = r > 0.0f ? -std::sin(r * kPi) * 14.0f : 0.0f;
+  const float hop = r > 0.0f ? -std::sin(r * kPi) * 9.0f : 0.0f;
   const float squash = r > 0.0f ? 1.0f + std::sin(r * kPi * 2.0f) * 0.05f : 1.0f;
   place_shadow(kCreatureCx + 3, G::kCreature.y + G::kCreature.h + 2,
                46 - (r > 0.0f ? round_i(std::sin(r * kPi) * 10.0f) : 0));

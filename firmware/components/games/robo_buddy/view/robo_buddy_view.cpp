@@ -216,7 +216,7 @@ void RoboBuddyView::sync(const RoboBuddyGame& game, uint32_t now_ms) {
   pulse_outline(hello_button_, game.hint_active(), now_ms);
 
   float bob = 0.0f;
-  if (game.dancing()) bob = std::sin(static_cast<float>(now_ms) / 95.0f) * 5.0f;
+  if (game.dancing()) bob = std::sin(static_cast<float>(now_ms) / 125.0f) * 3.0f;
   else if (game.phase() == Phase::CELEBRATE) bob = std::sin(static_cast<float>(now_ms) / 130.0f) * 2.0f;
   else if (sleeping) bob = std::sin(static_cast<float>(now_ms) / 550.0f) * 1.5f;
   const int dy = static_cast<int>(std::lround(bob));

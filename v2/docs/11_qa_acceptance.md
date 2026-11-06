@@ -23,7 +23,8 @@
    and the manifest validators.
 2. **Replay/integration:** every game has replays per acceptance criterion. Each asserts state
    checkpoints, emitted cues, and that no input is ignored longer than 300 ms outside documented
-   windows.
+   windows. Include rapid input, target and empty-space taps, at least one success, each rung of the
+   hint ladder, and an audio-off/reduced-motion replay.
 3. **Golden render/audio:** per platform renderer; perceptual tolerance; reviewed diffs.
 4. **Safety analysers** (automated, CI):
    - **Flash:** per frame, compute relative luminance over sliding windows. Fail if more than 3
@@ -34,8 +35,13 @@
    - **Colour-only cues:** answer sets must differ by shape/pattern as well as hue (manifest flag +
      a CVD-simulated image diff).
    - **Loudness:** asset normalisation report; onset guard check on golden audio.
+   - **Quality contract:** per-screen review confirms idle, press, release, success and hint states;
+     every touch has a same-frame visual acknowledgement; every audio cue has a visual counterpart;
+     input remains available during nonessential animation; particle/voice caps hold during mashing.
+     The quality-bar sketch is a reference for feel, not a golden image to copy.
 5. **Device bench:** replays on the board. Collect FPS p50/p95/p99, the worst-frame dirty area,
-   heap/PSRAM minima, audio CPU, underruns, and touch→visual/sound latency.
+   particle count, heap/PSRAM minima, audio CPU, underruns, and touch→visual/sound latency. Report
+   both normal and reduced-motion results; never present a browser preview as device evidence.
 6. **Exploratory + toddler play-test:**
    - Parent-observed sessions; notes only, **no recordings of the child**.
    - Questions: Where did they hesitate? What made them laugh? Did they ever look confused or upset?

@@ -1,6 +1,6 @@
 # Little Arcade — Copilot Agent Handoff
 
-**Status: prototype firmware runs on the physical board.** Display/touch playthrough is confirmed; the owner has wired the external I2S mic and speaker and confirmed audible audio (H03 functional validation). H02 calibration/board details and quantitative audio power/acoustic measurements remain open. Target: Makerfabs MaTouch Lite ESP32-S3 2.4-inch ST7789 320×240 / NS2009 resistive touch, 16 MB flash, 8 MB PSRAM. Ten offline toddler games plus **predefined offline voice commands**.
+**Status: prototype firmware runs on the physical board.** Display/touch playthrough is confirmed; the owner has wired the external I2S mic and speaker and confirmed audible audio (H03 functional validation). H02 calibration/board details and quantitative audio power/acoustic measurements remain open. Target: Makerfabs MaTouch Lite ESP32-S3 2.4-inch ST7789 320×240 / NS2009 resistive touch, 16 MB flash, 8 MB PSRAM. Twelve offline toddler games plus **predefined offline voice commands**.
 
 ## Start here
 1. Read `AGENTS.md`, `docs/architecture.md`, `docs/hardware.md`, `docs/voice.md`, `docs/acceptance.md`.
@@ -19,12 +19,12 @@
 - `.github/copilot-instructions.md`: repository-wide Copilot guardrails
 - `.github/agents/*.agent.md`: hardware, platform, speech, games, QA agents
 - `docs/`: specifications, contracts, milestones, QA, child safety, asset pipeline
-- `games/*.md`: 10 individual game specifications
+- `games/*.md`: 12 individual game specifications
 - `config/commands.json`: canonical voice intent map
 - `config/board_pins.example.json`: unresolved hardware wiring template
 - `backlog/issues.md`: sequential and parallelizable tickets
 - `firmware/`: ESP-IDF prototype firmware, host-testable game/settings logic, and desktop simulator
-- `tools/validate_specs.py`: validates command manifest and all ten game specs
+- `tools/validate_specs.py`: validates command manifest and all twelve game specs
 
 ## Definition of done
 One ESP-IDF image boots, calibrates touch, plays audio, recognizes supported offline commands in quiet conditions, runs all twelve games without network access, recovers from errors, and passes on-device memory/latency/child-safety checks. See `docs/acceptance.md`.

@@ -145,12 +145,12 @@ void AnimalSoundsView::sync_card(CardNode& node, const Card& card, int index, in
   float wiggle = 0.0f;
   if (wiggling_index == index) {
     const uint32_t elapsed = now_ms - wiggle_start_ms_;
-    wiggle = std::sin(static_cast<float>(elapsed) / 40.0f) * 4.0f;
+    wiggle = std::sin(static_cast<float>(elapsed) / 55.0f) * 2.5f;
   }
   float bounce = 0.0f;
   if (celebrating) {
     const float elapsed = static_cast<float>(now_ms - phase_start_ms_);
-    bounce = -std::fabs(std::sin(elapsed / 110.0f)) * 4.0f;
+    bounce = -std::fabs(std::sin(elapsed / 150.0f)) * 2.5f;
   }
   const int16_t px = static_cast<int16_t>(card.rect.x + 4 + std::lround(wiggle));
   const int16_t py = static_cast<int16_t>(card.rect.y + 4 + std::lround(bounce));

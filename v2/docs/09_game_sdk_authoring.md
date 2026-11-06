@@ -25,6 +25,10 @@ games/<game_id>/
   emitters. They are editable in a scene preview tool or by hand.
 - **Tuning** holds every magic number from v1 READMEs (e.g. "egg needs 3–5 taps", "celebrate 1.8 s").
   It lives in data, not code.
+- **Quality evidence** is part of the design, not a polish pass at the end. Use
+  [`games/_TEMPLATE.md`](../games/_TEMPLATE.md) and the
+  [quality-bar sketch](../reference/quality_bar.html) to specify responsive feedback, calm idle
+  animation, a kind hint ladder, scale-safe audio, reduced motion, and measurable budgets.
 
 ## 2. Scaffolding
 `tools/new-game <game_id> --template <tap-choice|free-play|music-toy|sequencer|character-pet>`
@@ -61,13 +65,16 @@ Templates map to v1 archetypes:
 | Golden images | Frames from replays compared perceptually (e.g. SSIM ≥ threshold) per platform renderer | host CI |
 | Golden audio | Render audio for replays; compare loudness/spectral fingerprints; check onsets ≤ limits | host CI |
 | Safety lint | Flash/luminance analyser over replay frames; target size/spacing checker over scene hit areas; colour-only-cue checker for answer sets | host CI |
+| Quality replay | Cover target and empty-space taps, success, repeated misses, idle hint, auto-help, rapid input, and reduced motion; assert immediate acknowledgement, cue pairing, and no input block over 300 ms outside a documented window | host CI + review |
 | Budget | Asset pack sizes vs manifest budgets; code size per game (device build) | CI device build |
-| Device bench | Same replays on the board via a serial/USB command; logs FPS, frame-time histogram, heap/PSRAM minima, audio CPU | owner-run, evidence tier `esp32-device` |
+| Device bench | Same replays on the board via a serial/USB command; logs FPS, frame-time histogram, particle count, heap/PSRAM minima, audio CPU | owner-run, evidence tier `esp32-device` |
 
 ## 5. Definition of done for a game
 - [ ] Manifest validates; capabilities minimal
 - [ ] All acceptance criteria in its design doc pass (replays reference criterion IDs)
 - [ ] Touch-complete with voice off; playable with audio off; playable with mic off (if relevant)
+- [ ] Per-screen review in `docs/06` passes: idle/press/release/success/hint states, touch feedback on misses, and reduced-motion behavior
+- [ ] Quality replay covers the hint ladder, rapid taps, empty taps, and cue/visual pairing; animation never blocks input beyond its documented window
 - [ ] Safety lint, golden tests and budgets green
 - [ ] Narration recorded/rendered, loudness-normalised, provenance recorded
 - [ ] Web + phone + device builds run it. Device evidence attached: FPS p95, worst frame, heap/PSRAM
@@ -84,5 +91,7 @@ Templates map to v1 archetypes:
 > Create a new Little Arcade v2 game `<id>` using `tools/new-game --template <t>`. Follow
 > `v2/games/_TEMPLATE.md` to write `DESIGN.md` first and get it approved. Implement logic and
 > scenes against the SDK only, put every number in `tuning.json`, declare assets in the manifest
-> with budgets, add narration lines, and write replays covering each acceptance criterion. Meet the
-> definition of done in `docs/09` §5. Do not edit shell, engine or other games.
+> with budgets, add narration lines, and write replays covering each acceptance criterion, including
+> immediate touch feedback, empty-space taps, the complete hint ladder, reduced motion, and rapid
+> input. Use `reference/quality_bar.html` as a feel reference, not as production code or a source of
+> copied art. Meet the definition of done in `docs/09` §5. Do not edit shell, engine or other games.

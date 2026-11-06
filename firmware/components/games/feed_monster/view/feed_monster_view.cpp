@@ -198,7 +198,7 @@ void FeedMonsterView::sync(const FeedMonsterGame& game, uint32_t now_ms) {
   int32_t monster_y = 58;
   if (phase == Phase::CELEBRATE) {
     const float t = static_cast<float>(elapsed) / static_cast<float>(G::kCelebrateMs);
-    monster_y -= static_cast<int32_t>(14.0f * std::sin(3.1415926f * (t > 1.0f ? 1.0f : t)));
+    monster_y -= static_cast<int32_t>(9.0f * std::sin(3.1415926f * (t > 1.0f ? 1.0f : t)));
   }
   if (game.giggling()) {
     const float wiggle = std::sin(static_cast<float>(now_ms % 500u) * 0.01256637f);

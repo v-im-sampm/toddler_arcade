@@ -205,11 +205,11 @@ void ColorPopView::sync_bubble(std::size_t i, const ColorPopGame& game, uint32_t
     lv_obj_set_pos(o.shadow, c.x + kBubbleInset + kShadowDx, c.y + kBubbleInset + kShadowDy);
   }
 
-  // Gentle "not me" wiggle: decaying sideways shake, max 5 px.
+  // Gentle "not me" wiggle: decaying sideways nudge, max 3 px.
   int16_t dx = 0;
   if (static_cast<int>(i) == last_wiggle_) {
     const float t = 1.0f - static_cast<float>(now_ms - wiggle_start_ms_) / ColorPopGame::kWiggleMs;
-    if (t > 0.0f) dx = static_cast<int16_t>(std::lround(std::sin(t * kPi * 6.0f) * 5.0f * t));
+    if (t > 0.0f) dx = static_cast<int16_t>(std::lround(std::sin(t * kPi * 6.0f) * 3.0f * t));
   }
   if (dx != c.dx) {
     c.dx = dx;
