@@ -8,6 +8,10 @@ firmware/sdkconfig
 firmware/sdkconfig.old
 build-host/
 build-sim/
+v2/native/bubble_aquarium/device/build/
+v2/native/bubble_aquarium/device/managed_components/
+v2/native/bubble_aquarium/device/sdkconfig
+v2/native/bubble_aquarium/device/sdkconfig.old
 .venv/
 tools/quality_bar_golden/node_modules/
 tools/quality_bar_golden/out/

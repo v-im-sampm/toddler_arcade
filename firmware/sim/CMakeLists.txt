@@ -58,6 +58,7 @@ add_subdirectory(${LA_COMPONENTS}/arcade arcade)
 
 add_executable(little_arcade_sim main.cpp)
 target_link_libraries(little_arcade_sim PRIVATE little_arcade_arcade little_arcade_audio)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../v2/native/bubble_aquarium bubble_aquarium_native)
 if(MSVC)
   target_compile_definitions(little_arcade_sim PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()

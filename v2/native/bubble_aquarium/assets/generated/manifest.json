@@ -1,0 +1,2290 @@
+{
+  "source": "v2/reference/bubble_aquarium.html",
+  "size": [
+    320,
+    240
+  ],
+  "format": "PNG + raw BGRA8888",
+  "sprites": [
+    {
+      "id": "backdrop",
+      "bounds": [
+        0,
+        0,
+        320,
+        240
+      ],
+      "bytes": 307200
+    },
+    {
+      "id": "start",
+      "bounds": [
+        0,
+        0,
+        320,
+        240
+      ],
+      "bytes": 307200
+    },
+    {
+      "id": "chrome_home",
+      "bounds": [
+        4,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "chrome_mic",
+      "bounds": [
+        268,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "rays_0",
+      "bounds": [
+        0,
+        62,
+        320,
+        144
+      ],
+      "bytes": 184320
+    },
+    {
+      "id": "caustics_0",
+      "bounds": [
+        0,
+        204,
+        320,
+        36
+      ],
+      "bytes": 46080
+    },
+    {
+      "id": "surface_0",
+      "bounds": [
+        0,
+        58,
+        320,
+        14
+      ],
+      "bytes": 17920
+    },
+    {
+      "id": "weed_back_mid_0",
+      "bounds": [
+        116,
+        140,
+        62,
+        80
+      ],
+      "bytes": 19840
+    },
+    {
+      "id": "weed_back_right_0",
+      "bounds": [
+        278,
+        140,
+        42,
+        80
+      ],
+      "bytes": 13440
+    },
+    {
+      "id": "weed_front_left_0",
+      "bounds": [
+        0,
+        120,
+        55,
+        100
+      ],
+      "bytes": 22000
+    },
+    {
+      "id": "weed_front_right_0",
+      "bounds": [
+        284,
+        145,
+        36,
+        75
+      ],
+      "bytes": 10800
+    },
+    {
+      "id": "fish_0_left_normal_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_left_happy_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_left_sleep_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_normal_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_happy_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_sleep_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_0_0",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "fish_1_left_normal_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_left_happy_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_left_sleep_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_normal_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_happy_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_sleep_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_1_0",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "fish_2_left_normal_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_left_happy_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_left_sleep_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_normal_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_happy_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_sleep_0",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_2_0",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "rays_1",
+      "bounds": [
+        0,
+        62,
+        320,
+        144
+      ],
+      "bytes": 184320
+    },
+    {
+      "id": "caustics_1",
+      "bounds": [
+        0,
+        204,
+        320,
+        36
+      ],
+      "bytes": 46080
+    },
+    {
+      "id": "surface_1",
+      "bounds": [
+        0,
+        58,
+        320,
+        14
+      ],
+      "bytes": 17920
+    },
+    {
+      "id": "weed_back_mid_1",
+      "bounds": [
+        116,
+        140,
+        62,
+        80
+      ],
+      "bytes": 19840
+    },
+    {
+      "id": "weed_back_right_1",
+      "bounds": [
+        278,
+        140,
+        42,
+        80
+      ],
+      "bytes": 13440
+    },
+    {
+      "id": "weed_front_left_1",
+      "bounds": [
+        0,
+        120,
+        55,
+        100
+      ],
+      "bytes": 22000
+    },
+    {
+      "id": "weed_front_right_1",
+      "bounds": [
+        284,
+        145,
+        36,
+        75
+      ],
+      "bytes": 10800
+    },
+    {
+      "id": "fish_0_left_normal_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_left_happy_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_left_sleep_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_normal_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_happy_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_sleep_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_0_1",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "fish_1_left_normal_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_left_happy_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_left_sleep_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_normal_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_happy_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_sleep_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_1_1",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "fish_2_left_normal_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_left_happy_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_left_sleep_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_normal_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_happy_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_sleep_1",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_2_1",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "rays_2",
+      "bounds": [
+        0,
+        62,
+        320,
+        144
+      ],
+      "bytes": 184320
+    },
+    {
+      "id": "caustics_2",
+      "bounds": [
+        0,
+        204,
+        320,
+        36
+      ],
+      "bytes": 46080
+    },
+    {
+      "id": "surface_2",
+      "bounds": [
+        0,
+        58,
+        320,
+        14
+      ],
+      "bytes": 17920
+    },
+    {
+      "id": "weed_back_mid_2",
+      "bounds": [
+        116,
+        140,
+        62,
+        80
+      ],
+      "bytes": 19840
+    },
+    {
+      "id": "weed_back_right_2",
+      "bounds": [
+        278,
+        140,
+        42,
+        80
+      ],
+      "bytes": 13440
+    },
+    {
+      "id": "weed_front_left_2",
+      "bounds": [
+        0,
+        120,
+        55,
+        100
+      ],
+      "bytes": 22000
+    },
+    {
+      "id": "weed_front_right_2",
+      "bounds": [
+        284,
+        145,
+        36,
+        75
+      ],
+      "bytes": 10800
+    },
+    {
+      "id": "fish_0_left_normal_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_left_happy_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_left_sleep_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_normal_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_happy_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_sleep_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_0_2",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "fish_1_left_normal_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_left_happy_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_left_sleep_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_normal_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_happy_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_sleep_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_1_2",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "fish_2_left_normal_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_left_happy_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_left_sleep_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_normal_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_happy_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_sleep_2",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_2_2",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "rays_3",
+      "bounds": [
+        0,
+        62,
+        320,
+        144
+      ],
+      "bytes": 184320
+    },
+    {
+      "id": "caustics_3",
+      "bounds": [
+        0,
+        204,
+        320,
+        36
+      ],
+      "bytes": 46080
+    },
+    {
+      "id": "surface_3",
+      "bounds": [
+        0,
+        58,
+        320,
+        14
+      ],
+      "bytes": 17920
+    },
+    {
+      "id": "weed_back_mid_3",
+      "bounds": [
+        116,
+        140,
+        62,
+        80
+      ],
+      "bytes": 19840
+    },
+    {
+      "id": "weed_back_right_3",
+      "bounds": [
+        278,
+        140,
+        42,
+        80
+      ],
+      "bytes": 13440
+    },
+    {
+      "id": "weed_front_left_3",
+      "bounds": [
+        0,
+        120,
+        55,
+        100
+      ],
+      "bytes": 22000
+    },
+    {
+      "id": "weed_front_right_3",
+      "bounds": [
+        284,
+        145,
+        36,
+        75
+      ],
+      "bytes": 10800
+    },
+    {
+      "id": "fish_0_left_normal_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_left_happy_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_left_sleep_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_normal_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_happy_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_sleep_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_0_3",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "fish_1_left_normal_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_left_happy_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_left_sleep_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_normal_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_happy_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_sleep_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_1_3",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "fish_2_left_normal_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_left_happy_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_left_sleep_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_normal_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_happy_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_sleep_3",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_2_3",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "rays_4",
+      "bounds": [
+        0,
+        62,
+        320,
+        144
+      ],
+      "bytes": 184320
+    },
+    {
+      "id": "caustics_4",
+      "bounds": [
+        0,
+        204,
+        320,
+        36
+      ],
+      "bytes": 46080
+    },
+    {
+      "id": "surface_4",
+      "bounds": [
+        0,
+        58,
+        320,
+        14
+      ],
+      "bytes": 17920
+    },
+    {
+      "id": "weed_back_mid_4",
+      "bounds": [
+        116,
+        140,
+        62,
+        80
+      ],
+      "bytes": 19840
+    },
+    {
+      "id": "weed_back_right_4",
+      "bounds": [
+        278,
+        140,
+        42,
+        80
+      ],
+      "bytes": 13440
+    },
+    {
+      "id": "weed_front_left_4",
+      "bounds": [
+        0,
+        120,
+        55,
+        100
+      ],
+      "bytes": 22000
+    },
+    {
+      "id": "weed_front_right_4",
+      "bounds": [
+        284,
+        145,
+        36,
+        75
+      ],
+      "bytes": 10800
+    },
+    {
+      "id": "fish_0_left_normal_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_left_happy_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_left_sleep_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_normal_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_happy_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_sleep_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_0_4",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "fish_1_left_normal_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_left_happy_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_left_sleep_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_normal_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_happy_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_sleep_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_1_4",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "fish_2_left_normal_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_left_happy_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_left_sleep_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_normal_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_happy_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_sleep_4",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_2_4",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "rays_5",
+      "bounds": [
+        0,
+        62,
+        320,
+        144
+      ],
+      "bytes": 184320
+    },
+    {
+      "id": "caustics_5",
+      "bounds": [
+        0,
+        204,
+        320,
+        36
+      ],
+      "bytes": 46080
+    },
+    {
+      "id": "surface_5",
+      "bounds": [
+        0,
+        58,
+        320,
+        14
+      ],
+      "bytes": 17920
+    },
+    {
+      "id": "weed_back_mid_5",
+      "bounds": [
+        116,
+        140,
+        62,
+        80
+      ],
+      "bytes": 19840
+    },
+    {
+      "id": "weed_back_right_5",
+      "bounds": [
+        278,
+        140,
+        42,
+        80
+      ],
+      "bytes": 13440
+    },
+    {
+      "id": "weed_front_left_5",
+      "bounds": [
+        0,
+        120,
+        55,
+        100
+      ],
+      "bytes": 22000
+    },
+    {
+      "id": "weed_front_right_5",
+      "bounds": [
+        284,
+        145,
+        36,
+        75
+      ],
+      "bytes": 10800
+    },
+    {
+      "id": "fish_0_left_normal_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_left_happy_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_left_sleep_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_normal_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_happy_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_0_right_sleep_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_0_5",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "fish_1_left_normal_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_left_happy_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_left_sleep_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_normal_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_happy_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_1_right_sleep_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_1_5",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "fish_2_left_normal_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_left_happy_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_left_sleep_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_normal_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_happy_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "fish_2_right_sleep_5",
+      "bounds": [
+        112,
+        80,
+        96,
+        80
+      ],
+      "bytes": 30720
+    },
+    {
+      "id": "visitor_2_5",
+      "bounds": [
+        104,
+        76,
+        112,
+        88
+      ],
+      "bytes": 39424
+    },
+    {
+      "id": "chest_0",
+      "bounds": [
+        188,
+        184,
+        64,
+        56
+      ],
+      "bytes": 14336
+    },
+    {
+      "id": "chest_1",
+      "bounds": [
+        188,
+        184,
+        64,
+        56
+      ],
+      "bytes": 14336
+    },
+    {
+      "id": "chest_2",
+      "bounds": [
+        188,
+        184,
+        64,
+        56
+      ],
+      "bytes": 14336
+    },
+    {
+      "id": "chest_3",
+      "bounds": [
+        188,
+        184,
+        64,
+        56
+      ],
+      "bytes": 14336
+    },
+    {
+      "id": "pellet",
+      "bounds": [
+        88,
+        88,
+        24,
+        24
+      ],
+      "bytes": 2304
+    },
+    {
+      "id": "bubble",
+      "bounds": [
+        135,
+        95,
+        50,
+        50
+      ],
+      "bytes": 10000
+    },
+    {
+      "id": "shadow",
+      "bounds": [
+        130,
+        212,
+        60,
+        22
+      ],
+      "bytes": 5280
+    },
+    {
+      "id": "helper_hand",
+      "bounds": [
+        90,
+        62,
+        36,
+        36
+      ],
+      "bytes": 5184
+    },
+    {
+      "id": "button_shaker_0_0",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_moon_0_0",
+      "bounds": [
+        136,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_bubbles_0_0",
+      "bounds": [
+        196,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_hint_0_0",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_shaker_0_1",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_moon_0_1",
+      "bounds": [
+        136,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_bubbles_0_1",
+      "bounds": [
+        196,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_hint_0_1",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_shaker_0_2",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_moon_0_2",
+      "bounds": [
+        136,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_bubbles_0_2",
+      "bounds": [
+        196,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_hint_0_2",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_shaker_0_3",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_moon_0_3",
+      "bounds": [
+        136,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_bubbles_0_3",
+      "bounds": [
+        196,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_hint_0_3",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_shaker_0_4",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_moon_0_4",
+      "bounds": [
+        136,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_bubbles_0_4",
+      "bounds": [
+        196,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_hint_0_4",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_shaker_0_5",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_moon_0_5",
+      "bounds": [
+        136,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_bubbles_0_5",
+      "bounds": [
+        196,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_hint_0_5",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_shaker_1_0",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_moon_1_0",
+      "bounds": [
+        136,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_bubbles_1_0",
+      "bounds": [
+        196,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_hint_1_0",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_shaker_1_1",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_moon_1_1",
+      "bounds": [
+        136,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_bubbles_1_1",
+      "bounds": [
+        196,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_hint_1_1",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_shaker_1_2",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_moon_1_2",
+      "bounds": [
+        136,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_bubbles_1_2",
+      "bounds": [
+        196,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_hint_1_2",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_shaker_1_3",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_moon_1_3",
+      "bounds": [
+        136,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_bubbles_1_3",
+      "bounds": [
+        196,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_hint_1_3",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_shaker_1_4",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_moon_1_4",
+      "bounds": [
+        136,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_bubbles_1_4",
+      "bounds": [
+        196,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_hint_1_4",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_shaker_1_5",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_moon_1_5",
+      "bounds": [
+        136,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_bubbles_1_5",
+      "bounds": [
+        196,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    },
+    {
+      "id": "button_hint_1_5",
+      "bounds": [
+        76,
+        4,
+        48,
+        48
+      ],
+      "bytes": 9216
+    }
+  ]
+}
