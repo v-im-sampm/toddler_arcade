@@ -20,7 +20,6 @@ namespace {
 constexpr float kPi = 3.14159265358979323846f;
 constexpr float kTau = 2.0f * kPi;
 // Max distance (device px) between a flattened curve and the true curve.
-constexpr float kFlatTol = 0.05f;
 constexpr float kMiterLimit = 10.0f;
 
 void* alloc_zeroed(std::size_t bytes) {
@@ -73,9 +72,9 @@ bool invert(const Mat& m, Mat& out) {
 
 inline Pt apply(const Mat& m, float x, float y) { return Pt{m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f}; }
 
-int segments_for(float radius_px, float sweep) {
-  if (radius_px <= kFlatTol) return 1;
-  const float step = 2.0f * std::acos(1.0f - kFlatTol / radius_px);
+int segments_for(float radius_px, float sweep, float tol) {
+  if (radius_px <= tol) return 1;
+  const float step = 2.0f * std::acos(1.0f - tol / radius_px);
   int n = static_cast<int>(std::ceil(std::fabs(sweep) / step));
   if (n < 1) n = 1;
   if (n > 512) n = 512;
@@ -276,7 +275,7 @@ void Context::quadratic_curve_to(double cx, double cy, double x, double y) {
   const Pt p1 = map(cx, cy), p2 = map(x, y);
   const float ddx = p0.x - 2.0f * p1.x + p2.x, ddy = p0.y - 2.0f * p1.y + p2.y;
   const float dd = std::sqrt(ddx * ddx + ddy * ddy);
-  int n = static_cast<int>(std::ceil(std::sqrt(0.25f * dd / kFlatTol)));
+  int n = static_cast<int>(std::ceil(std::sqrt(0.25f * dd / flat_tol_)));
   if (n < 1) n = 1;
   if (n > 128) n = 128;
   const float inv_n = 1.0f / static_cast<float>(n);
@@ -293,7 +292,7 @@ void Context::bezier_curve_to(double c1x, double c1y, double c2x, double c2y, do
   const float ax = p0.x - 2.0f * p1.x + p2.x, ay = p0.y - 2.0f * p1.y + p2.y;
   const float bx = p1.x - 2.0f * p2.x + p3.x, by = p1.y - 2.0f * p2.y + p3.y;
   const float dd = std::sqrt(std::fmax(ax * ax + ay * ay, bx * bx + by * by));
-  int n = static_cast<int>(std::ceil(std::sqrt(0.75f * dd / kFlatTol)));
+  int n = static_cast<int>(std::ceil(std::sqrt(0.75f * dd / flat_tol_)));
   if (n < 1) n = 1;
   if (n > 128) n = 128;
   const float inv_n = 1.0f / static_cast<float>(n);
@@ -305,7 +304,7 @@ void Context::bezier_curve_to(double c1x, double c1y, double c2x, double c2y, do
 }
 
 void Context::arc_points(float cx, float cy, float rx, float ry, float rot, float a0, float sweep) {
-  const int n = segments_for((rx > ry ? rx : ry) * device_scale(), sweep);
+  const int n = segments_for((rx > ry ? rx : ry) * device_scale(), sweep, flat_tol_);
   const float cr = std::cos(rot), sr = std::sin(rot);
   // Incremental rotation (one cos/sin per arc, not per point).
   const float step = sweep / static_cast<float>(n), cs = std::cos(step), sn = std::sin(step);
@@ -588,7 +587,7 @@ void Context::emit_polygon_user(const Pt* user, uint32_t n, const Mat& m) {
 }
 
 void Context::emit_circle_user(Pt c, float r, const Mat& m, float dev_scale) {
-  int n = segments_for(r * dev_scale, kTau);
+  int n = segments_for(r * dev_scale, kTau, flat_tol_);
   if (n < 8) n = 8;
   const bool reverse = det_sign(m) < 0;
   const float step = (reverse ? -kTau : kTau) / static_cast<float>(n);

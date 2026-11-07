@@ -59,6 +59,7 @@
   responding region, read by a logic analyser.
 
 ## 5. Release evidence bundle
-Build logs, the partition map, size reports per game, the budget report, device metrics tables, golden
-diffs, analyser reports, SPL/current/pop measurements, a short video per game per platform, the
-licence register, and known limitations.
+Build logs, the partition map, size reports per game, the budget report, device metrics tables,
+analyser reports, SPL/current/pop measurements, a short video per game per platform, the licence
+register, and known limitations. Golden diffs may be included as optional diagnostics, but are not
+required release evidence.

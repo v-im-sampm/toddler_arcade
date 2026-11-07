@@ -2,52 +2,29 @@
 
 #include <cmath>
 
+#include "little_arcade/audio/score_dsp.hpp"
 #include "little_arcade/audio/synth.hpp"
 
 namespace little_arcade::audio {
 namespace {
 
+using score_dsp::curve_db;
+using score_dsp::kPi;
+using score_dsp::makeup_db;
+using score_dsp::sine_at;
+
 constexpr float kSr = static_cast<float>(kSampleRateHz);
-constexpr float kPi = 3.14159265358979f;
 constexpr float kFloor = 0.0001f;  // env() start/end value
 constexpr int kPent[5] = {0, 2, 4, 7, 9};
 
-// Compressor: threshold -14 dB, ratio 10, knee 30 dB (Web Audio default),
-// attack 3 ms, release 150 ms, with Web Audio's automatic makeup gain.
+// Compressor: attack 3 ms, release 150 ms (curve in score_dsp.hpp).
 // White noise at 16 kHz packs 3x the power of 48 kHz noise into the band.
 constexpr float kNoiseScale = 0.57735f;  // sqrt(16000 / 48000)
-
-constexpr float kThresholdDb = -14.f, kKneeDb = 30.f, kRatio = 10.f;
-
-struct SineTable {
-  static constexpr int kSize = 1024;
-  float v[kSize + 1];
-  SineTable() {
-    for (int i = 0; i <= kSize; ++i) v[i] = std::sin(2.f * kPi * static_cast<float>(i) / kSize);
-  }
-};
-
-const SineTable kSine;
-
-inline float sine_at(uint32_t phase) {
-  const uint32_t i = phase >> 22;
-  const float frac = static_cast<float>(phase & 0x3FFFFFu) * (1.f / 4194304.f);
-  return kSine.v[i] + (kSine.v[i + 1] - kSine.v[i]) * frac;
-}
 
 inline float incr_f(float hz) { return hz / kSr * 4294967296.0f; }
 inline uint32_t incr_for(float hz) { return static_cast<uint32_t>(incr_f(hz)); }
 
 inline uint32_t samples(float seconds) { return static_cast<uint32_t>(seconds * kSr + 0.5f); }
-
-float curve_db(float x) {
-  if (x <= kThresholdDb) return x;
-  const float d = x - kThresholdDb;
-  if (d < kKneeDb) return x + (1.f / kRatio - 1.f) * d * d / (2.f * kKneeDb);
-  return kThresholdDb + kKneeDb * (1.f + 1.f / kRatio) * 0.5f + (d - kKneeDb) / kRatio;
-}
-
-float makeup_db() { return -0.6f * curve_db(0.f); }
 
 }  // namespace
 

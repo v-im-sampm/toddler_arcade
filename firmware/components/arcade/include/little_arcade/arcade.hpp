@@ -99,7 +99,7 @@ class Arcade {
   const feed_monster::FeedMonsterGame& feed_monster() const { return feed_monster_; }
   const feed_monster::FeedMonsterView& feed_monster_view() const { return feed_monster_view_; }
   const hatch_a_pet::HatchAPetGame& hatch_a_pet() const { return hatch_a_pet_; }
-  const hatch_a_pet::HatchAPetView& hatch_a_pet_view() const { return hatch_view_; }
+  hatch_a_pet::HatchAPetView& hatch_a_pet_view() { return hatch_view_; }
   color_pop::ColorPopView& color_pop_view() { return color_view_; }
   const rainbow_piano::RainbowPianoGame& rainbow_piano() const { return rainbow_piano_; }
   const robo_buddy::RoboBuddyGame& robo_buddy() const { return robo_buddy_; }

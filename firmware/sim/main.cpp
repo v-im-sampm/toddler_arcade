@@ -304,7 +304,8 @@ class ColorPopPlayer {
 
 // Deterministic "child" for Hatch-a-Pet: taps the egg (one prompt replay via
 // the badge on every other egg, one crack by voice YES), pets the creature
-// twice, presses NO once, then YES (touch or voice) for another egg.
+// three times (so the choices appear), presses NO once, then YES (touch or
+// voice) for another egg.
 class HatchAPetPlayer {
  public:
   void tick(Arcade& a, uint32_t now) {
@@ -328,29 +329,34 @@ class HatchAPetPlayer {
         a.voice(Intent::YES, now);
         next_ = t + 450;
       } else {
-        tap(a, HatchAPetGame::kEgg, now);
+        tap(a, HatchAPetGame::kEggHit, now);
         next_ = t + 450;
       }
       ++step_;
     } else if (last_ == Phase::PET) {
-      switch (step_++) {
-        case 0:
-        case 1: tap(a, HatchAPetGame::kCreature, now); next_ = t + 800; break;
-        case 2: tap(a, HatchAPetGame::kNoButton, now); next_ = t + 900; break;
-        default:
-          if (n % 2 == 0) {
-            a.voice(Intent::YES, now);
-          } else {
-            tap(a, HatchAPetGame::kYesButton, now);
-          }
-          next_ = UINT32_MAX;
-          break;
+      if (step_ < 3) {
+        tap(a, HatchAPetGame::kCreature, now);
+        next_ = t + 1200;
+        ++step_;
+      } else if (!g.choices().show || g.choices().t < 0.5) {
+        next_ = t + 200;  // choices return after 3 reactions or 8 s
+      } else if (step_ == 3) {
+        tap(a, HatchAPetGame::kNoButton, now);
+        next_ = t + 900;
+        ++step_;
+      } else {
+        if (n % 2 == 0) {
+          a.voice(Intent::YES, now);
+        } else {
+          tap(a, HatchAPetGame::kYesButton, now);
+        }
+        next_ = UINT32_MAX;
       }
     }
   }
 
  private:
-  hatch_a_pet::Phase last_ = hatch_a_pet::Phase::INTRO;
+  hatch_a_pet::Phase last_ = hatch_a_pet::Phase::START;
   uint32_t start_ = 0;
   uint32_t next_ = 0;
   int step_ = 0;
@@ -643,13 +649,13 @@ int run_bench(const Options& opt) {
       }
       const uint32_t in_phase = g_sim_now - phase_start;
       plan.maybe(1, g.phase() == Phase::INTRO && in_phase >= 300, state.frame);
-      plan.maybe(2, g.phase() == Phase::EGG && g.cracks() == 0 && in_phase >= 300, state.frame);
-      plan.maybe(3, g.phase() == Phase::EGG && g.cracks() >= 2 && !g.wobbling(), state.frame);
-      plan.maybe(4, g.phase() == Phase::EGG && g.hint_active() && in_phase >= 900, state.frame);
+      plan.maybe(2, g.phase() == Phase::EGG && g.egg().cracks == 0 && in_phase >= 300, state.frame);
+      plan.maybe(3, g.phase() == Phase::EGG && g.egg().cracks >= 2, state.frame);
+      plan.maybe(4, g.phase() == Phase::EGG && g.hint() > 0, state.frame);
       plan.maybe(5, g.phase() == Phase::HATCH && in_phase >= 300, state.frame);
       plan.maybe(6, g.phase() == Phase::HATCH && in_phase >= 900, state.frame);
       plan.maybe(7, g.phase() == Phase::PET && in_phase >= 250, state.frame);
-      plan.maybe(8, g.phase() == Phase::PET && g.pet_count() >= 2 && g.reacting() && in_phase >= 1300, state.frame);
+      plan.maybe(8, g.phase() == Phase::PET && g.pet().reacts >= 2 && g.pet().react >= 0, state.frame);
     } else if (piano) {
       using rainbow_piano::Phase;
       const auto& g = arcade.rainbow_piano();
@@ -722,7 +728,7 @@ int run_bench(const Options& opt) {
                                   : (piano ? arcade.rainbow_piano().tunes_completed()
                                            : (robo ? arcade.robo_buddy().reactions()
                                                    : arcade.color_pop().rounds_completed()))));
-  const hatch_a_pet::HatchAPetView& hv = arcade.hatch_a_pet_view();
+  hatch_a_pet::HatchAPetView& hv = arcade.hatch_a_pet_view();
 
   std::printf("\n%s LVGL benchmark via Arcade (HOST DESKTOP, not device)\n", name);
   std::printf("  seed=%u frame_ms=%u sim_seconds=%u frames=%u rendered=%zu %s=%u cues=%u\n", seed, opt.frame_ms,
@@ -733,8 +739,12 @@ int run_bench(const Options& opt) {
   std::printf("  logic+view sync us/frame: avg=%.2f p95=%.2f max=%.2f\n", sync_sum / static_cast<double>(frames),
               percentile(sync_us, 0.95), percentile(sync_us, 1.0));
   if (hatch) {
-    std::printf("  art rasters=%u total_ms=%u max_ms=%u (lv_tick = simulated clock, so 0 here)\n", hv.rasters(),
-                hv.total_raster_ms(), hv.max_raster_ms());
+    std::printf("  view syncs=%u frames=%u tiles/frame=%u (worker %u%%) paint avg=%u max=%u us, raster avg=%u max=%u us\n",
+                static_cast<unsigned>(hv.syncs()), static_cast<unsigned>(hv.frames()),
+                static_cast<unsigned>(hv.frames() ? hv.tiles_drawn() / hv.frames() : 0),
+                static_cast<unsigned>(hv.tiles_drawn() ? hv.tiles_by_worker() * 100 / hv.tiles_drawn() : 0),
+                static_cast<unsigned>(hv.paint_us_avg()), static_cast<unsigned>(hv.paint_us_max()),
+                static_cast<unsigned>(hv.render_us_avg()), static_cast<unsigned>(hv.render_us_max()));
   }
   std::printf("  pixels/rendered frame: avg=%.0f (%.1f%% of screen) max=%llu\n", avg_px, 100.0 * avg_px / (kW * kH),
               static_cast<unsigned long long>(px_max));
@@ -743,10 +753,10 @@ int run_bench(const Options& opt) {
   std::printf("JSON {\"engine\":\"lvgl-9.5.0\",\"platform\":\"host-desktop\",\"game\":\"%s\",\"seed\":%u,"
               "\"frame_ms\":%u,\"frames\":%u,\"rendered\":%zu,\"render_us_avg\":%.1f,\"render_us_p95\":%.1f,"
               "\"render_us_max\":%.1f,\"sync_us_max\":%.1f,\"px_avg\":%.0f,\"px_max\":%llu,\"heap_max_used\":%zu,"
-              "\"progress\":%u,\"rasters\":%u}\n",
+              "\"progress\":%u}\n",
               name, seed, opt.frame_ms, frames, rendered, render_avg, percentile(render_us, 0.95),
               percentile(render_us, 1.0), percentile(sync_us, 1.0), avg_px, static_cast<unsigned long long>(px_max),
-              mem.max_used, progress, hatch ? hv.rasters() : 0u);
+              mem.max_used, progress);
   return progress > 0 ? 0 : 1;
 }
 

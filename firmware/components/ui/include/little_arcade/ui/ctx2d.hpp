@@ -171,6 +171,13 @@ class Context {
 
   uint32_t path_points() const { return path_count_; }
 
+  // Max distance (device px) between a curve and its flattened polygon.
+  // Kept across reset(); the default suits full-size art, a game may trade a
+  // little smoothness for fewer points (and faster recording/raster).
+  static constexpr float kDefaultFlatTol = 0.05f;
+  void set_flatten_tolerance(float px) { flat_tol_ = px > 0.01f ? px : 0.01f; }
+  float flatten_tolerance() const { return flat_tol_; }
+
  private:
   static constexpr int kStack = 12;
   static constexpr uint32_t kSubMax = 96;
@@ -214,6 +221,7 @@ class Context {
   Sub subs_[kSubMax]{};
   uint32_t sub_count_ = 0;
   bool have_current_ = false;
+  float flat_tol_ = kDefaultFlatTol;
   // Item under construction.
   uint32_t item_first_contour_ = 0;
   uint32_t item_first_pt_ = 0;

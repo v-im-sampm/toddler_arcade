@@ -8,6 +8,29 @@
 | Play value | Anticipation, cause-and-effect, yes/no choices, describing patterns |
 | Capabilities | music, narration, voice_intents, particles |
 
+**As built (owner direction, 2026):** the shipped Hatch-a-Pet is an exact port of
+[`hatch_a_pet.html`](../reference/hatch_a_pet.html). Its scene, egg, creatures, motion and Web Audio score are
+reproduced line by line, just like Color Pop:
+- model: `firmware/components/games/hatch_a_pet/hatch_a_pet.cpp`;
+- painter: `firmware/components/games/hatch_a_pet/view/hatch_a_pet_paint.cpp`, drawn with `ui/ctx2d`;
+- score: `firmware/components/audio/hatch_a_pet_score.cpp`;
+- verification: host behaviour/score tests and device perf/audio measurements. The golden harness
+  (`node golden.mjs hatch_a_pet`) passed 33/33 frames at port time. At the owner's request, frame-by-frame /
+  pixel-diff golden analysis is no longer a required check; the harness is kept as an optional tool.
+
+Notable differences from the design below:
+- The shelf has 6 slots instead of 8, because the nest occupies the middle. When it is full, the oldest friend leaves.
+- The NO/YES choices appear after 3 pet reactions or 5 s (owner playtest: 8 s felt too long).
+- The breeze noise bed was replaced by an original, looping lullaby (F major pentatonic, 3/4 at 72 bpm, 20 s loop:
+  a soft sine melody with a low pad). It has its own 6-voice pool outside the 8-voice cue limit. It fades in over
+  about 1.5 s, ducks to 35% while cues play, stops on Home, and uses no RNG (device and browser match).
+- Clipping fix: output trim 2.5 → 1.4 and a 6 ms compressor look-ahead (as Chromium's DynamicsCompressor). A busy
+  host render no longer reaches the limiter (peak 0.36 FS, was 0.66 FS with 429 samples limited).
+- Performance: the model and painter use float per frame. Hatch-a-Pet paints with a 0.2 px curve flatten tolerance
+  (ctx2d default 0.05 is unchanged for Color Pop). The UI loop yields only 1 ms between canvas-game frames.
+
+Where this design and the reference disagree, the reference wins.
+
 ## 1. Pitch
 Knock on a wobbly egg until it cracks open and a surprise creature tumbles out to say hello.
 *Feels like:* opening a present that is happy to see you.
@@ -29,7 +52,7 @@ Knock on a wobbly egg until it cracks open and a surprise creature tumbles out t
    shell bursts into two halves plus confetti in the pattern colour. The creature does a "ta-da"
    pose and says its name sound (a nonverbal chirp; the narrator then names it).
 4. **Pet time (new in v2):** tap the creature for 3 reactions (tickle-giggle, jump, sneeze-sparkle).
-   It follows the finger with its eyes. After 3 reactions or 8 s, two bubbles float up: ✔ another egg
+   It follows the finger with its eyes. After 3 reactions or 5 s, two bubbles float up: ✔ another egg
    (a new egg icon) / ✖ stay (a heart icon).
 5. ✔ → the creature waves and hops into a "friends shelf" row at the bottom (a session-only memory,
    RAM only, cleared on exit). A new egg rolls in. ✖ → keep petting.

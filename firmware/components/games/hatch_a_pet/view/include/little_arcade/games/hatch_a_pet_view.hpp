@@ -2,96 +2,60 @@
 #include <cstdint>
 
 #include "little_arcade/games/hatch_a_pet.hpp"
-#include "little_arcade/ui/argb_image.hpp"
+#include "little_arcade/ui/ctx2d.hpp"
 #include "lvgl.h"
 
 namespace little_arcade::hatch_a_pet {
 
-// LVGL renderer for HatchAPetGame (layout: docs/mockups/hatch_a_pet.html).
-// create() builds every object once. sync() reads the game's accessors and
-// only touches properties that changed, so a still scene invalidates nothing.
-// Art is painted into PSRAM images lazily (one egg pattern / creature at a
-// time, pre-warmed while the child taps the egg) and cached for good.
-// Objects are not clickable: the owner routes touches to the game.
+// Hatch-a-Pet screen: a line-by-line port of v2/reference/hatch_a_pet.html.
+// hatch_a_pet_paint records each frame with the canvas-2D software renderer
+// (ui::c2d), which redraws only the 32x32 tiles that changed into an RGB565
+// frame shown by one full-screen lv_image. The device and the desktop
+// simulator run this same code, so they show the same pixels.
+//
+// Memory (PSRAM on the device, held only while Hatch-a-Pet is open):
+// background XRGB 300 KiB + frame RGB565 150 KiB + display list ~140 KiB.
 class HatchAPetView {
  public:
   void create(lv_obj_t* parent);
-  void sync(const HatchAPetGame& game, uint32_t now_ms);
-  // Restart animation timing (called when the game is re-entered).
-  void reset() { initialised_ = false; }
+  // Paints the current game state (at most ~60 fps) and then tells the game
+  // the frame was drawn (the reference decays the badge press in drawBadge).
+  void sync(HatchAPetGame& game, uint32_t now_ms);
+  // Frees the frame buffers; called when the game closes.
+  void release();
 
-  // Art rasterization stats (for profiling logs).
-  uint32_t rasters() const { return rasters_; }
-  uint32_t max_raster_ms() const { return max_raster_ms_; }
-  uint32_t total_raster_ms() const { return total_raster_ms_; }
-
-  // Property cache around an lv_obj: setters skip unchanged values.
-  struct Sprite {
-    lv_obj_t* obj = nullptr;
-    int32_t x = INT32_MIN, y = INT32_MIN, w = -1, h = -1;
-    int32_t rot = 0, sx = 256, sy = 256, opa = 255;
-    const void* src = nullptr;
-    bool visible = true;
-    void show(bool v);
-    void pos(int32_t nx, int32_t ny);
-    void size(int32_t nw, int32_t nh);
-    void rotation(int32_t deci_deg);
-    void scale(int32_t nsx, int32_t nsy);
-    void image_opa(int32_t o);
-    void bg_opa(int32_t o);
-    void source(const lv_image_dsc_t* dsc);
-  };
+  bool ready() const { return front_ != nullptr; }
+  uint32_t frames() const { return frames_; }
+  uint32_t tiles_drawn() const { return tiles_drawn_; }
+  uint32_t tiles_by_worker() const { return tiles_worker_; }
+  uint32_t syncs() const { return syncs_; }
+  uint32_t paint_us_avg() const { return syncs_ ? static_cast<uint32_t>(paint_us_sum_ / syncs_) : 0; }
+  uint32_t render_us_avg() const { return syncs_ ? static_cast<uint32_t>(render_us_sum_ / syncs_) : 0; }
+  uint32_t paint_us_max() const { return paint_us_max_; }
+  uint32_t render_us_max() const { return render_us_max_; }
+  void reset_stats() {
+    frames_ = tiles_drawn_ = tiles_worker_ = syncs_ = paint_us_max_ = render_us_max_ = 0;
+    paint_us_sum_ = render_us_sum_ = 0;
+  }
 
  private:
-  static constexpr int kSparkles = 12;
-  static constexpr int kHearts = 3;
-  static constexpr int kPieces = 3;  // art::Piece WHOLE / TOP / BOTTOM
+  bool allocate();
 
-  const lv_image_dsc_t* egg(EggPattern p, int piece, bool allow_paint);
-  const lv_image_dsc_t* creature(Creature c, bool allow_paint);
-  bool prewarm(const HatchAPetGame& game);
-  void hide_play();
-  void sync_badge(const HatchAPetGame& game, uint32_t now_ms);
-  void sync_intro(const HatchAPetGame& game, uint32_t now_ms);
-  void sync_egg(const HatchAPetGame& game, uint32_t now_ms);
-  void sync_hatch(const HatchAPetGame& game, uint32_t now_ms);
-  void sync_pet(const HatchAPetGame& game, uint32_t now_ms);
-  void place_whole_egg(EggPattern p, int32_t dy, float rot, int crack_points);
-  void place_shadow(int32_t cx, int32_t cy, int32_t rx);
-
-  ui::ArgbImage eggs_[kEggPatternCount][kPieces];
-  bool egg_painted_[kEggPatternCount][kPieces]{};
-  ui::ArgbImage creatures_[kCreatureCount];
-  bool creature_painted_[kCreatureCount]{};
-  ui::ArgbImage icons_[kEggPatternCount];
-  ui::ArgbImage glow_img_;
-  ui::ArgbImage heart_img_;
-
-  Sprite shadow_, glow_, whole_, crack_, bottom_, creature_, top_;
-  Sprite sparkles_[kSparkles];
-  Sprite hearts_[kHearts];
-  Sprite yes_ring_, no_card_, yes_card_, yes_icon_;
-  Sprite badge_, badge_q_, badge_icon_, badge_crack_;
-  lv_point_precise_t crack_pts_[8]{};
-  int crack_n_ = -1;
-  float crack_rot_ = 0.0f;
-  lv_point_precise_t badge_crack_pts_[8]{};
-
-  Phase last_phase_ = Phase::INTRO;
-  uint32_t phase_start_ms_ = 0;
-  uint8_t last_cracks_ = 0;
-  uint32_t wobble_start_ms_ = 0;
-  bool wobble_armed_ = false;
-  uint32_t last_pets_ = 0;
-  uint32_t react_start_ms_ = 0;
-  bool react_armed_ = false;
-  int badge_state_ = -2;
-  int32_t badge_pad_ = -1;
-  bool initialised_ = false;
-
-  uint32_t rasters_ = 0;
-  uint32_t max_raster_ms_ = 0;
-  uint32_t total_raster_ms_ = 0;
+  ui::c2d::DisplayList list_;
+  ui::c2d::Context ctx_{list_};
+  ui::c2d::TileCache cache_;
+  uint32_t* background_ = nullptr;
+  uint16_t* front_ = nullptr;
+  lv_image_dsc_t dsc_{};
+  lv_obj_t* image_ = nullptr;
+  uint32_t last_paint_ms_ = 0;
+  bool painted_ = false;
+  uint32_t frames_ = 0;
+  uint32_t tiles_drawn_ = 0;
+  uint32_t tiles_worker_ = 0;
+  uint32_t syncs_ = 0;
+  uint64_t paint_us_sum_ = 0, render_us_sum_ = 0;
+  uint32_t paint_us_max_ = 0, render_us_max_ = 0;
 };
 
 }  // namespace little_arcade::hatch_a_pet

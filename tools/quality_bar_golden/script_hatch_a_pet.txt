@@ -1,0 +1,164 @@
+# Scripted Hatch-a-Pet session replayed identically by the reference page
+# (golden.mjs hatch_a_pet, in Edge) and the C++ port (hatch_a_pet_reference_render).
+# Frames are 1/60 s steps from page load (START screen first).
+# Commands run before that frame's update():
+#   seed <gameplay> <cosmetic>    grng / frng (Math.random) seeds
+#   tap <frame> <x> <y>           pointerdown in logical 320x240 pixels
+#   capture <frame>               save the frame drawn after that update
+#   end <frame>
+# Seed 1234 eggs need 4,4,5,3,4,5,4,5,3 knocks (creatures 0,4,5,6,7,3,2,1,0).
+seed 1234 99
+# START overlay (play button pulse)
+capture 12
+# tap anywhere: startGame() -> INTRO, egg drops from y-200
+tap 30 200 180
+# egg falling
+capture 50
+# egg lands in the nest: squash + crumbs
+capture 74
+# EGG idle (pattern, face, badge)
+capture 130
+# badge tap in EGG: ring + sparkles + egg wiggle (knockKnock)
+tap 140 160 30
+capture 146
+# knock 1/4
+tap 170 160 138
+capture 176
+# knock 2/4: crack 0.5 -> chip
+tap 200 160 138
+capture 206
+# knock 3/4: crack 0.75 -> peek eye
+tap 230 160 138
+capture 236
+# knock 4/4 -> PRE_HATCH shake + trill
+tap 260 160 138
+capture 270
+# HATCH burst
+capture 288
+# shell halves fly
+capture 300
+# confetti, creature pops
+capture 330
+capture 362
+# PET: name chirp jump
+capture 392
+# reaction 1: giggle
+tap 430 160 150
+capture 440
+# reaction 2: jump
+tap 480 160 150
+capture 492
+# reaction 3: sneeze (choices appear after 3 reactions)
+tap 530 160 150
+capture 553
+# choices visible
+capture 575
+# NO: pet stays, hearts
+tap 600 48 168
+capture 610
+# badge tap in PET: look up, giggle, hearts
+tap 660 160 30
+capture 670
+tap 700 160 150
+tap 750 160 150
+tap 800 160 150
+# YES -> BYE hop to shelf slot 0
+tap 850 272 168
+capture 870
+# ROLL: new egg rolls in
+capture 925
+# idle 6 s: egg glow hint
+capture 1330
+# idle 12 s: helper hand + knockKnock
+capture 1690
+capture 1720
+# shelf friend tap: wave + chirp
+tap 1740 24 221
+capture 1748
+# egg 2: 4 knocks, 3 reactions, YES
+tap 1760 160 138
+tap 1770 160 138
+tap 1780 160 138
+tap 1790 160 138
+# HATCH of egg 2
+capture 1850
+tap 1920 160 150
+tap 1935 160 150
+tap 1950 160 150
+tap 1975 272 168
+# egg 3: 5 knocks, 3 reactions, YES
+tap 2090 160 138
+tap 2100 160 138
+tap 2110 160 138
+tap 2120 160 138
+tap 2130 160 138
+tap 2260 160 150
+tap 2275 160 150
+tap 2290 160 150
+tap 2315 272 168
+# egg 4: 3 knocks, 3 reactions, YES
+tap 2430 160 138
+tap 2440 160 138
+tap 2450 160 138
+tap 2580 160 150
+tap 2595 160 150
+tap 2610 160 150
+tap 2635 272 168
+# egg 5: 4 knocks, 3 reactions, YES
+tap 2750 160 138
+tap 2760 160 138
+tap 2770 160 138
+tap 2780 160 138
+tap 2910 160 150
+tap 2925 160 150
+tap 2940 160 150
+tap 2965 272 168
+# egg 6: 5 knocks, 3 reactions, YES
+tap 3080 160 138
+tap 3090 160 138
+tap 3100 160 138
+tap 3110 160 138
+tap 3120 160 138
+tap 3250 160 150
+tap 3265 160 150
+tap 3280 160 150
+tap 3305 272 168
+# BYE of friend 6: shelf about to be full
+capture 3350
+# egg 7: 4 knocks, 3 reactions, YES
+tap 3420 160 138
+tap 3430 160 138
+tap 3440 160 138
+tap 3450 160 138
+tap 3580 160 150
+tap 3595 160 150
+tap 3610 160 150
+tap 3635 272 168
+# PET with a full shelf
+capture 3570
+# friend 7: oldest leaves, others glide left
+capture 3645
+capture 3660
+# egg 8: 5 knocks, 3 reactions, YES
+tap 3750 160 138
+tap 3760 160 138
+tap 3770 160 138
+tap 3780 160 138
+tap 3790 160 138
+tap 3920 160 150
+tap 3935 160 150
+tap 3950 160 150
+tap 3975 272 168
+# second full-shelf shift
+capture 3985
+# egg 9: 3 knocks, 3 reactions, YES
+tap 4090 160 138
+tap 4100 160 138
+tap 4110 160 138
+tap 4240 160 150
+tap 4255 160 150
+tap 4270 160 150
+tap 4295 272 168
+# EGG with six friends
+capture 4408
+end 4410

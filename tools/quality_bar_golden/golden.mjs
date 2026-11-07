@@ -1,9 +1,13 @@
-// Renders v2/reference/quality_bar.html deterministically in Edge (seeded
-// Math.random, no rAF loop, fixed 1/60 s steps, START screen skipped), replays
-// script.txt, and diffs every captured frame against the C++ port
-// (color_pop_reference_render). Writes out/report.html with side-by-side PNGs.
+// Renders a v2/reference sketch deterministically in Edge (seeded Math.random,
+// no rAF loop, fixed 1/60 s steps), replays the game's script, and diffs every
+// captured frame against the C++ port's reference render. Writes
+// <out>/report.html with side-by-side PNGs.
 //
-//   node golden.mjs [path/to/color_pop_reference_render.exe]
+//   node golden.mjs [game] [path/to/<game>_reference_render.exe]
+//
+// Games:
+//   color_pop    quality_bar.html (START skipped), script.txt -> out/  (default)
+//   hatch_a_pet  hatch_a_pet.html (starts on START), script_hatch_a_pet.txt -> out_hatch_a_pet/
 //
 // Exit code 1 when any frame exceeds the fidelity thresholds below.
 import { chromium } from 'playwright-core';
@@ -14,10 +18,18 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..', '..');
-const out = path.join(here, 'out');
-const scriptPath = path.join(here, 'script.txt');
-const exe = process.argv[2] ||
-  path.join(root, 'firmware', 'build-host', 'games', 'color_pop', 'Debug', 'color_pop_reference_render.exe');
+const GAMES = {
+  color_pop: { html: 'quality_bar.html', script: 'script.txt', out: 'out', title: 'Color Pop: quality_bar.html' },
+  hatch_a_pet: { html: 'hatch_a_pet.html', script: 'script_hatch_a_pet.txt', out: 'out_hatch_a_pet',
+                 title: 'Hatch-a-Pet: hatch_a_pet.html' },
+};
+const args = process.argv.slice(2);
+const game = args[0] in GAMES ? args.shift() : 'color_pop';  // a bare exe path still means Color Pop
+const cfg = GAMES[game];
+const out = path.join(here, cfg.out);
+const scriptPath = path.join(here, cfg.script);
+const exe = args[0] ||
+  path.join(root, 'firmware', 'build-host', 'games', game, 'Debug', `${game}_reference_render.exe`);
 const W = 320, H = 240;
 // Fidelity thresholds per frame (8-bit channels, XRGB output before RGB565).
 const MAX_MEAN_ABS = 1.5;      // mean |diff| over all channels
@@ -66,14 +78,26 @@ await page.addInitScript(cosmetic => {
   };
   window.requestAnimationFrame = () => 0;  // we drive update()/draw manually
 }, cseed);
-const url = pathToFileURL(path.join(root, 'v2', 'reference', 'quality_bar.html')).href + `?seed=${gseed}`;
+const url = pathToFileURL(path.join(root, 'v2', 'reference', cfg.html)).href + `?seed=${gseed}`;
 await page.goto(url);
-const golden = await page.evaluate(({ cmds, end }) => {
+const golden = await page.evaluate(({ cmds, end, game }) => {
   /* global cv, ctx, st, crab, bubbles, update, drawBackground, drawBubble, drawCrab,
-     drawHelperHand, drawFx, drawBadge, drawChrome */
+     drawHelperHand, drawFx, drawBadge, drawChrome, drawScene, drawStart, ac */
   cv.width = 320; cv.height = 240; cv.style.width = '320px'; cv.style.height = '240px';
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  st.phase = 'INTRO'; st.t = 0; crab.yOff = 40;   // startGame() without Web Audio
+  if (game === 'color_pop') {
+    st.phase = 'INTRO'; st.t = 0; crab.yOff = 40;   // startGame() without Web Audio
+  } else {
+    // Web Audio becomes an inert stub: the sketch sees `ac` set (so audio-gated
+    // logic such as the bird timer runs) but no noise buffer consumes Math.random.
+    const stub = new Proxy(function () {}, {
+      get: (_, k) => (k === 'currentTime' ? 0 : k === 'state' ? 'running' : stub),
+      set: () => true,
+      apply: () => stub,
+      construct: () => stub,
+    });
+    window.initAudio = () => { if (!ac) ac = stub; };
+  }
   const tap = (x, y) => {
     const r = cv.getBoundingClientRect();
     cv.dispatchEvent(new PointerEvent('pointerdown', { clientX: r.left + x, clientY: r.top + y, bubbles: true, cancelable: true }));
@@ -91,15 +115,20 @@ const golden = await page.evaluate(({ cmds, end }) => {
       }
     }
     update(1 / 60);
-    drawBackground();
-    for (const b of bubbles) if (b.t >= 0) drawBubble(b);
-    drawCrab(); drawHelperHand(); drawFx(); drawBadge(); drawChrome();
+    if (game === 'color_pop') {
+      drawBackground();
+      for (const b of bubbles) if (b.t >= 0) drawBubble(b);
+      drawCrab(); drawHelperHand(); drawFx(); drawBadge(); drawChrome();
+    } else {
+      drawScene();
+      if (st.phase === 'START') drawStart();
+    }
     if (cmds.some(c => c.op === 'capture' && c.frame === f)) {
       frames[f] = Array.from(ctx.getImageData(0, 0, 320, 240).data);
     }
   }
   return frames;
-}, { cmds, end });
+}, { cmds, end, game });
 
 // ---------- compare ----------
 const rows = [];
@@ -148,9 +177,9 @@ for (const r of rows) {
   }, r);
   fs.writeFileSync(path.join(out, `side_${r.name}.png`), Buffer.from(png, 'base64'));
 }
-fs.writeFileSync(path.join(out, 'report.html'), `<!doctype html><meta charset="utf-8"><title>Color Pop: reference vs port</title>
+fs.writeFileSync(path.join(out, 'report.html'), `<!doctype html><meta charset="utf-8"><title>${cfg.title} reference vs port</title>
 <style>body{background:#1E2245;color:#E6F5FF;font:14px system-ui;margin:16px}img{image-rendering:pixelated;width:${(320 * 4 + 30) * 2}px;max-width:100%}
-.bad{color:#FF9A92}</style><h1>Color Pop: quality_bar.html (Edge) vs C++ port</h1>
+.bad{color:#FF9A92}</style><h1>${cfg.title} (Edge) vs C++ port</h1>
 <p>Columns: reference canvas · port (XRGB) · port as the device shows it (RGB565, dithered) · |difference| ×4.</p>
 ${rows.map(r => `<h3 class="${r.ok ? '' : 'bad'}">frame ${r.f} (t=${(r.f / 60).toFixed(2)} s): mean |d| ${r.mean.toFixed(2)}, ${r.badPct.toFixed(2)}% px > 32, PSNR ${r.psnr.toFixed(1)} dB</h3><img src="side_${r.name}.png">`).join('\n')}`);
 await browser.close();

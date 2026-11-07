@@ -168,13 +168,11 @@ sound identical. Workflow (proven on Color Pop):
    game logic's own PRNG, never `Math.random`-style drift.
 3. **Port the Web Audio score** (`audio/<game>_score.cpp`) node-for-node: oscillator types,
    envelopes, filters, compressor and master gain.
-4. **Golden diff:** add a scripted replay to `tools/quality_bar_golden` (Edge captures the
-   reference; the host binary renders the same frames). Every frame must pass the thresholds in
-   `golden.mjs` (mean |diff| ≤ 1.5 and ≤ 1 % of pixels off by more than 32; Color Pop reaches
-   PSNR 42–46 dB) before the game ships. Open
-   `out/report.html` for the side-by-side.
-5. **Owner review on the panel.** The golden diff proves the code; only the owner on real hardware
-   signs off the look, motion and sound.
+4. **Optional golden diff:** `tools/quality_bar_golden` can compare scripted browser-reference and
+   host-render frames when useful. It is a diagnostic aid, not a required frame-by-frame analysis
+   or ship gate. Open `out/report.html` for side-by-side inspection.
+5. **Owner review on the panel.** The owner reviews the game on real hardware and signs off the
+   look, motion and sound; host screenshots and automated comparisons do not replace device review.
 
 **Device performance rules** (ESP32-S3, measured on Color Pop):
 - Use `float` only in per-frame and per-sample code. The FPU is single-precision; `double` math
@@ -199,8 +197,8 @@ still require an on-device review.
 - Prefer **baked frames** for complex character animation on the device. Use **runtime transforms**
   (scale/rotate/translate) for squash/stretch and bob. The pipeline can pre-bake rotated variants if
   the spike shows rotation is too expensive.
-- Each game's "worst frame" is listed in its design doc and tested by a golden-replay benchmark on
-  the device.
+- Each game's "worst frame" is listed in its design doc and checked with device performance
+  measurements; pixel-by-pixel golden replay analysis is optional.
 
 ## 6. Asset production
 - Source of truth: vector or layered files (tool chosen in ADR-004) stored under

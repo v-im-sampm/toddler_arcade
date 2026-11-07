@@ -289,7 +289,7 @@ inline void paint_creature(ui::Canvas& c, Creature kind, float cx, float cy, flo
 }
 
 // Image sizes used by the view (and checked by the host tests).
-inline constexpr int kEggImgW = 116;  // HatchAPetGame::kEgg plus a 2 px outline margin
+inline constexpr int kEggImgW = 116;  // a 112x136 egg plus a 2 px outline margin
 inline constexpr int kEggImgH = 140;
 inline constexpr int kCreatureImg = 144;  // creature at s = 1 centred in a square
 inline constexpr int kEggIconW = 34;      // badge and "another egg" button picture
@@ -298,7 +298,7 @@ inline constexpr int kTileW = 108;  // launcher tile picture (ui::LauncherView::
 inline constexpr int kTileH = 68;
 
 inline void paint_egg_image(ui::Canvas& c, EggPattern p, Piece piece) {
-  paint_egg(c, p, kEggImgW * 0.5f, 2, HatchAPetGame::kEgg.w, HatchAPetGame::kEgg.h, piece);
+  paint_egg(c, p, kEggImgW * 0.5f, 2, 112, 136, piece);
 }
 inline void paint_egg_icon(ui::Canvas& c, EggPattern p) {
   paint_egg(c, p, kEggIconW * 0.5f, 2, kEggIconW - 4, kEggIconH - 4);

@@ -105,6 +105,53 @@ void bench_color_pop(Arcade& arcade, uint32_t now) {
   }
 }
 
+// Device bench: opens Hatch-a-Pet 3 s after boot and plays every phase (knock,
+// hatch, three reactions, YES to the shelf, idle hint on every third egg).
+constexpr bool kBenchHatchAPet = false;
+
+void bench_hatch_a_pet(Arcade& arcade, uint32_t now) {
+  using hatch_a_pet::HatchAPetGame;
+  using hatch_a_pet::Phase;
+  static uint32_t next = 3000;
+  static uint32_t eggs = 0;
+  static Phase last = Phase::START;
+  static bool badged = false;
+  if (now < next) return;
+  next = now + 700;
+  if (arcade.layer() != Arcade::Layer::HATCH_A_PET) {
+    const Rect& r = SceneManager::kTileRects[1];
+    arcade.touch(static_cast<int16_t>(r.x + r.w / 2), static_cast<int16_t>(r.y + r.h / 2), now);
+    return;
+  }
+  const HatchAPetGame& g = arcade.hatch_a_pet();
+  if (g.phase() != last) {
+    if (g.phase() == Phase::EGG) {
+      ++eggs;
+      badged = false;
+      if (eggs % 3 == 0) next = now + 13000;  // let the 6 s glow and 12 s hand hints play
+    }
+    last = g.phase();
+    return;
+  }
+  const auto tap = [&](const Rect& r) {
+    arcade.touch(static_cast<int16_t>(r.x + r.w / 2), static_cast<int16_t>(r.y + r.h / 2), now);
+  };
+  if (g.phase() == Phase::EGG) {
+    if (!badged && eggs % 2) {
+      tap(HatchAPetGame::kPromptBadge);
+      badged = true;
+    } else {
+      tap(HatchAPetGame::kEggHit);
+    }
+  } else if (g.phase() == Phase::PET) {
+    if (g.choices().show && g.choices().t > 0.5) {
+      tap(HatchAPetGame::kYesButton);
+    } else if (!g.choices().show) {
+      tap(HatchAPetGame::kCreature);
+      next = now + 1100;
+    }
+  }
+}
 
 const char* layer_name(Arcade::Layer l) {
   switch (l) {
@@ -288,8 +335,9 @@ void ui_task(void*) {
     }
     if (kAudioLoopbackSelfTest) audio_loopback_self_test(now);
     if (kBenchColorPop) bench_color_pop(arcade, now);
+    if (kBenchHatchAPet) bench_hatch_a_pet(arcade, now);
     const int64_t t_tick = esp_timer_get_time();
-    arcade.tick(now);  // game logic + view sync (+ lazy Hatch-a-Pet art rasters)
+    arcade.tick(now);  // game logic + view sync
     const int64_t tick_us = esp_timer_get_time() - t_tick;
     tick_us_max = tick_us > tick_us_max ? tick_us : tick_us_max;
     if (arcade.layer() != last_layer) {
@@ -310,7 +358,7 @@ void ui_task(void*) {
     if (now - stats_start >= kStatsPeriodMs) {
       lv_mem_monitor_t mem;
       lv_mem_monitor(&mem);
-      const hatch_a_pet::HatchAPetView& hv = arcade.hatch_a_pet_view();
+      hatch_a_pet::HatchAPetView& hv = arcade.hatch_a_pet_view();
       color_pop::ColorPopView& cv = arcade.color_pop_view();
       if (arcade.layer() == Arcade::Layer::COLOR_POP) {
         ESP_LOGI("perf", "[device] color_pop syncs=%u frames=%u tiles/frame=%u (core0 %u%%) paint avg=%u max=%u us, raster avg=%u max=%u us",
@@ -320,16 +368,23 @@ void ui_task(void*) {
                  static_cast<unsigned>(cv.paint_us_avg()), static_cast<unsigned>(cv.paint_us_max()),
                  static_cast<unsigned>(cv.render_us_avg()), static_cast<unsigned>(cv.render_us_max()));
       }
+      if (arcade.layer() == Arcade::Layer::HATCH_A_PET) {
+        ESP_LOGI("perf", "[device] hatch_a_pet syncs=%u frames=%u tiles/frame=%u (core0 %u%%) paint avg=%u max=%u us, raster avg=%u max=%u us",
+                 static_cast<unsigned>(hv.syncs()), static_cast<unsigned>(hv.frames()),
+                 static_cast<unsigned>(hv.frames() ? hv.tiles_drawn() / hv.frames() : 0),
+                 static_cast<unsigned>(hv.tiles_drawn() ? hv.tiles_by_worker() * 100 / hv.tiles_drawn() : 0),
+                 static_cast<unsigned>(hv.paint_us_avg()), static_cast<unsigned>(hv.paint_us_max()),
+                 static_cast<unsigned>(hv.render_us_avg()), static_cast<unsigned>(hv.render_us_max()));
+      }
       cv.reset_stats();
+      hv.reset_stats();
       ESP_LOGI("perf",
                "[device] layer=%s %u redraws/10s, render avg=%lld us max=%lld us, tick max=%lld us, px avg=%llu, "
-               "pop rounds=%u, hatches=%u, art rasters=%u max=%u ms total=%u ms, lv_mem max_used=%u, "
-               "ui stack free=%u",
+               "pop rounds=%u, hatches=%u, lv_mem max_used=%u, ui stack free=%u",
                layer_name(arcade.layer()), static_cast<unsigned>(frames), frames ? render_us_sum / frames : 0LL,
                render_us_max, tick_us_max, frames ? pixels_sum / frames : 0ULL,
                static_cast<unsigned>(arcade.color_pop().rounds_completed()),
-               static_cast<unsigned>(arcade.hatch_a_pet().hatch_count()), static_cast<unsigned>(hv.rasters()),
-               static_cast<unsigned>(hv.max_raster_ms()), static_cast<unsigned>(hv.total_raster_ms()),
+               static_cast<unsigned>(arcade.hatch_a_pet().hatch_count()),
                static_cast<unsigned>(mem.max_used), static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
       log_memory("ui");
       stats_start = now;
@@ -337,7 +392,12 @@ void ui_task(void*) {
       render_us_sum = render_us_max = tick_us_max = 0;
       pixels_sum = 0;
     }
-    vTaskDelay(pdMS_TO_TICKS(idle_ms < 5 ? 5 : (idle_ms > 20 ? 20 : idle_ms)));
+    // The ported canvas games repaint every tick, so their frame time is
+    // tick + LVGL refresh; sleeping until the next 33 ms refresh slot only
+    // adds up to ~20 ms of dead time per frame. Yield 1 ms (idle task and
+    // watchdog still run) and let the overdue refresh go straight away.
+    const bool canvas_game = arcade.layer() == Arcade::Layer::COLOR_POP || arcade.layer() == Arcade::Layer::HATCH_A_PET;
+    vTaskDelay(pdMS_TO_TICKS(canvas_game ? 1 : (idle_ms < 5 ? 5 : (idle_ms > 20 ? 20 : idle_ms))));
   }
 }
 extern "C" void app_main(void) {

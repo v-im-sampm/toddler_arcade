@@ -239,6 +239,7 @@ void Arcade::show_layer(Layer layer) {
     set_visible(old, false);
     if (shown_ != Layer::MENU) lv_obj_clean(old);  // free the closed game's objects
     if (shown_ == Layer::COLOR_POP) color_view_.release();
+    if (shown_ == Layer::HATCH_A_PET) hatch_view_.release();
   }
   shown_ = layer;
   // Each view's create() fully (re)initialises its state, so a relaunched

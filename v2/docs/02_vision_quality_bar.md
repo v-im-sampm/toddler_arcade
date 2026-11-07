@@ -66,7 +66,8 @@ shared standards below through its own original characters, setting, and mechani
 ### Platform
 - Adding a game requires **zero edits** to shell code: manifest-driven registration.
 - Live preview in a browser with hot reload of logic, tuning values and assets.
-- Headless deterministic replays and golden images/audio in CI for every game.
+- Headless deterministic behavior replays in CI for every game. Golden image/audio comparisons
+  may be used as optional diagnostics, but frame-by-frame analysis is not a ship requirement.
 - Budgets (flash, RAM, frame time, audio CPU) are checked per game.
 
 ### Per-game quality gate

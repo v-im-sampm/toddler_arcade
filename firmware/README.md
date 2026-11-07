@@ -172,6 +172,19 @@ Image: `little_arcade.bin` 1,231,456 B. All 38 host tests passed, and the golden
 
 **Rollback:** set `kLcdSpiHz` back to `27 * 1000 * 1000`, or reflash the previous image.
 
+### Hatch-a-Pet exact port (host evidence only; not yet run on the device)
+
+Hatch-a-Pet is ported the same way from `v2/reference/hatch_a_pet.html`:
+- model, `ctx2d` painter, `HatchAPetView` and `HatchAPetScore`;
+- golden: `cd tools/quality_bar_golden; node golden.mjs hatch_a_pet`, which uses `script_hatch_a_pet.txt` and
+  `build-host/games/hatch_a_pet/Debug/hatch_a_pet_reference_render.exe`. It matched 33/33 frames
+  (PSNR 41–47 dB).
+
+Plain `node golden.mjs` still runs Color Pop.
+
+At the owner's request, frame-by-frame / pixel-diff golden analysis is no longer a required check for either game.
+The harness stays as an optional tool; the required gates are the host tests, the simulator build, the ESP build and device measurements.
+
 ## P01 build evidence (container build only — not run on hardware)
 
 Environment: `espressif/idf:v5.5.6` (digest `sha256:bf72fe7a15c2…`), xtensa-esp-elf GCC 14.2.0. These numbers were recorded
