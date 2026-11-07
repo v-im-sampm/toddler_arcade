@@ -8,7 +8,7 @@
 #include "little_arcade/games/bubble_aquarium.hpp"
 #include "little_arcade/games/bubble_aquarium_view.hpp"
 #include "little_arcade/games/color_pop.hpp"
-#include "little_arcade/games/color_pop_view.hpp"
+#include "little_arcade/games/color_pop_stage.hpp"
 #include "little_arcade/games/feed_monster.hpp"
 #include "little_arcade/games/feed_monster_view.hpp"
 #include "little_arcade/games/hatch_a_pet.hpp"
@@ -100,7 +100,7 @@ class Arcade {
   const feed_monster::FeedMonsterView& feed_monster_view() const { return feed_monster_view_; }
   const hatch_a_pet::HatchAPetGame& hatch_a_pet() const { return hatch_a_pet_; }
   hatch_a_pet::HatchAPetView& hatch_a_pet_view() { return hatch_view_; }
-  color_pop::ColorPopView& color_pop_view() { return color_view_; }
+  const color_pop::ColorPopStage& color_pop_stage() const { return color_pop::ColorPopStage::instance(); }
   const rainbow_piano::RainbowPianoGame& rainbow_piano() const { return rainbow_piano_; }
   const robo_buddy::RoboBuddyGame& robo_buddy() const { return robo_buddy_; }
   const shape_garage::ShapeGarageGame& shape_garage() const { return shape_garage_; }
@@ -113,6 +113,9 @@ class Arcade {
   Layer wanted_layer() const;
   void show_layer(Layer layer);
   void create_view(Layer layer);
+  // Color Pop runs on PixelRoot32: one full-screen image shows its frame.
+  void create_color_pop(lv_obj_t* parent);
+  void sync_color_pop(uint32_t now_ms);
 
   animal_sounds::AnimalSoundsGame animal_sounds_;
   color_pop::ColorPopGame color_pop_;
@@ -134,7 +137,8 @@ class Arcade {
 
   animal_sounds::AnimalSoundsView animal_sounds_view_;
   ui::LauncherView launcher_;
-  color_pop::ColorPopView color_view_;
+  lv_obj_t* color_pop_img_ = nullptr;
+  lv_image_dsc_t color_pop_dsc_{};
   hatch_a_pet::HatchAPetView hatch_view_;
   rainbow_piano::RainbowPianoView rainbow_piano_view_;
   robo_buddy::RoboBuddyView robo_buddy_view_;

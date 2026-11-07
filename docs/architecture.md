@@ -9,6 +9,11 @@ ESP-IDF (version chosen in compatibility spike), C++17, LVGL (compatible version
 - `speech`: I2S RX, optional AFE/VAD, WakeNet/MultiNet, grammar, command events, confidence handling
 - `game_core`: game registry, scene lifecycle, deterministic RNG, event bus, idle timers
 - `games/*`: individual scenes, asset IDs and game logic
+- `pixelroot32`: vendored PixelRoot32 2D engine and APU (MIT, see its `VENDORED.md`).
+  - Used only by Color Pop, and only on the UI task.
+  - Draws into an RGB565 frame that LVGL displays as one image.
+  - Its APU is pulled by `audio` through the `ISceneAudio` hook.
+  - Game logic still uses `IGame` and intents.
 - `assets`: compressed images and speech/audio manifests; integrity checks
 - `settings`: parent gate, capped volume, speech on/off, calibration, no cloud
 

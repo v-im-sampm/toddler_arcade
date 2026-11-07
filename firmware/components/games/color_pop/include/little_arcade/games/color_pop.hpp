@@ -9,8 +9,8 @@
 // v2/reference/quality_bar.html (update(), the pointerdown handler, pop(),
 // newRound(), the hint ladder and every random draw, in the same order).
 // Times are seconds in doubles, like the reference, so a seeded run follows
-// the reference frame for frame. The painter (view/color_pop_paint) reads the
-// public state and draws it exactly like the reference's draw functions.
+// the reference frame for frame. The PixelRoot32 scene (pr32/color_pop_scene)
+// reads the public state and draws it with baked sprites and engine primitives.
 namespace little_arcade::color_pop {
 
 // Same order as the reference NAMES array.

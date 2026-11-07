@@ -2,10 +2,9 @@
 #include <cmath>
 #include <cstdint>
 
-// DSP pieces shared by the reference-port game scores (ColorPopScore,
-// HatchAPetScore): one sine table for every voice, and the Web Audio
-// DynamicsCompressor static curve. Float only (ESP32-S3 has a single-precision
-// FPU).
+// DSP pieces for the reference-port game scores (HatchAPetScore): one sine
+// table for every voice, and the Web Audio DynamicsCompressor static curve.
+// Float only (ESP32-S3 has a single-precision FPU).
 namespace little_arcade::audio::score_dsp {
 
 inline constexpr float kPi = 3.14159265358979f;

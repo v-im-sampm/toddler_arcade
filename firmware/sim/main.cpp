@@ -1252,6 +1252,7 @@ int run_interactive(const Options& opt) {
   sim.feedback = &feedback.audio;
   sim.sampler = &sampler;
   feedback.audio.attach_sampler(&sampler);
+  feedback.audio.attach_scene_audio(static_cast<uint8_t>(GameId::COLOR_POP), &color_pop::ColorPopStage::scene_audio());
   const bool audio_ok = !opt.mute && open_sim_audio(sim, opt.mic);
   if (!audio_ok) {
     std::printf("sim audio off (%s)\n", opt.mute ? "--mute" : SDL_GetError());
@@ -1496,6 +1497,7 @@ int main(int argc, char** argv) {
   SDL_SetMainReady();
   std::setvbuf(stdout, nullptr, _IONBF, 0);
   lv_init();
+  if (!color_pop::ColorPopStage::init_runtime()) std::printf("color_pop: PixelRoot32 runtime unavailable\n");
   if (opt.snap) return run_snap(opt);
   if (opt.bench) {
     if (opt.game == GameId::SOUND_JAR) return run_sound_jar_bench(opt);

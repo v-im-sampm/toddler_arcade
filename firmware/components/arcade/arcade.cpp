@@ -13,6 +13,7 @@
 #include "little_arcade/games/silly_faces_art.hpp"
 #include "little_arcade/games/sound_jar_art.hpp"
 #include "little_arcade/ui/palette.hpp"
+#include "src/misc/cache/instance/lv_image_cache.h"
 
 namespace little_arcade {
 
@@ -181,7 +182,19 @@ void Arcade::create(lv_obj_t* screen) {
 }
 
 void Arcade::pointer(bool pressed, int16_t x, int16_t y, uint32_t now_ms) {
-  if (gate_.pointer(pressed, x, y, now_ms)) touch(x, y, now_ms);
+  const bool press = gate_.pointer(pressed, x, y, now_ms);
+  color_pop::ColorPopStage& stage = color_pop::ColorPopStage::instance();
+  if (shown_ == Layer::COLOR_POP && stage.ready() && !gate_.open()) {
+    // PixelRoot32's touch dispatcher turns the edges into a tap for the scene,
+    // which hands it back to touch() on the next frame.
+    if (press) {
+      stage.touch(true, x, y, now_ms);
+    } else if (!pressed) {
+      stage.touch(false, x, y, now_ms);
+    }
+  } else if (press) {
+    touch(x, y, now_ms);
+  }
   // Sound Jar needs the held/sliding finger too (looping and pitch bend).
   if (!gate_.open() && sound_jar_.active() && scenes_.mode() == SceneManager::Mode::PLAYING) {
     sound_jar_.pointer(pressed, x, y);
@@ -216,7 +229,7 @@ void Arcade::create_view(Layer layer) {
   lv_obj_t* parent = layers_[static_cast<int>(layer)];
   switch (layer) {
     case Layer::ANIMAL_SOUNDS: animal_sounds_view_.create(parent); break;
-    case Layer::COLOR_POP: color_view_.create(parent); break;
+    case Layer::COLOR_POP: create_color_pop(parent); break;
     case Layer::HATCH_A_PET: hatch_view_.create(parent); break;
     case Layer::RAINBOW_PIANO: rainbow_piano_view_.create(parent); break;
     case Layer::ROBO_BUDDY: robo_buddy_view_.create(parent); break;
@@ -238,7 +251,10 @@ void Arcade::show_layer(Layer layer) {
     lv_obj_t* old = layers_[static_cast<int>(shown_)];
     set_visible(old, false);
     if (shown_ != Layer::MENU) lv_obj_clean(old);  // free the closed game's objects
-    if (shown_ == Layer::COLOR_POP) color_view_.release();
+    if (shown_ == Layer::COLOR_POP) {
+      color_pop_img_ = nullptr;  // deleted with the layer's children above
+      color_pop::ColorPopStage::instance().end();
+    }
     if (shown_ == Layer::HATCH_A_PET) hatch_view_.release();
   }
   shown_ = layer;
@@ -249,6 +265,46 @@ void Arcade::show_layer(Layer layer) {
   chrome_.set_home_visible(layer != Layer::MENU);
   // Color Pop paints its own reference-style Home and mic keys.
   chrome_.set_visible(layer != Layer::COLOR_POP);
+}
+
+void Arcade::create_color_pop(lv_obj_t* parent) {
+  color_pop::ColorPopStage& stage = color_pop::ColorPopStage::instance();
+  stage.set_touch_handler(
+      [](void* user, int16_t x, int16_t y, uint32_t now_ms) { static_cast<Arcade*>(user)->touch(x, y, now_ms); }, this);
+  if (!stage.begin(color_pop_)) {
+    // Out of memory: a plain sea keeps the screen calm; taps still reach the
+    // game through touch() and its sounds still play.
+    lv_obj_set_style_bg_color(parent, ui::to_lv(0x9ED8F0), 0);
+    lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
+    return;
+  }
+  color_pop_dsc_ = lv_image_dsc_t{};
+  color_pop_dsc_.header.magic = LV_IMAGE_HEADER_MAGIC;
+  color_pop_dsc_.header.cf = LV_COLOR_FORMAT_RGB565;
+  color_pop_dsc_.header.w = color_pop::ColorPopStage::kWidth;
+  color_pop_dsc_.header.h = color_pop::ColorPopStage::kHeight;
+  color_pop_dsc_.header.stride = color_pop::ColorPopStage::kWidth * 2;
+  color_pop_dsc_.data_size = color_pop::ColorPopStage::kWidth * color_pop::ColorPopStage::kHeight * 2;
+  color_pop_dsc_.data = reinterpret_cast<const uint8_t*>(stage.framebuffer());
+  lv_image_cache_drop(&color_pop_dsc_);
+  color_pop_img_ = lv_image_create(parent);
+  lv_obj_remove_flag(color_pop_img_, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
+  lv_image_set_src(color_pop_img_, &color_pop_dsc_);
+  lv_obj_set_pos(color_pop_img_, 0, 0);
+}
+
+void Arcade::sync_color_pop(uint32_t now_ms) {
+  color_pop::ColorPopStage& stage = color_pop::ColorPopStage::instance();
+  if (!stage.ready() || !color_pop_img_) {
+    color_pop_.frame_drawn();
+    return;
+  }
+  stage.frame(now_ms);
+  for (int i = 0; i < stage.dirty_count(); ++i) {
+    const color_pop::DirtyRect& r = stage.dirty()[i];
+    const lv_area_t a{r.x, r.y, static_cast<int32_t>(r.x + r.w - 1), static_cast<int32_t>(r.y + r.h - 1)};
+    lv_obj_invalidate_area(color_pop_img_, &a);
+  }
 }
 
 void Arcade::tick(uint32_t now_ms) {
@@ -266,7 +322,7 @@ void Arcade::tick(uint32_t now_ms) {
   switch (shown_) {
     case Layer::MENU: launcher_.sync(scenes_); break;
     case Layer::ANIMAL_SOUNDS: animal_sounds_view_.sync(animal_sounds_, now_ms); break;
-    case Layer::COLOR_POP: color_view_.sync(color_pop_, now_ms); break;
+    case Layer::COLOR_POP: sync_color_pop(now_ms); break;
     case Layer::HATCH_A_PET: hatch_view_.sync(hatch_a_pet_, now_ms); break;
     case Layer::RAINBOW_PIANO: rainbow_piano_view_.sync(rainbow_piano_); break;
     case Layer::ROBO_BUDDY: robo_buddy_view_.sync(robo_buddy_, now_ms); break;

@@ -6,8 +6,10 @@
 //   node golden.mjs [game] [path/to/<game>_reference_render.exe]
 //
 // Games:
-//   color_pop    quality_bar.html (START skipped), script.txt -> out/  (default)
-//   hatch_a_pet  hatch_a_pet.html (starts on START), script_hatch_a_pet.txt -> out_hatch_a_pet/
+//   hatch_a_pet  hatch_a_pet.html (starts on START), script_hatch_a_pet.txt -> out_hatch_a_pet/  (default)
+//
+// Color Pop left pixel parity when it moved to PixelRoot32 sprites; its mode
+// (and script.txt) live in git history.
 //
 // Exit code 1 when any frame exceeds the fidelity thresholds below.
 import { chromium } from 'playwright-core';
@@ -19,12 +21,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..', '..');
 const GAMES = {
-  color_pop: { html: 'quality_bar.html', script: 'script.txt', out: 'out', title: 'Color Pop: quality_bar.html' },
   hatch_a_pet: { html: 'hatch_a_pet.html', script: 'script_hatch_a_pet.txt', out: 'out_hatch_a_pet',
                  title: 'Hatch-a-Pet: hatch_a_pet.html' },
 };
 const args = process.argv.slice(2);
-const game = args[0] in GAMES ? args.shift() : 'color_pop';  // a bare exe path still means Color Pop
+const game = args[0] in GAMES ? args.shift() : 'hatch_a_pet';
 const cfg = GAMES[game];
 const out = path.join(here, cfg.out);
 const scriptPath = path.join(here, cfg.script);
@@ -81,13 +82,10 @@ await page.addInitScript(cosmetic => {
 const url = pathToFileURL(path.join(root, 'v2', 'reference', cfg.html)).href + `?seed=${gseed}`;
 await page.goto(url);
 const golden = await page.evaluate(({ cmds, end, game }) => {
-  /* global cv, ctx, st, crab, bubbles, update, drawBackground, drawBubble, drawCrab,
-     drawHelperHand, drawFx, drawBadge, drawChrome, drawScene, drawStart, ac */
+  /* global cv, ctx, st, update, drawScene, drawStart, ac */
   cv.width = 320; cv.height = 240; cv.style.width = '320px'; cv.style.height = '240px';
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  if (game === 'color_pop') {
-    st.phase = 'INTRO'; st.t = 0; crab.yOff = 40;   // startGame() without Web Audio
-  } else {
+  {
     // Web Audio becomes an inert stub: the sketch sees `ac` set (so audio-gated
     // logic such as the bird timer runs) but no noise buffer consumes Math.random.
     const stub = new Proxy(function () {}, {
@@ -107,22 +105,10 @@ const golden = await page.evaluate(({ cmds, end, game }) => {
     for (const c of cmds) {
       if (c.frame !== f) continue;
       if (c.op === 'tap') tap(c.x, c.y);
-      else if (c.op === 'tap_target' || c.op === 'tap_other') {
-        const want = c.op === 'tap_target';
-        const b = bubbles.find(o => want ? (o.color === st.target && (o.state === 'float' || o.state === 'rise'))
-                                         : (o.color !== st.target && o.state === 'float'));
-        if (b) tap(b.x, b.y);
-      }
     }
     update(1 / 60);
-    if (game === 'color_pop') {
-      drawBackground();
-      for (const b of bubbles) if (b.t >= 0) drawBubble(b);
-      drawCrab(); drawHelperHand(); drawFx(); drawBadge(); drawChrome();
-    } else {
-      drawScene();
-      if (st.phase === 'START') drawStart();
-    }
+    drawScene();
+    if (st.phase === 'START') drawStart();
     if (cmds.some(c => c.op === 'capture' && c.frame === f)) {
       frames[f] = Array.from(ctx.getImageData(0, 0, 320, 240).data);
     }

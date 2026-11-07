@@ -42,6 +42,7 @@ add_subdirectory(${LA_COMPONENTS}/audio audio)
 add_subdirectory(${LA_COMPONENTS}/ui ui)
 add_subdirectory(${LA_COMPONENTS}/settings settings)
 add_subdirectory(${LA_COMPONENTS}/games/animal_sounds games/animal_sounds)
+add_subdirectory(${LA_COMPONENTS}/pixelroot32 pixelroot32)  # before color_pop, which runs on it
 add_subdirectory(${LA_COMPONENTS}/games/color_pop games/color_pop)
 add_subdirectory(${LA_COMPONENTS}/games/feed_monster games/feed_monster)
 add_subdirectory(${LA_COMPONENTS}/games/hatch_a_pet games/hatch_a_pet)
@@ -63,7 +64,7 @@ endif()
 
 foreach(t little_arcade_core little_arcade_ui little_arcade_game_animal_sounds
           little_arcade_game_animal_sounds_view little_arcade_game_color_pop
-          little_arcade_game_color_pop_view           little_arcade_game_feed_monster little_arcade_game_feed_monster_view
+          little_arcade_game_color_pop_pr32           little_arcade_game_feed_monster little_arcade_game_feed_monster_view
           little_arcade_game_hatch_a_pet
           little_arcade_game_hatch_a_pet_view little_arcade_game_rainbow_piano
           little_arcade_game_rainbow_piano_view little_arcade_game_robo_buddy

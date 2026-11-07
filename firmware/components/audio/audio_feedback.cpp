@@ -7,7 +7,6 @@ namespace little_arcade::audio {
 namespace {
 constexpr uint8_t kKindCue = 0;
 constexpr uint8_t kKindScene = 1;
-constexpr uint8_t kColorPop = static_cast<uint8_t>(GameId::COLOR_POP);
 constexpr uint8_t kHatch = static_cast<uint8_t>(GameId::HATCH_A_PET);
 constexpr uint32_t kRepeatGuardSamples = AudioFeedback::kRepeatGuardMs * kSampleRateHz / 1000u;
 }  // namespace
@@ -38,7 +37,7 @@ void AudioFeedback::set_scene(uint8_t scene) {
 void AudioFeedback::apply(const Event& e) {
   Sound sound;
   if (e.kind == kKindScene) {
-    if (e.b != kColorPop) color_pop_.stop();
+    if (scene_audio_ && e.b != scene_audio_id_) scene_audio_->stop();
     if (e.b != kHatch) hatch_.stop();
     sound = scene_change_sound(e.a, e.b);
   } else {
@@ -49,7 +48,7 @@ void AudioFeedback::apply(const Event& e) {
     }
     last_ = e;
     last_at_ = samples_;
-    if (e.scene == kColorPop && color_pop_.cue(static_cast<Cue>(e.a), e.b)) {
+    if (scene_audio_ && e.scene == scene_audio_id_ && scene_audio_->cue(static_cast<Cue>(e.a), e.b)) {
       played_.fetch_add(1, std::memory_order_relaxed);
       return;
     }
@@ -89,7 +88,7 @@ void AudioFeedback::render(int16_t* out, std::size_t n) {
   while (done < n) {
     const std::size_t m = n - done < kChunk ? n - done : kChunk;
     synth_.render_mix(mix_, m);
-    color_pop_.render_add(mix_, m);
+    if (scene_audio_) scene_audio_->render_add(mix_, m);
     hatch_.render_add(mix_, m);
     if (sampler_) {
       // The sampler adds into int16 and silences the block while recording.

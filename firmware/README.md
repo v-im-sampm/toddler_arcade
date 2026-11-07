@@ -180,10 +180,47 @@ Hatch-a-Pet is ported the same way from `v2/reference/hatch_a_pet.html`:
   `build-host/games/hatch_a_pet/Debug/hatch_a_pet_reference_render.exe`. It matched 33/33 frames
   (PSNR 41–47 dB).
 
-Plain `node golden.mjs` still runs Color Pop.
+Plain `node golden.mjs` runs Hatch-a-Pet. Color Pop's golden mode was removed when the game moved to PixelRoot32 sprites, which dropped pixel parity.
 
 At the owner's request, frame-by-frame / pixel-diff golden analysis is no longer a required check for either game.
 The harness stays as an optional tool; the required gates are the host tests, the simulator build, the ESP build and device measurements.
+
+## Color Pop on PixelRoot32: build evidence (container and host only, not run on hardware)
+
+Color Pop now runs on the vendored PixelRoot32 engine (`components/pixelroot32`, see `VENDORED.md`).
+This replaces the ctx2d painter, the LVGL view and `ColorPopScore` described above. The engine owns
+the frame loop, drawing (baked 4bpp sprites and primitives), touch events and audio (APU). Game
+logic is unchanged.
+
+| Measure (`idf_wslc_build.ps1`, ESP-IDF 5.5.6) | Before (cc89ba9) | After | Delta |
+|---|---:|---:|---:|
+| `little_arcade.bin` | 1,261,952 B | 1,474,704 B | +212,752 B (+172,140 B of baked sprites) |
+| Flash code `.text` | 782,456 B | 811,336 B | +28,880 B |
+| Flash `.rodata` | 387,936 B | 571,716 B | +183,780 B |
+| Internal DIRAM used | 285,051 B | 281,775 B | −3,276 B (Color Pop's score buffers are gone; ctx2d stays for Hatch-a-Pet) |
+| `libpixelroot32.a` | — | 31,630 B (93 B DIRAM) | new |
+| `libcolor_pop.a` | 23,393 B | 206,661 B (612 B DIRAM) | +183,268 B |
+- **PSRAM (by design, not yet measured on the board):**
+  - The engine runtime is allocated once at boot (`[mem:pr32_ready]` logs it).
+  - Three 320×240 RGB565 frames (460,800 B) are held only while Color Pop is open (`[mem:layer]`).
+  - If they can't be allocated, Color Pop shows a plain sea and stays fully playable by touch.
+- **Host:**
+  - All 39 tests pass on MSVC and on GCC (`-Werror`, in the container).
+  - `color_pop_pr32_test` checks:
+    - incremental frames are byte-identical to a full redraw;
+    - bubbles carry their colour;
+    - engine touch reaches the game;
+    - APU peaks at 0.26–0.28 FS before the volume ramp and limiter.
+- **Desktop sim** (host desktop, not the device): `--bench --game color_pop --seconds 30 --seed 1234`
+  plays 9 rounds, LVGL render 66 µs/frame on average, 25.7 % of the screen redrawn per frame.
+- **Still to verify on the board:**
+  - frame time (`[perf] color_pop pr32 frame avg/max`);
+  - flush rate;
+  - touch-to-pop latency;
+  - PSRAM minima;
+  - the owner's review of the sprite look and the APU sound.
+
+**Rollback:** revert the PixelRoot32 commit on `main`, or reflash the previous `little_arcade.bin`.
 
 ## P01 build evidence (container build only — not run on hardware)
 

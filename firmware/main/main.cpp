@@ -304,6 +304,15 @@ void ui_task(void*) {
     sampler->set_mic_allowed(saved_mic);
     g_feedback.attach_sampler(sampler);  // before the audio task starts mixing
   }
+  // Color Pop's PixelRoot32 engine (its APU plays the Color Pop score).
+  const int64_t pr32_t0 = esp_timer_get_time();
+  if (color_pop::ColorPopStage::init_runtime()) {
+    g_feedback.attach_scene_audio(static_cast<uint8_t>(GameId::COLOR_POP), &color_pop::ColorPopStage::scene_audio());
+    ESP_LOGI(kTag, "color_pop: PixelRoot32 runtime ready in %lld us", esp_timer_get_time() - pr32_t0);
+  } else {
+    ESP_LOGE(kTag, "color_pop: PixelRoot32 runtime out of memory; Color Pop plays with the plain backdrop");
+  }
+  log_memory("pr32_ready");
   audio::I2sAudioOptions audio_opts;
   audio_opts.mic_level_probe = kMicLevelProbe;
   audio_opts.sampler = sampler;
@@ -359,14 +368,11 @@ void ui_task(void*) {
       lv_mem_monitor_t mem;
       lv_mem_monitor(&mem);
       hatch_a_pet::HatchAPetView& hv = arcade.hatch_a_pet_view();
-      color_pop::ColorPopView& cv = arcade.color_pop_view();
+      color_pop::ColorPopStage& cs = color_pop::ColorPopStage::instance();
       if (arcade.layer() == Arcade::Layer::COLOR_POP) {
-        ESP_LOGI("perf", "[device] color_pop syncs=%u frames=%u tiles/frame=%u (core0 %u%%) paint avg=%u max=%u us, raster avg=%u max=%u us",
-                 static_cast<unsigned>(cv.syncs()), static_cast<unsigned>(cv.frames()),
-                 static_cast<unsigned>(cv.frames() ? cv.tiles_drawn() / cv.frames() : 0),
-                 static_cast<unsigned>(cv.tiles_drawn() ? cv.tiles_by_worker() * 100 / cv.tiles_drawn() : 0),
-                 static_cast<unsigned>(cv.paint_us_avg()), static_cast<unsigned>(cv.paint_us_max()),
-                 static_cast<unsigned>(cv.render_us_avg()), static_cast<unsigned>(cv.render_us_max()));
+        ESP_LOGI("perf", "[device] color_pop pr32 frames=%u frame avg=%u max=%u us, dirty px avg=%u",
+                 static_cast<unsigned>(cs.frames()), static_cast<unsigned>(cs.frame_us_avg()),
+                 static_cast<unsigned>(cs.frame_us_max()), static_cast<unsigned>(cs.dirty_px_avg()));
       }
       if (arcade.layer() == Arcade::Layer::HATCH_A_PET) {
         ESP_LOGI("perf", "[device] hatch_a_pet syncs=%u frames=%u tiles/frame=%u (core0 %u%%) paint avg=%u max=%u us, raster avg=%u max=%u us",
@@ -376,7 +382,7 @@ void ui_task(void*) {
                  static_cast<unsigned>(hv.paint_us_avg()), static_cast<unsigned>(hv.paint_us_max()),
                  static_cast<unsigned>(hv.render_us_avg()), static_cast<unsigned>(hv.render_us_max()));
       }
-      cv.reset_stats();
+      cs.reset_stats();
       hv.reset_stats();
       ESP_LOGI("perf",
                "[device] layer=%s %u redraws/10s, render avg=%lld us max=%lld us, tick max=%lld us, px avg=%llu, "

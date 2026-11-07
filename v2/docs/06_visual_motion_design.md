@@ -170,7 +170,8 @@ sound identical. Workflow (proven on Color Pop):
    envelopes, filters, compressor and master gain.
 4. **Optional golden diff:** `tools/quality_bar_golden` can compare scripted browser-reference and
    host-render frames when useful. It is a diagnostic aid, not a required frame-by-frame analysis
-   or ship gate. Open `out/report.html` for side-by-side inspection.
+   or ship gate. Open `out/report.html` for side-by-side inspection. Color Pop
+   no longer has a golden mode: it moved to PixelRoot32 sprites, which dropped pixel parity.
 5. **Owner review on the panel.** The owner reviews the game on real hardware and signs off the
    look, motion and sound; host screenshots and automated comparisons do not replace device review.
 
