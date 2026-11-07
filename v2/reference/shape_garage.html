@@ -1,0 +1,1181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Little Arcade v2 – reference sketch (Shape Garage)</title>
+<!--
+  REFERENCE SKETCH: the device port must match this file exactly (see docs/06 §4).
+  Same visual language, motion tokens and audio graph as quality_bar.html (Color Pop) and
+  hatch_a_pet.html. Canvas features are limited to what firmware ui/ctx2d supports: paths, arcs,
+  ellipses, bezier/quadratic curves, linear/radial gradients, globalAlpha, 'lighter', transforms.
+  No clip, drawImage, text, shadows or filters in the game scene.
+  Audio nodes: sine oscillators, linear-attack/exponential-decay gains, exponential pitch glides,
+  white noise through one biquad (ratchet clicks, thumps, whooshes), one sine LFO on gain (engine
+  putter), an original looping workshop tune on its own small voice pool that ducks under the cues,
+  one compressor.
+  Play: drag a piece into its socket (lift, spring follow, magnetic snap) or tap a piece, then a socket.
+  All art is procedural and original; no external resources, no network, no storage, no mic.
+  Keys: D = debug HUD, R = reduced motion, P = toggle device/web particle cap. URL ?seed=N.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #1E2245; overflow: hidden;
+    touch-action: none; user-select: none; -webkit-user-select: none; }
+  #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,.45); }
+  #note { position: fixed; left: 8px; bottom: 6px; color: #9DB8FA; font: 12px system-ui, sans-serif; opacity: .7; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" aria-label="Shape Garage reference sketch"></canvas></div>
+<div id="note">v2 reference sketch · Shape Garage · 320×240 logical stage · drag or tap-tap · D debug · R reduced motion · P particle cap</div>
+<script>
+'use strict';
+// ---------- tokens (same subset as quality_bar.html; workshop palette from scene_art) ----------
+const W = 320, H = 240;
+const TOK = {
+  ink: '#3B3550', paper: '#FFF8EC', cream: '#FFF3D6', hintGlow: '#FFE066',
+  wallTop: '#FFE0A7', wallBot: '#FFB36A', skyTop: '#BFE6FF', skyBot: '#FFF1D9', hillFar: '#BFE3B0', hillNear: '#A8DDA0',
+  wood: '#B07A4F', woodLight: '#DDB892', woodDark: '#7A4E2D', steel: '#C9CED9', steelDark: '#8A90A3', tyre: '#4A4560',
+  mat: '#4E5573', matLight: '#6A7398', matDark: '#363B54',
+  squashPress: [1.12, 0.88], squashLand: 0.18, wiggleDeg: 6, wiggleMs: 360, glowPeriod: 0.9,
+  idleVisualHint: 6, idleSpokenHint: 12, maxInputBlock: 0.3, autoHelpAfter: 2,
+  springBouncy: { k: 380, c: 14 }, springDrag: { k: 1600, c: 80 },   // drag follow: critically damped (c = 2*sqrt(k))
+  breathScale: 0.025, bob: 2, tapDebounce: 0.08, dragDeadZone: 12, lift: 1.1,
+  snapRadius: 28, snapGrow: 8, snapMax: 44,                           // >= 24 units; grows after each miss
+  deviceMaxParticles: 32, webMaxParticles: 400,                       // shape_garage.md §8: particles <= 32
+};
+// Answer shapes: each differs in outline AND colour (tokens.json answer hues). deg = clunk pitch
+// (D major pentatonic degree: circle 0, square 2, triangle 4, star 3).
+const SHAPES = [
+  { name: 'CIRCLE',   base: '#EF4B4F', shadow: '#B8323A', light: '#FF9A92', tint: 'rgba(239,75,79,0.6)', deg: 0 },
+  { name: 'SQUARE',   base: '#3A6FE8', shadow: '#2448A8', light: '#9DB8FA', tint: 'rgba(58,111,232,0.6)', deg: 2 },
+  { name: 'TRIANGLE', base: '#2DB26E', shadow: '#1E8452', light: '#8EE0B4', tint: 'rgba(45,178,110,0.6)', deg: 4 },
+  { name: 'STAR',     base: '#FFD23F', shadow: '#C99A0E', light: '#FFEB9C', tint: 'rgba(255,210,63,0.7)', deg: 3 },
+];
+// Vehicles rotate per round; body hues stay clear of the four answer hues and of the warm wall.
+const VEHICLES = [
+  { name: 'CAR',    base: '#21B3B0', shadow: '#127A7D', light: '#8FE3DE' },
+  { name: 'TRUCK',  base: '#8F5BE0', shadow: '#6236A6', light: '#C9AEF5' },
+  { name: 'ROCKET', base: '#F06BB8', shadow: '#B23E86', light: '#FBB6DC' },
+  { name: 'BOAT',   base: '#4FB0F0', shadow: '#2B79B8', light: '#A9DBFB' },
+];
+// Stage geometry (logical px). Vehicle band y 56-174 (sockets y 95-151), parts tray y 178-238.
+const SOCK = { y: 123, pitch: 64, half: 28, hit: 34 };        // socket boxes 56x56, hit +6 slop
+const TRAY = { x: 8, y: 178, w: 304, h: 60, py: 208, pitch: 72 };
+const PIECE = { half: 32 };                                    // pieces 56x56, hit 64x64
+const FLOOR_Y = 174, BODY_T = 88, BODY_B = 158, PARK = -380;   // PARK: off-stage left, where vehicles roll in from
+const DOOR = { x0: 72, x1: 248, y0: 22, y1: 164 };             // open garage door (outside view)
+
+// ---------- utils ----------
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+const easeOutBack = t => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const seed = parseInt(new URLSearchParams(location.search).get('seed') || '1234', 10);
+const grng = mulberry32(seed);          // gameplay RNG (deterministic per seed)
+const frng = Math.random;               // cosmetic RNG
+const inRect = (x, y, r) => x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3];
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (grng() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+// ---------- canvas ----------
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let scale = 1;
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  scale = Math.min(innerWidth / W, innerHeight / H) * 0.96;
+  cv.style.width = (W * scale) + 'px'; cv.style.height = (H * scale) + 'px';
+  cv.width = Math.round(W * scale * dpr); cv.height = Math.round(H * scale * dpr);
+  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+let reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let debug = false, maxParticles = TOK.deviceMaxParticles;
+
+// ---------- audio (Web Audio, D major pentatonic, conservative gain) ----------
+let ac = null, master = null, voices = [], noiseBuf = null, noiseAt = 0;
+const PENT = [0, 2, 4, 7, 9];
+function degFreq(deg, oct = 0) {                                   // degree 0 = D5
+  const o = Math.floor(deg / 5), i = ((deg % 5) + 5) % 5;
+  return 587.33 * Math.pow(2, (PENT[i] + 12 * (o + oct)) / 12);
+}
+function initAudio() {
+  if (ac) return;
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  const comp = ac.createDynamicsCompressor();
+  comp.threshold.value = -14; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.15;
+  master = ac.createGain(); master.gain.value = 0;
+  master.connect(comp); comp.connect(ac.destination);
+  master.gain.setTargetAtTime(0.35, ac.currentTime, 0.1);   // ramp in: never a loud start
+  const r = mulberry32(99);                                  // 1 s of white noise from a fixed seed
+  noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+  const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1;
+}
+function voiceOk(len) {
+  const now = ac.currentTime; voices = voices.filter(e => e > now);
+  if (voices.length >= 8) return false;                        // voice limit
+  voices.push(now + len); duckMusic(now, len); return true;
+}
+function env(g, t, peak, attack, dur) {
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+}
+function marimba(freq, when = 0, vel = 1, dur = 0.55) {
+  if (!ac || !voiceOk(dur)) return;
+  const t = ac.currentTime + when;
+  const g = ac.createGain(); env(g, t, 0.45 * vel, 0.003, dur);
+  const o1 = ac.createOscillator(); o1.type = 'sine'; o1.frequency.value = freq;
+  o1.connect(g); g.connect(master); o1.start(t); o1.stop(t + dur + 0.05);
+  if (freq * 3.99 >= 7600) return;                                 // keep partials < 7.8 kHz (the device runs at 16 kHz)
+  const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 3.99;
+  const g2 = ac.createGain(); env(g2, t, 0.18 * vel, 0.003, 0.09);
+  o2.connect(g2); g2.connect(g); o2.start(t); o2.stop(t + dur + 0.05);
+}
+// Pitched sine with an exponential glide (plop, chirp, lift, boing, slide whistle all use this voice).
+function glide(f0, f1, glideS, when, peak, dur) {
+  if (!ac || !voiceOk(dur)) return;
+  const t = ac.currentTime + when;
+  const o = ac.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + glideS);
+  const g = ac.createGain(); env(g, t, peak, 0.003, dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.04);
+}
+const plop = (when = 0, vel = 1, d = 0) => glide(degFreq(d + 3), degFreq(d - 2, -1), 0.07, when, 0.32 * vel, 0.14);
+// Woodblock knock: short body with a slight pitch drop plus a bright inharmonic tick.
+function woodblock(freq, when = 0, vel = 1) {
+  glide(freq, freq * 0.92, 0.05, when, 0.42 * vel, 0.12);
+  glide(freq * 2.76, freq * 2.76, 0.01, when, 0.14 * vel, 0.04);
+}
+const chirp = (freq, when = 0, vel = 1) => glide(freq, freq * 1.5, 0.08, when, 0.25 * vel, 0.12);
+// White noise through one biquad with an exponential filter sweep (thump, whoosh, dust, rumble).
+function noise(when, dur, type, f0, f1, q, peak) {
+  if (!ac || !voiceOk(dur)) return;
+  const t = ac.currentTime + when;
+  const src = ac.createBufferSource(); src.buffer = noiseBuf;
+  const bq = ac.createBiquadFilter(); bq.type = type; bq.Q.value = q;
+  bq.frequency.setValueAtTime(f0, t); bq.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  const g = ac.createGain(); env(g, t, peak, 0.004, dur);
+  noiseAt = (noiseAt + 0.137) % 0.8;                                 // vary the start: no RNG in audio
+  src.connect(bq); bq.connect(g); g.connect(master); src.start(t, noiseAt); src.stop(t + dur + 0.05);
+}
+// Ratchet: n quick clicks on one noise voice (bandpass ~2.8 kHz), like a socket wrench.
+function ratchet(n = 3, when = 0, gap = 0.045, vel = 1) {
+  const len = n * gap + 0.04;
+  if (!ac || !voiceOk(len)) return;
+  const t = ac.currentTime + when;
+  const src = ac.createBufferSource(); src.buffer = noiseBuf;
+  const bq = ac.createBiquadFilter(); bq.type = 'bandpass'; bq.frequency.value = 2800; bq.Q.value = 4;
+  const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t);
+  for (let i = 0; i < n; i++) {
+    const ti = t + i * gap;
+    g.gain.setValueAtTime(0.0001, ti); g.gain.linearRampToValueAtTime(0.55 * vel, ti + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, ti + 0.03);
+  }
+  noiseAt = (noiseAt + 0.137) % 0.8;
+  src.connect(bq); bq.connect(g); g.connect(master); src.start(t, noiseAt); src.stop(t + len + 0.02);
+}
+// Clunk: a chunky wooden knock that settles on the shape's degree, over a soft low thump.
+function clunk(deg, when = 0, vel = 1) {
+  const f = degFreq(deg, -1);
+  glide(f * 1.5, f, 0.035, when, 0.42 * vel, 0.18);
+  glide(f * 2.76, f * 2.76, 0.01, when, 0.1 * vel, 0.05);
+  noise(when, 0.08, 'lowpass', 700, 200, 1, 0.4 * vel);
+}
+// Horn: one voice of three sine partials (1, 2, 3) with a little scoop and a short hold.
+function horn(freq, when = 0, dur = 0.2, vel = 1) {
+  if (!ac || !voiceOk(dur)) return;
+  const t = ac.currentTime + when, g = ac.createGain(), peak = 0.24 * vel;
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + 0.015);
+  g.gain.setValueAtTime(peak, t + dur * 0.55); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  g.connect(master);
+  for (const [m, a] of [[1, 1], [2, 0.45], [3, 0.2]]) {
+    const o = ac.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(freq * m * 0.97, t); o.frequency.exponentialRampToValueAtTime(freq * m, t + 0.03);
+    const og = ac.createGain(); og.gain.value = a; o.connect(og); og.connect(g); o.start(t); o.stop(t + dur + 0.05);
+  }
+}
+// Engine: two sine partials from D3 glide up (r1) and settle (r2); a sine LFO on gain gives the putter.
+function rev(when = 0, dur = 0.4, r1 = 1.5, r2 = 1.125, vel = 1) {
+  if (!ac || !voiceOk(dur)) return;
+  const t = ac.currentTime + when, f = degFreq(0, -2);
+  const g = ac.createGain(); env(g, t, 0.3 * vel, 0.02, dur); g.connect(master);
+  const am = ac.createGain(); am.gain.value = 0.6; am.connect(g);
+  const lfo = ac.createOscillator(); lfo.type = 'sine';
+  lfo.frequency.setValueAtTime(11, t); lfo.frequency.linearRampToValueAtTime(23, t + dur * 0.5);
+  const depth = ac.createGain(); depth.gain.value = 0.4; lfo.connect(depth); depth.connect(am.gain);
+  lfo.start(t); lfo.stop(t + dur + 0.05);
+  for (const [m, a] of [[1, 1], [2, 0.5]]) {
+    const o = ac.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(f * m, t); o.frequency.exponentialRampToValueAtTime(f * m * r1, t + dur * 0.45);
+    o.frequency.exponentialRampToValueAtTime(f * m * r2, t + dur);
+    const og = ac.createGain(); og.gain.value = a; o.connect(og); og.connect(am); o.start(t); o.stop(t + dur + 0.05);
+  }
+}
+// ---------- workshop tune (original; D major pentatonic, 4/4 at 96 bpm, 8 bars = 20 s loop) ----------
+// melody: [beat, degree, beats] at octave -1 (soft sine); bass: two degrees per bar (beats 0 and 2) at
+// octave -2; a very quiet high tick on the off-beats keeps the workshop busy.
+const TUNE = { spb: 60 / 96, beats: 32, voices: 6,
+  melody: [[0, 0, .5], [.5, 2, .5], [1, 3, 1], [2.5, 2, .5], [3, 4, 1], [4, 3, 1.5], [5.5, 2, .5], [6, 1, 2],
+           [8, 1, .5], [8.5, 2, .5], [9, 3, 1], [10.5, 4, .5], [11, 5, 1], [12, 4, 1.5], [13.5, 3, .5], [14, 2, 2],
+           [16, 3, .5], [16.5, 3, .5], [17, 4, 1], [18.5, 3, .5], [19, 2, 1], [20, 1, 1], [21, 2, .5], [21.5, 1, .5], [22, 0, 2],
+           [24, 2, .5], [24.5, 3, .5], [25, 4, 1], [26, 5, 1], [27, 4, 1], [28, 3, 1], [29, 1, 1], [30, 0, 2]],
+  bass: [[0, 3], [3, 1], [4, 2], [2, 0], [0, 3], [3, 1], [4, 2], [3, 0]] };
+// Events in time order: [beat, freq, peak, attack, dur].
+const SONG = [];
+for (const [b, d, n] of TUNE.melody) SONG.push([b, degFreq(d, -1), 0.07, 0.008, n * TUNE.spb * 0.85 + 0.2]);
+TUNE.bass.forEach(([a, b], i) => {
+  SONG.push([i * 4, degFreq(a, -2), 0.055, 0.02, 2 * TUNE.spb * 0.9]);
+  SONG.push([i * 4 + 2, degFreq(b, -2), 0.055, 0.02, 2 * TUNE.spb * 0.9]);
+});
+for (let b = 1; b < TUNE.beats; b += 2) SONG.push([b, degFreq(3, 1), 0.012, 0.002, 0.04]);
+SONG.sort((a, b) => a[0] - b[0] || b[2] - a[2]);
+let music = null, musicBus = null, duck = null, duckUntil = 0, musicVoices = [];
+function startMusic() {
+  if (!ac) return;
+  if (!musicBus) { musicBus = ac.createGain(); duck = ac.createGain(); musicBus.connect(duck); duck.connect(master); }
+  const now = ac.currentTime;
+  musicBus.gain.cancelScheduledValues(now); musicBus.gain.setValueAtTime(0, now);
+  musicBus.gain.setTargetAtTime(1, now + 0.5, 1.5);                // gentle fade-in, never a loud start
+  music = { t0: now + 0.5, i: 0, loop: 0 }; musicVoices = [];
+}
+function stopMusic() {
+  if (!music) return;
+  musicBus.gain.cancelScheduledValues(ac.currentTime); musicBus.gain.setTargetAtTime(0, ac.currentTime, 0.15);
+  music = null;
+}
+function musicVoiceOk(t, len) {                                    // own pool: never takes cue voices
+  musicVoices = musicVoices.filter(e => e > t);
+  if (musicVoices.length >= TUNE.voices) return false;
+  musicVoices.push(t + len); return true;
+}
+function musicNote(t, freq, peak, attack, dur) {
+  if (!musicVoiceOk(t, dur)) return;
+  const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+  const g = ac.createGain(); env(g, t, peak, attack, dur);
+  o.connect(g); g.connect(musicBus); o.start(t); o.stop(t + dur + 0.05);
+}
+function musicTick() {                                             // schedule notes 0.4 s ahead
+  if (!music) return;
+  for (;;) {
+    const e = SONG[music.i], t = music.t0 + (music.loop * TUNE.beats + e[0]) * TUNE.spb;
+    if (t > ac.currentTime + 0.4) return;
+    musicNote(t, e[1], e[2], e[3], e[4]);
+    if (++music.i >= SONG.length) { music.i = 0; music.loop++; }
+  }
+}
+function duckMusic(now, len) {                                     // music dips to 0.35 under cues
+  if (!duck) return;
+  duckUntil = Math.max(duckUntil, now + len);
+  duck.gain.cancelScheduledValues(now);
+  duck.gain.setTargetAtTime(0.35, now, 0.03); duck.gain.setTargetAtTime(1, duckUntil, 0.3);
+}
+// ---------- cues (pitched cues sit on D major pentatonic degrees; a shape always clunks on its own degree) ----------
+const shapeDeg = k => SHAPES[k].deg;
+const liftSound = k => glide(degFreq(shapeDeg(k), -1), degFreq(shapeDeg(k) + 2, -1), 0.08, 0, 0.2, 0.11);
+const putDownSound = () => woodblock(degFreq(0, -1), 0, 0.6);
+const whoosh = (when = 0, vel = 1) => noise(when, 0.26, 'bandpass', 700, 2200, 1.2, 0.1 * vel);
+const boing = () => glide(degFreq(0, -1), degFreq(3, -1), 0.12, 0, 0.26, 0.2);        // soft "nope", never a buzzer
+function snapSound(k) { clunk(shapeDeg(k)); ratchet(3, 0.06, 0.045, 0.7); marimba(degFreq(shapeDeg(k), 1), 0.16, 0.55, 0.4); }
+const glideHelp = () => glide(degFreq(0), degFreq(5), 0.6, 0, 0.14, 0.7);              // slide whistle
+function promptMotif(k, when = 0) {                                // "find this one": its note twice + ratchet
+  const d = shapeDeg(k);
+  marimba(degFreq(d), when, 0.6, 0.35); marimba(degFreq(d + 2), when + 0.18, 0.6, 0.35); ratchet(2, when + 0.42, 0.05, 0.5);
+}
+function snore() { glide(degFreq(1, -1), degFreq(3, -1), 0.3, 0, 0.08, 0.36); glide(degFreq(3, -1), degFreq(1, -1), 0.3, 0.4, 0.07, 0.36); }
+function wakeSound() { chirp(degFreq(0), 0, 0.8); chirp(degFreq(2), 0.12, 0.9); marimba(degFreq(5), 0.26, 0.7, 0.45); }
+function hornTune(when = 0) {                                      // A4 A4 D5 F#5: "beep beep, ta-daa"
+  [[3, -1, 0, 0.13], [3, -1, 0.16, 0.13], [0, 0, 0.32, 0.18], [2, 0, 0.52, 0.42]]
+    .forEach(([d, o, t, l]) => horn(degFreq(d, o), when + t, l, 0.9));
+}
+const honk = () => { horn(degFreq(3, -1), 0, 0.12, 0.75); horn(degFreq(3, -1), 0.17, 0.14, 0.75); };
+const rollSound = () => noise(0, 0.8, 'lowpass', 320, 160, 0.7, 0.16);
+const settleSound = () => { woodblock(degFreq(0, -1), 0, 0.5); glide(degFreq(2, -1), degFreq(0, -1), 0.08, 0.06, 0.12, 0.14); };
+function vroom() { rev(0, 1.1, 2, 2, 0.9); whoosh(0.15, 1.2); }
+const emptyNote = x => marimba(degFreq(clamp(Math.floor(x / 64), 0, 4), 1), 0, 0.3, 0.25);
+
+// ---------- particles, rings, sleep bubbles ----------
+let parts = [], rings = [], bubbles = [];
+const MIX = ['circle', 'sq', 'tri', 'star'];                       // mini shapes, each in its own colour
+function emit(x, y, n, o) {
+  n = Math.max(1, Math.round(n * (reduced ? 0.5 : 1)));
+  for (let i = 0; i < n; i++) {
+    if (parts.length >= maxParticles) parts.shift();            // evict oldest, never exceed cap
+    const a = frng() * Math.PI * 2, sp = lerp(o.speed[0], o.speed[1], frng()), life = lerp(o.life[0], o.life[1], frng());
+    const k = (frng() * 4) | 0, mix = o.shape === 'mix';
+    parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - (o.up || 0), g: o.gravity, life, max: life,
+      shape: mix ? MIX[k] : o.shape, color: mix ? SHAPES[k].base : o.colors[(frng() * o.colors.length) | 0],
+      size: o.size * lerp(0.7, 1.3, frng()), rot: frng() * 6.28, vr: (frng() - 0.5) * 8, add: !!o.additive });
+  }
+}
+const SPARKLE = { speed: [40, 110], life: [0.35, 0.7], gravity: 60, shape: 'star', size: 5, colors: ['#FFEB9C', '#FFFBEF'], additive: true };
+const BITS = { speed: [60, 160], life: [0.9, 1.4], gravity: 140, shape: 'mix', size: 6, up: 60 };
+const DUST = { speed: [8, 26], life: [0.5, 0.9], gravity: -18, shape: 'puff', size: 5, colors: ['#EBD9BC', '#D9C2A0'] };
+const SMOKE = { speed: [6, 18], life: [0.6, 1.0], gravity: -40, shape: 'puff', size: 4, colors: ['#FFFBEF', '#E9E2F2'] };
+const ring = (x, y, r0, r1, dur, color, w) => rings.push({ x, y, r0, r1, t: 0, dur, color, w });
+
+// ---------- entities ----------
+// veh: x/y = drive offset; q/qv = squash spring (pivot on the floor under the vehicle); wa = wheel angle;
+// eye/ev = eye-open spring (pops open on waking); peek = one eye opens briefly while asleep.
+const veh = { on: false, type: 0, n: 2, g: null, x: PARK, y: 0, q: 0, qv: 0, wa: 0, lean: 0, awake: 0, eye: 0, ev: 0,
+  peek: 0, blink: 3, look: [0, 1], lastTap: -9, settled: false, bub: 1, puff: 0 };
+// piece: state 'tray' | 'held' (finger) | 'sel' (tap-tap: lifted + glowing) | 'fly' | 'bonk' | 'placed';
+// s/sv = lift scale spring, q/qv = squash spring, wig = wiggle time left, hop = hint hop time left.
+let pieces = [], sockets = [], sel = null, drag = null;
+const badge = { sv: 0, happy: 0, lastTap: -9 };
+const st = { phase: 'START', t: 0, round: 0, count: 2, idle: 0, hint: 0, spoken: false, helped: false, doneIn: -1,
+  hintHop: 0, demo: 0, revs: 0, horned: false, dust: 0 };
+let time = 0;
+
+// Vehicle layout for type + socket count, in stage coordinates at rest (veh.x = 0). The port computes this
+// once per round. xs = socket centres (y = SOCK.y), L/R = body ends, face = eye centre, wheels = hub xs.
+const row = (cx, n) => Array.from({ length: n }, (_, i) => cx + (i - (n - 1) / 2) * SOCK.pitch);
+function geom(type, n) {
+  if (type === 0) {                                                // CAR: sockets along the doors, cabin on top
+    const xs = row(160, n), L = xs[0] - 42, R = xs[n - 1] + 42;
+    const cw = clamp((R - L) * 0.46, 92, 132), cx = (L + R) / 2 - 6;
+    return { xs, L, R, cx, cw, face: { x: cx + 4, y: 77, sp: 10, er: 5 }, wheels: [L + 30, R - 30], wr: 14, wy: 160,
+      smoke: [L - 8, 150], top: 64 };
+  }
+  if (type === 1) {                                                // TRUCK: cargo box sockets + one in the cab door
+    const w = 64 * n + 36, L = 160 - w / 2, CR = L + 64 * (n - 2) + 80, R = L + w;
+    const xs = []; for (let i = 0; i < n - 1; i++) xs.push(L + 40 + 64 * i); xs.push(CR + 46);
+    return { xs, L, R, CR, face: { x: CR + 46, y: 78, sp: 10, er: 5 }, wr: 14, wy: 160,
+      wheels: n === 2 ? [L + 40, CR + 46] : [L + 34, CR - 34, CR + 46], smoke: [CR + 4, 62], top: 64 };
+  }
+  if (type === 2) {                                                // ROCKET: capsule with portholes, dome cockpit
+    const xs = row(152, n), L = xs[0] - 46, R = xs[n - 1] + 34;
+    return { xs, L, R, face: { x: xs[n - 1] - 4, y: 79, sp: 9, er: 5 }, wheels: [L + 62, R - 14], wr: 11, wy: 163,
+      smoke: [L - 12, 123], top: 68 };
+  }
+  const xs = row(150, n), L = xs[0] - 44, R = xs[n - 1] + 38, cx = (L + R) / 2 + 6;   // BOAT on a wheeled trailer
+  return { xs, L, R, cx, face: { x: cx, y: 78, sp: 10, er: 5 }, wheels: [L + 46, R - 28], wr: 11, wy: 163,
+    smoke: [cx - 52, 66], top: 63 };
+}
+
+// ---------- game flow ----------
+function newVehicle() {
+  const type = st.round % 4, n = st.count, g = geom(type, n);
+  Object.assign(veh, { on: true, type, n, g, x: PARK, y: 0, q: 0, qv: 0, lean: 0, awake: 0, eye: 0, ev: 0, peek: 0,
+    settled: false, bub: 0.8, puff: 0, look: [0, 1] });
+  const shapes = shuffle([0, 1, 2, 3]).slice(0, n);
+  sockets = shapes.map((k, i) => ({ x: g.xs[i], y: SOCK.y, shape: k, filled: false, glow: 0, pulse: 0, lastTap: -9 }));
+  const order = shuffle(shapes.slice());
+  if (order.every((k, i) => k === shapes[i])) order.push(order.shift());   // the tray never mirrors the sockets
+  pieces = order.map((k, i) => {
+    const hx = 160 + (i - (n - 1) / 2) * TRAY.pitch;
+    return { shape: k, hx, hy: TRAY.py, x: hx, y: TRAY.py, vx: 0, vy: 0, s: 1, sv: 0, q: 0, qv: 0, rot: 0, state: 'tray',
+      misses: 0, wig: 0, hop: 0, glow: 0, lastTap: -9, pop: 0, popAt: 0.45 + i * 0.09, popped: false, fly: null,
+      sock: null, trail: 0, bt: 0 };
+  });
+  sel = null; drag = null; bubbles = [];
+  st.idle = 0; st.hint = 0; st.spoken = false; st.helped = false; st.doneIn = -1; st.demo = 0;
+}
+function startGame() {
+  initAudio(); startMusic();
+  st.round = 0; st.count = 2; newVehicle(); st.phase = 'ROLL_IN'; st.t = 0; rollSound();
+}
+function startBuild() {
+  st.phase = 'BUILD'; st.t = 0; st.idle = 0; st.hint = 0; st.spoken = false; badge.sv = -6;
+  for (const p of pieces) { p.pop = 1; p.popped = true; }
+  veh.x = 0;
+  const p = nextPiece(); if (p) promptMotif(p.shape, 0.15);
+}
+function complete() {
+  st.phase = 'COMPLETE'; st.t = 0; st.revs = 0; st.horned = false;
+  const g = veh.g, cx = (g.L + g.R) / 2;
+  veh.awake = 1; veh.ev = 7; veh.qv = -2.4; veh.look = [0, 1];
+  wakeSound();
+  emit(cx, 110, 14, BITS); emit(g.face.x, g.face.y, 8, SPARKLE); ring(cx, 118, 24, 96, 0.6, '#FFFFFF', 3);
+  badge.happy = 3.4; badge.sv = -10;
+  st.count = st.helped ? Math.max(2, st.count - 1) : Math.min(4, st.count + 1);   // gentle ramp 2 -> 3 -> 4
+}
+function startDriveOff() { st.phase = 'DRIVE_OFF'; st.t = 0; st.dust = 0; vroom(); }
+
+// ---------- pieces and sockets ----------
+const sockFor = p => sockets.find(s => !s.filled && s.shape === p.shape) || null;
+const nextPiece = () => sel || pieces.find(p => p.state === 'tray') || null;
+const snapR = p => Math.min(TOK.snapMax, TOK.snapRadius + TOK.snapGrow * p.misses);
+function pieceAt(x, y) {
+  for (const p of pieces) if ((p.state === 'tray' || p.state === 'sel') && Math.abs(x - p.hx) <= PIECE.half && Math.abs(y - p.hy) <= PIECE.half) return p;
+  return null;
+}
+function socketAt(x, y, r) {
+  let best = null, bd = 1e9;
+  for (const s of sockets) {
+    const dx = Math.abs(x - s.x), dy = Math.abs(y - s.y);
+    if (dx <= r && dy <= r && dx + dy < bd) { best = s; bd = dx + dy; }
+  }
+  return best;
+}
+function vehHit(x, y) { const g = veh.g; return x >= g.L + veh.x - 8 && x <= g.R + veh.x + 30 && y >= g.top + veh.y - 4 && y <= FLOOR_Y + veh.y; }
+function flyTo(p, x1, y1, dur, h, then, sock) { p.state = 'fly'; p.fly = { x0: p.x, y0: p.y, x1, y1, t: 0, dur, h, then, sock, help: false }; }
+const flyHome = (p, dur = 0.42, h = 26) => flyTo(p, p.hx, p.hy, dur, h, 'land', null);
+function land(p) { p.state = 'tray'; p.x = p.hx; p.y = p.hy; p.vx = p.vy = 0; p.qv = 2.2; putDownSound(); }
+function place(p, s) {
+  p.state = 'placed'; p.sock = s; p.x = s.x; p.y = s.y; p.vx = p.vy = 0; p.glow = 0; p.wig = 0;
+  p.q = reduced ? 0.06 : TOK.squashLand; p.qv = 0;
+  s.filled = true; s.glow = 0; s.pulse = 0.6;
+  if (sel === p) sel = null;
+  const c = SHAPES[p.shape];
+  emit(s.x, s.y, 10, { ...SPARKLE, colors: [c.light, '#FFFBEF'] }); ring(s.x, s.y, 16, 46, 0.45, c.light, 3);
+  snapSound(p.shape);
+  veh.qv = 1.5; veh.peek = 0.9; veh.look = [s.x - veh.g.face.x, s.y - veh.g.face.y];
+  st.idle = 0; st.hint = 0; st.spoken = false;
+  if (sockets.every(k => k.filled)) st.doneIn = 0.4;
+}
+function bonk(p, s) {                                              // wrong socket: bump, wiggle, show the right one
+  p.misses++; p.state = 'bonk'; p.bt = 0.34; p.x = s.x; p.y = s.y; p.wig = TOK.wiggleMs / 1000; p.qv = 2.2;
+  const c = sockFor(p); if (c) c.glow = 3;
+  boing(); marimba(degFreq(shapeDeg(p.shape)), 0.26, 0.5, 0.3);
+  veh.look = [s.x - veh.g.face.x, s.y - veh.g.face.y];
+  st.idle = 0;
+}
+function afterBonk(p) {
+  const s = sockFor(p);
+  if (p.misses >= TOK.autoHelpAfter && s) {                       // 2nd miss: the piece glides in by itself
+    st.helped = true; flyTo(p, s.x, s.y, 0.75, 30, 'place', s); p.fly.help = true; p.trail = 0; glideHelp();
+  } else flyHome(p, 0.45, 34);
+}
+function dropPiece(p) {
+  const s = sockFor(p), w = socketAt(p.x, p.y, SOCK.hit);
+  if (s && (w === s || Math.hypot(p.x - s.x, p.y - s.y) <= snapR(p))) { flyTo(p, s.x, s.y, 0.12, 0, 'place', s); return; }
+  if (w && !w.filled) { flyTo(p, w.x, w.y, 0.1, 0, 'bonk', w); return; }
+  if (w && s) s.glow = 2;                                          // dropped on a filled socket: show where it goes
+  flyHome(p, 0.42, 26); whoosh(0, 0.6);                            // never lost: it always comes home
+}
+function tapSocket(s) {
+  if (time - s.lastTap < TOK.tapDebounce) return;
+  s.lastTap = time; st.idle = 0;
+  const c = SHAPES[s.shape];
+  if (s.filled) {                                                  // a placed piece just wiggles hello
+    const p = pieces.find(q => q.sock === s); if (p) { p.wig = TOK.wiggleMs / 1000; p.qv = -1.6; }
+    ring(s.x, s.y, 14, 38, 0.4, '#FFFFFF', 2); clunk(c.deg, 0, 0.45); return;
+  }
+  st.hint = 0; st.spoken = false;
+  if (sel) {                                                       // tap-tap: the selected piece hops over
+    const p = sel; sel = null;
+    if (p.shape === s.shape) flyTo(p, s.x, s.y, 0.3, 22, 'place', s); else flyTo(p, s.x, s.y, 0.24, 16, 'bonk', s);
+    ring(s.x, s.y, 12, 34, 0.35, '#FFFFFF', 2); whoosh(0, 0.5); return;
+  }
+  const p = pieces.find(q => q.state === 'tray' && q.shape === s.shape);   // nothing held: show what fits here
+  if (p) { p.hop = 0.5; p.glow = 1.6; }
+  s.glow = 1.4; ring(s.x, s.y, 14, 40, 0.45, c.light, 3);
+  marimba(degFreq(c.deg), 0, 0.55, 0.35);
+}
+function pressPiece(p, x, y, id) {
+  if (time - p.lastTap < TOK.tapDebounce) return;
+  p.lastTap = time;
+  const wasSel = sel === p;
+  if (sel && sel !== p) sel.state = 'tray';                        // switch the selection
+  sel = null;
+  p.state = 'held'; p.qv = 2.2; p.glow = 0;
+  drag = { p, id, x0: x, y0: y, fx: x, fy: y, ox: p.x - x, oy: p.y - y, moved: false, wasSel };
+  liftSound(p.shape); st.idle = 0; st.hint = 0; st.spoken = false;
+}
+function release(e) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag, p = d.p; drag = null;
+  if (d.moved) { dropPiece(p); return; }
+  if (d.wasSel) { p.state = 'tray'; p.qv = 1.6; putDownSound(); return; }   // tap it again: put it back down
+  p.state = 'sel'; sel = p;                                        // tap-tap: lifted and glowing, waiting for a socket
+  emit(p.hx, p.hy - 12, 4, { ...SPARKLE, colors: [SHAPES[p.shape].light, '#FFFBEF'] });
+  marimba(degFreq(shapeDeg(p.shape)), 0, 0.5, 0.3);
+}
+function tapVehicle(x, y) {
+  ring(x, y, 4, 24, 0.45, '#FFFFFF', 2); st.idle = 0;
+  if (time - veh.lastTap < 0.3) return;
+  veh.lastTap = time; veh.qv = -1.4;
+  const f = veh.g.face;
+  if (veh.awake) { honk(); emit(f.x + veh.x, f.y + veh.y - 8, 4, SPARKLE); }
+  else { snore(); veh.peek = 1; bubbles.push({ x: f.x + f.sp + 14, y: f.y - 4, t: 0 }); }
+}
+function emptyTap(x, y) { ring(x, y, 3, 22, 0.5, '#FFFFFF', 2); emit(x, y, 4, SPARKLE); emptyNote(x); st.idle = 0; }
+function tapBadge() {
+  if (time - badge.lastTap < TOK.tapDebounce) return;
+  badge.lastTap = time; badge.sv = -12; st.idle = 0;
+  const p = st.phase === 'BUILD' ? nextPiece() : null;
+  if (!p) { ring(160, 32, 24, 52, 0.45, '#FFFFFF', 3); if (veh.awake) honk(); else marimba(degFreq(0), 0, 0.5, 0.3); return; }
+  const c = SHAPES[p.shape], s = sockFor(p);                       // replay the prompt: which piece, and where
+  ring(160, 32, 24, 52, 0.45, c.light, 3); emit(160, 60, 6, { ...SPARKLE, colors: [c.light, '#FFFBEF'] });
+  promptMotif(p.shape);
+  if (p.state === 'tray') p.hop = 0.5;
+  p.glow = 1.6; if (s) s.glow = 2;
+}
+
+// ---------- input ----------
+const toStage = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H]; };
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const [x, y] = toStage(e);
+  if (st.phase === 'START') { startGame(); return; }
+  if (ac && ac.state === 'suspended') ac.resume();
+  if (inRect(x, y, [0, 0, 56, 56])) { home(); return; }
+  if (inRect(x, y, [264, 0, 56, 56])) { ring(292, 28, 6, 24, 0.4, '#FFFFFF', 2); return; } // mic: disabled in sketch
+  if (veh.on) veh.look = [x - veh.x - veh.g.face.x, y - veh.y - veh.g.face.y];
+  if (inRect(x, y, [132, 4, 56, 56])) { tapBadge(); return; }      // badge: replay the prompt
+  if (st.phase === 'ROLL_IN') {                                    // roll-in is skippable
+    st.t = 99; veh.settled = true; for (const p of pieces) p.popped = true;
+    ring(x, y, 3, 22, 0.5, '#FFFFFF', 2); plop(0, 0.6, 1); return;
+  }
+  if (st.phase === 'BUILD' && !drag) {
+    const p = pieceAt(x, y);
+    if (p) { try { cv.setPointerCapture(e.pointerId); } catch (_) { /* synthetic pointer */ } pressPiece(p, x, y, e.pointerId); return; }
+    const s = socketAt(x, y, SOCK.hit);
+    if (s) { tapSocket(s); return; }
+  }
+  if (veh.on && vehHit(x, y)) { tapVehicle(x, y); return; }
+  emptyTap(x, y);
+});
+addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const [x, y] = toStage(e);
+  drag.fx = x; drag.fy = y;
+  if (!drag.moved && Math.hypot(x - drag.x0, y - drag.y0) > TOK.dragDeadZone) drag.moved = true;
+});
+addEventListener('pointerup', release);
+addEventListener('pointercancel', e => { if (drag && e.pointerId === drag.id) { const p = drag.p; drag = null; flyHome(p); } });
+addEventListener('keydown', e => {
+  if (e.key === 'd' || e.key === 'D') debug = !debug;
+  if (e.key === 'r' || e.key === 'R') reduced = !reduced;
+  if (e.key === 'p' || e.key === 'P') maxParticles = maxParticles === TOK.deviceMaxParticles ? TOK.webMaxParticles : TOK.deviceMaxParticles;
+});
+function home() {
+  stopMusic();
+  parts = []; rings = []; bubbles = []; pieces = []; sockets = []; sel = null; drag = null; veh.on = false;
+  Object.assign(st, { phase: 'START', t: 0, round: 0, count: 2, idle: 0, hint: 0, spoken: false, helped: false, doneIn: -1, demo: 0 });
+  badge.happy = 0;
+}
+
+// ---------- update ----------
+function springK(o, key, vkey, target, dt, k = TOK.springBouncy.k, c = TOK.springBouncy.c) {   // 2 substeps (stable at 60 Hz)
+  if (reduced) c = 2 * Math.sqrt(k);                               // reduced motion: critically damped, no overshoot
+  for (let i = 0; i < 2; i++) {
+    const h = dt / 2, a = -k * (o[key] - target) - c * o[vkey];
+    o[vkey] += a * h; o[key] += o[vkey] * h;
+  }
+}
+const spring = (o, target, dt) => springK(o, 'q', 'qv', target, dt);
+function follow(p, tx, ty, dt) {                                   // drag follow: stiff, critically damped (lag <= 50 ms)
+  const k = TOK.springDrag.k, c = TOK.springDrag.c, n = Math.max(2, Math.ceil(dt * 120)), h = dt / n;
+  for (let i = 0; i < n; i++) {
+    p.vx += (-k * (p.x - tx) - c * p.vx) * h; p.vy += (-k * (p.y - ty) - c * p.vy) * h;
+    p.x += p.vx * h; p.y += p.vy * h;
+  }
+}
+function spinWheels(dx, dt) { veh.wa += clamp(dx / veh.g.wr, -Math.PI * 2 * dt, Math.PI * 2 * dt); }   // <= 1 rev/s
+function update(dt) {
+  time += dt; st.t += dt;
+  const m = reduced ? 0.3 : 1, g = veh.g;
+  if (st.phase === 'ROLL_IN') {
+    const k = clamp(st.t / 0.8, 0, 1), x0 = veh.x;
+    veh.x = lerp(PARK, 0, easeOutCubic(k)); spinWheels(veh.x - x0, dt);
+    if (k >= 1 && !veh.settled) {
+      veh.settled = true; veh.qv = 2.4; settleSound();
+      for (const wx of g.wheels) emit(wx - 8, FLOOR_Y - 2, 2, DUST);
+    }
+    for (const p of pieces) {
+      const pk = clamp((st.t - p.popAt) / 0.3, 0, 1);
+      p.pop = reduced ? easeOutCubic(pk) : easeOutBack(pk);
+      if (pk > 0 && !p.popped) { p.popped = true; plop(0, 0.5, shapeDeg(p.shape) - 2); }
+    }
+    if (st.t >= 1.0) startBuild();
+  } else if (st.phase === 'BUILD') {
+    if (!drag) st.idle += dt;
+    if (st.idle > TOK.idleVisualHint && st.hint < 1) { st.hint = 1; st.hintHop = 0; }
+    if (st.idle > TOK.idleSpokenHint && !st.spoken) {             // "spoken" hint: motif + badge bounce + helper hand
+      st.spoken = true; st.hint = 2; st.demo = 0; badge.sv = -8;
+      const p = nextPiece(); if (p) promptMotif(p.shape);
+    }
+    if (st.hint >= 1) {
+      const p = nextPiece(), s = p && sockFor(p);
+      st.hintHop -= dt;
+      if (p && st.hintHop <= 0) { st.hintHop = 1.5; if (p.state === 'tray') p.hop = 0.5; }
+      if (s) s.glow = Math.max(s.glow, 0.6);                      // >= 0.5 after this frame's decay = full-strength glow
+      if (p) p.glow = Math.max(p.glow, 0.6);
+    }
+    if (st.hint >= 2) st.demo += dt;
+    if (st.doneIn >= 0) { st.doneIn -= dt; if (st.doneIn < 0) complete(); }
+  } else if (st.phase === 'COMPLETE') {                            // wake, three revs, horn tune
+    const REV = [0.3, 0.55, 0.8];
+    if (st.revs < 3 && st.t >= REV[st.revs]) {
+      rev(0, 0.26, 1.5, 1.125, 0.7); ratchet(2, 0.05, 0.04, 0.5); veh.qv = -2 * (st.revs + 1) / 3 - 0.6;
+      emit(g.smoke[0], g.smoke[1], 2, SMOKE); st.revs++;
+    }
+    if (!st.horned && st.t >= 0.95) { st.horned = true; hornTune(); }
+    if (st.t >= 1.5) startDriveOff();
+  } else if (st.phase === 'DRIVE_OFF') {                           // accelerate out to the right with dust
+    const k = st.t / 1.35, x0 = veh.x;
+    veh.x = 440 * k * k; if (veh.type === 2) veh.y = -34 * k * k;
+    spinWheels(veh.x - x0, dt);
+    veh.lean = -0.06 * clamp(st.t / 0.3, 0, 1) * (1 - clamp((st.t - 0.9) / 0.5, 0, 1)) * m;
+    st.dust -= dt;
+    if (st.dust <= 0 && g.L + veh.x < W) {
+      st.dust = 0.07;
+      if (veh.type === 2) emit(g.smoke[0] + veh.x, g.smoke[1] + veh.y, 2, SMOKE);
+      else emit(g.wheels[0] + veh.x - 10, FLOOR_Y - 3, 2, DUST);
+    }
+    if (st.t >= 1.8) { st.round++; newVehicle(); st.phase = 'ROLL_IN'; st.t = 0; rollSound(); }
+  }
+  // vehicle life: squash spring, eyes pop open on waking, blinks, sleep bubbles while it waits
+  if (veh.on) {
+    spring(veh, 0, dt);
+    springK(veh, 'eye', 'ev', veh.awake ? 1 : 0, dt);
+    veh.peek = Math.max(0, veh.peek - dt);
+    veh.blink -= dt; if (veh.blink < -0.12) veh.blink = 2 + frng() * 4;
+    if (!veh.awake && st.phase === 'BUILD') {
+      veh.bub -= dt;
+      if (veh.bub <= 0) { veh.bub = 2.2; bubbles.push({ x: g.face.x + g.face.sp + 14, y: g.face.y - 4, t: 0 }); }
+    }
+    if (veh.awake && st.phase !== 'DRIVE_OFF') {                   // awake and idling: a little exhaust now and then
+      veh.puff -= dt; if (veh.puff <= 0) { veh.puff = 0.5; emit(g.smoke[0] + veh.x, g.smoke[1] + veh.y, 1, SMOKE); }
+    }
+  }
+  for (const b of bubbles) b.t += dt;
+  bubbles = bubbles.filter(b => b.t < 1.8);
+
+  // pieces
+  for (const p of pieces) {
+    p.glow = Math.max(0, p.glow - dt); p.wig = Math.max(0, p.wig - dt); p.hop = Math.max(0, p.hop - dt);
+    const lifted = p.state === 'held' || p.state === 'sel' || p.state === 'fly' || p.state === 'bonk';
+    springK(p, 's', 'sv', lifted ? TOK.lift : 1, dt);
+    spring(p, 0, dt);
+    if (p.state === 'held') {
+      let tx = p.hx, ty = p.hy;
+      if (drag && drag.p === p && drag.moved) {
+        tx = clamp(drag.fx + drag.ox, 24, W - 24); ty = clamp(drag.fy + drag.oy, 64, H - 22);
+        const s = sockFor(p);
+        if (s) {                                                   // magnetic pull near the matching socket
+          const d = Math.hypot(tx - s.x, ty - s.y), R = snapR(p) * 1.5;
+          if (d < R) { const a = 0.4 * (1 - d / R); tx = lerp(tx, s.x, a); ty = lerp(ty, s.y, a); }
+        }
+      }
+      follow(p, tx, ty, dt);
+    } else if (p.state === 'sel') follow(p, p.hx, p.hy - 8, dt);
+    else if (p.state === 'tray') follow(p, p.hx, p.hy, dt);
+    else if (p.state === 'fly') {
+      const f = p.fly; f.t += dt;
+      const k = clamp(f.t / f.dur, 0, 1), e = 1 - (1 - k) * (1 - k);
+      p.x = lerp(f.x0, f.x1, e); p.y = lerp(f.y0, f.y1, e) - f.h * 4 * k * (1 - k);
+      if (f.help) { p.trail -= dt; if (p.trail <= 0) { p.trail = 0.06; emit(p.x, p.y, 1, SPARKLE); } }
+      if (k >= 1) { if (f.then === 'place') place(p, f.sock); else if (f.then === 'bonk') bonk(p, f.sock); else land(p); }
+    } else if (p.state === 'bonk') { p.bt -= dt; if (p.bt <= 0) afterBonk(p); }
+    else if (p.state === 'placed') { p.x = p.sock.x; p.y = p.sock.y; }
+    const wk = 1 - p.wig / (TOK.wiggleMs / 1000), ph = (time + p.hx * 0.017) % 5;   // idle: a tiny wiggle every 5 s, staggered
+    p.rot = p.wig > 0 ? Math.sin(wk * Math.PI * 4) * TOK.wiggleDeg * Math.PI / 180 * (1 - wk) * (reduced ? 0.5 : 1)
+      : p.state === 'tray' && st.phase === 'BUILD' && ph < 0.5 ? Math.sin(ph / 0.5 * Math.PI * 3) * 3 * Math.PI / 180 * (1 - ph / 0.5) * (reduced ? 0.5 : 1) : 0;
+  }
+  for (const s of sockets) { s.glow = Math.max(0, s.glow - dt); s.pulse = Math.max(0, s.pulse - dt); }
+  badge.happy = Math.max(0, badge.happy - dt); badge.sv *= Math.pow(0.86, dt * 60);   // badge press relaxes
+
+  for (const p of parts) { p.life -= dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; }
+  parts = parts.filter(p => p.life > 0);
+  for (const r of rings) r.t += dt; rings = rings.filter(r => r.t < r.dur);
+}
+
+// ---------- drawing helpers ----------
+function starPath(cx, cy, ro, ri, rot) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) { const r = i % 2 ? ri : ro, a = rot + i * Math.PI / 5; ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); }
+  ctx.closePath();
+}
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+const TRI = [[0, -27], [28, 21], [-28, 21]];                       // triangle piece (centroid-ish at 0,0)
+function triPath(s, ox = 0, oy = 0, r = 6) {                       // rounded triangle via arcTo
+  const P = TRI.map(([x, y]) => [x * s + ox, y * s + oy]);
+  ctx.beginPath(); ctx.moveTo((P[2][0] + P[0][0]) / 2, (P[2][1] + P[0][1]) / 2);
+  for (let i = 0; i < 3; i++) { const a = P[i], b = P[(i + 1) % 3]; ctx.arcTo(a[0], a[1], b[0], b[1], r * s); }
+  ctx.closePath();
+}
+// Shape path centred at (ox, oy), scale s. 0 circle, 1 square, 2 triangle, 3 star.
+function shapePath(k, s, ox = 0, oy = 0) {
+  if (k === 0) { ctx.beginPath(); ctx.arc(ox, oy, 25 * s, 0, 7); }
+  else if (k === 1) roundRect(ox - 23 * s, oy - 23 * s, 46 * s, 46 * s, 10 * s);
+  else if (k === 2) triPath(s, ox, oy);
+  else starPath(ox, oy + 2 * s, 28 * s, 13 * s, -Math.PI / 2);
+}
+// Dotted socket outlines: points sampled evenly along each shape's edge (computed once; the port bakes them).
+function outlineDots(k, s, gap) {
+  let poly = [];
+  if (k === 0) { for (let i = 0; i < 64; i++) { const a = i / 64 * Math.PI * 2; poly.push([Math.cos(a) * 25, Math.sin(a) * 25]); } }
+  else {
+    const C = k === 1 ? [[-23, -23], [23, -23], [23, 23], [-23, 23]] : k === 2 ? TRI
+      : Array.from({ length: 10 }, (_, i) => { const r = i % 2 ? 13 : 28, a = -Math.PI / 2 + i * Math.PI / 5; return [Math.cos(a) * r, Math.sin(a) * r + 2]; });
+    const rr = k === 3 ? 0 : 8;
+    for (let i = 0; i < C.length; i++) {                           // corners rounded with sampled quadratic curves
+      const a = C[(i + C.length - 1) % C.length], b = C[i], c = C[(i + 1) % C.length];
+      if (!rr) { poly.push(b); continue; }
+      const da = Math.hypot(b[0] - a[0], b[1] - a[1]), dc = Math.hypot(c[0] - b[0], c[1] - b[1]);
+      const p0 = [b[0] + (a[0] - b[0]) * rr / da, b[1] + (a[1] - b[1]) * rr / da], p1 = [b[0] + (c[0] - b[0]) * rr / dc, b[1] + (c[1] - b[1]) * rr / dc];
+      for (let j = 0; j <= 4; j++) { const t = j / 4, u = 1 - t;
+        poly.push([u * u * p0[0] + 2 * u * t * b[0] + t * t * p1[0], u * u * p0[1] + 2 * u * t * b[1] + t * t * p1[1]]); }
+    }
+  }
+  poly = poly.map(([x, y]) => [x * s, y * s]);
+  let len = 0; const seg = [];
+  for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length], l = Math.hypot(b[0] - a[0], b[1] - a[1]); seg.push(l); len += l; }
+  const n = Math.max(8, Math.round(len / gap)), step = len / n, out = [];
+  let i = 0, acc = 0;
+  for (let d = 0; d < n; d++) {
+    const want = d * step;
+    while (i < seg.length - 1 && acc + seg[i] < want) { acc += seg[i]; i++; }
+    const a = poly[i], b = poly[(i + 1) % poly.length], t = seg[i] ? (want - acc) / seg[i] : 0;
+    out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+  }
+  return out;
+}
+const OUTLINE = [0, 1, 2, 3].map(k => outlineDots(k, 1, 6.8));
+function dots(pts, ox, oy, s, r) {                                 // one path: a moveTo + arc per dot, one fill
+  ctx.beginPath();
+  for (const [x, y] of pts) { const px = ox + x * s, py = oy + y * s; ctx.moveTo(px + r, py); ctx.arc(px, py, r, 0, 7); }
+  ctx.fill();
+}
+// ---------- background (static parts would be a cached layer on the device) ----------
+const PEG = [[6, 62, 52, 90], [262, 62, 52, 90]];
+function drawBackground() {
+  let g = ctx.createLinearGradient(0, 0, 0, 166);                  // warm workshop wall
+  g.addColorStop(0, TOK.wallTop); g.addColorStop(1, TOK.wallBot);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, 166);
+  ctx.strokeStyle = 'rgba(176,96,40,0.16)'; ctx.lineWidth = 1; ctx.beginPath();   // siding boards
+  for (let y = 12; y < 164; y += 12) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+  ctx.stroke();
+  // the open garage door: a sunny view outside
+  g = ctx.createLinearGradient(0, DOOR.y0, 0, DOOR.y1);
+  g.addColorStop(0, TOK.skyTop); g.addColorStop(1, TOK.skyBot);
+  ctx.fillStyle = g; ctx.fillRect(DOOR.x0, DOOR.y0, DOOR.x1 - DOOR.x0, DOOR.y1 - DOOR.y0);
+  ctx.fillStyle = 'rgba(255,228,138,0.35)'; ctx.beginPath(); ctx.arc(222, 60, 17, 0, 7); ctx.fill();
+  ctx.fillStyle = '#FFE48A'; ctx.beginPath(); ctx.arc(222, 60, 11, 0, 7); ctx.fill();
+  ctx.fillStyle = TOK.hillFar; ctx.beginPath(); ctx.moveTo(DOOR.x0, 118);
+  ctx.quadraticCurveTo(118, 84, 170, 112); ctx.quadraticCurveTo(212, 94, DOOR.x1, 108);
+  ctx.lineTo(DOOR.x1, DOOR.y1); ctx.lineTo(DOOR.x0, DOOR.y1); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#8A6A4F'; ctx.fillRect(104, 88, 4, 18);                       // little tree on the far hill
+  ctx.fillStyle = '#7CC47A'; ctx.beginPath(); ctx.arc(106, 84, 9, 0, 7); ctx.arc(99, 90, 6, 0, 7); ctx.arc(113, 90, 6, 0, 7); ctx.fill();
+  ctx.fillStyle = TOK.hillNear; ctx.beginPath(); ctx.moveTo(DOOR.x0, 134);
+  ctx.quadraticCurveTo(150, 112, DOOR.x1, 138); ctx.lineTo(DOOR.x1, DOOR.y1); ctx.lineTo(DOOR.x0, DOOR.y1); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#D2C2A6'; ctx.beginPath(); ctx.moveTo(140, DOOR.y1); ctx.quadraticCurveTo(156, 140, 166, 128);   // driveway path
+  ctx.lineTo(176, 128); ctx.quadraticCurveTo(182, 142, 206, DOOR.y1); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#C5CCE0'; ctx.fillRect(DOOR.x0, DOOR.y0, DOOR.x1 - DOOR.x0, 18);   // rolled-up door
+  ctx.strokeStyle = '#A3AAC4'; ctx.lineWidth = 1.5; ctx.beginPath();
+  ctx.moveTo(DOOR.x0, 28); ctx.lineTo(DOOR.x1, 28); ctx.moveTo(DOOR.x0, 34); ctx.lineTo(DOOR.x1, 34); ctx.stroke();
+  ctx.fillStyle = '#8F97B5'; ctx.fillRect(DOOR.x0, 38, DOOR.x1 - DOOR.x0, 3);
+  ctx.fillStyle = TOK.wood; ctx.strokeStyle = TOK.woodDark; ctx.lineWidth = 2;   // door frame
+  roundRect(DOOR.x0 - 8, 14, 8, DOOR.y1 - 12, 2); ctx.fill(); ctx.stroke();
+  roundRect(DOOR.x1, 14, 8, DOOR.y1 - 12, 2); ctx.fill(); ctx.stroke();
+  roundRect(DOOR.x0 - 10, 12, DOOR.x1 - DOOR.x0 + 20, 10, 3); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = TOK.woodLight; ctx.lineWidth = 1.5; ctx.beginPath();
+  ctx.moveTo(DOOR.x0 - 2, 24); ctx.lineTo(DOOR.x0 - 2, DOOR.y1); ctx.moveTo(DOOR.x1 + 2, 24); ctx.lineTo(DOOR.x1 + 2, DOOR.y1);
+  ctx.moveTo(DOOR.x0 - 6, 15); ctx.lineTo(DOOR.x1 + 6, 15); ctx.stroke();
+  // pegboards with tools (muted colours: nothing on the wall looks like a game piece)
+  for (const [x, y, w, h] of PEG) { ctx.fillStyle = '#E8CFA6'; roundRect(x, y, w, h, 5); ctx.fill(); ctx.strokeStyle = TOK.wood; ctx.lineWidth = 2; ctx.stroke(); }
+  ctx.fillStyle = 'rgba(122,78,45,0.35)'; ctx.beginPath();
+  for (const [x, y] of PEG) for (let i = 0; i < 4; i++) for (let j = 0; j < 7; j++) {
+    const hx = x + 8 + i * 12, hy = y + 8 + j * 12.4; ctx.moveTo(hx + 1.3, hy); ctx.arc(hx, hy, 1.3, 0, 7);
+  }
+  ctx.fill();
+  ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+  ctx.save(); ctx.translate(21, 108); ctx.rotate(-0.18);                          // wrench
+  ctx.fillStyle = TOK.steel; ctx.strokeStyle = TOK.steelDark;
+  roundRect(-3.5, -26, 7, 50, 3.5); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, -29, 8, -0.5 * Math.PI + 0.5, 1.5 * Math.PI - 0.5); ctx.lineTo(-2.5, -30); ctx.lineTo(2.5, -30); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 26, 6.5, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#E8CFA6'; ctx.beginPath(); ctx.arc(0, 26, 2.6, 0, 7); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = TOK.woodLight; ctx.strokeStyle = TOK.woodDark; roundRect(40, 84, 6, 56, 3); ctx.fill(); ctx.stroke();   // hammer
+  ctx.fillStyle = TOK.steel; ctx.strokeStyle = TOK.steelDark; roundRect(31, 76, 24, 11, 3); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#E8894A'; ctx.strokeStyle = '#B5602A'; roundRect(272, 76, 11, 30, 5); ctx.fill(); ctx.stroke();   // screwdriver
+  ctx.fillStyle = TOK.steel; ctx.strokeStyle = TOK.steelDark; roundRect(275.5, 105, 4, 34, 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#F2A541'; ctx.strokeStyle = '#B87A22'; roundRect(288, 100, 22, 22, 6); ctx.fill(); ctx.stroke();   // tape measure
+  ctx.fillStyle = '#FFF3D6'; ctx.beginPath(); ctx.arc(299, 111, 5, 0, 7); ctx.fill();
+  ctx.fillStyle = '#E8D27A'; ctx.fillRect(301, 121, 6, 14);
+  ctx.fillStyle = TOK.woodLight; ctx.strokeStyle = TOK.woodDark; roundRect(296, 68, 5, 16, 2.5); ctx.fill(); ctx.stroke();   // paint brush
+  ctx.fillStyle = TOK.steel; ctx.strokeStyle = TOK.steelDark; roundRect(294, 83, 9, 5, 1.5); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#8D9CC0'; roundRect(293, 87, 11, 9, 3); ctx.fill();
+  // floor boards
+  g = ctx.createLinearGradient(0, 164, 0, H);
+  g.addColorStop(0, TOK.woodLight); g.addColorStop(1, TOK.wood);
+  ctx.fillStyle = g; ctx.fillRect(0, 164, W, H - 164);
+  ctx.strokeStyle = 'rgba(122,78,45,0.28)'; ctx.lineWidth = 1; ctx.beginPath();
+  for (let i = -6; i <= 6; i++) { ctx.moveTo(160 + i * 30, 166); ctx.lineTo(160 + i * 62, H); }
+  ctx.stroke();
+  ctx.fillStyle = TOK.woodDark; ctx.fillRect(0, 163, W, 3);
+  // parts tray
+  ctx.fillStyle = TOK.matDark; roundRect(TRAY.x, TRAY.y + 3, TRAY.w, TRAY.h - 1, 14); ctx.fill();
+  ctx.fillStyle = TOK.mat; roundRect(TRAY.x, TRAY.y, TRAY.w, TRAY.h - 3, 14); ctx.fill();
+  ctx.strokeStyle = TOK.matLight; ctx.lineWidth = 2; roundRect(TRAY.x + 5, TRAY.y + 5, TRAY.w - 10, TRAY.h - 14, 10); ctx.stroke();
+}
+// Animated ambience: a cloud drifting past the open door (fades at the frame edges, no clipping needed).
+function drawAmbient() {
+  const span = DOOR.x1 - DOOR.x0 - 44, u = (time * 4 * (reduced ? 0.5 : 1)) % span, x = DOOR.x0 + 22 + u;
+  ctx.globalAlpha = 0.9 * clamp(u / 24, 0, 1) * clamp((span - u) / 24, 0, 1);
+  ctx.fillStyle = '#FFFFFF'; ctx.beginPath();
+  ctx.arc(x, 56, 8, 0, 7); ctx.arc(x + 9, 52, 9, 0, 7); ctx.arc(x + 18, 57, 7, 0, 7); ctx.ellipse(x + 9, 59, 15, 5, 0, 0, 7);
+  ctx.fill(); ctx.globalAlpha = 1;
+}
+
+// ---------- pieces and sockets ----------
+const SHINE = [[-9, -10], [-10, -11], [-5, -3], [-5, -5]];
+// One shaded piece: soft ink shadow, side thickness, radial face light -> base -> shadow, darker outline,
+// bevel, white shine. lift 0..1 moves the shadow away (held / selected); shadow false when set in a socket.
+function drawPiece(p, x, y, sc, glow, lift, shadow) {
+  const c = SHAPES[p.shape], k = p.shape;
+  if (shadow) {
+    ctx.fillStyle = `rgba(40,30,60,${(0.28 - 0.1 * lift).toFixed(3)})`;
+    ctx.beginPath(); ctx.ellipse(x + 2 + 6 * lift, y + 24 * sc + 4 + 6 * lift, 22 * sc * (1 - 0.12 * lift), 5 * sc, 0, 0, 7); ctx.fill();
+  }
+  ctx.save(); ctx.translate(x, y); ctx.rotate(p.rot); ctx.scale(sc * (1 + p.q), sc * (1 - p.q));
+  if (glow > 0) {
+    ctx.strokeStyle = TOK.hintGlow; ctx.lineWidth = 4; ctx.lineJoin = 'round';
+    ctx.globalAlpha = clamp(glow, 0, 1) * (0.6 + 0.35 * Math.sin(time * 2 * Math.PI / TOK.glowPeriod));
+    shapePath(k, 1.2); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = c.shadow; shapePath(k, 1, 0, 3.5); ctx.fill();
+  const g = ctx.createRadialGradient(-9, -11, 3, 0, 0, 34);
+  g.addColorStop(0, c.light); g.addColorStop(0.55, c.base); g.addColorStop(1, c.shadow);
+  ctx.fillStyle = g; shapePath(k, 1); ctx.fill();
+  ctx.strokeStyle = c.shadow; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.5; shapePath(k, 0.72, 0, k === 2 ? 1.4 : 0); ctx.stroke();
+  const [sx, sy] = SHINE[k];
+  ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.ellipse(sx, sy, 6, 3.5, -0.6, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx + 7, sy - 4, 1.5, 0, 7); ctx.fill();
+  ctx.restore();
+}
+// Empty socket: dark recess, the shape's colour inside, a breathing cream dotted outline.
+function drawSocketHole(s) {
+  const c = SHAPES[s.shape], b = 1.08 + 0.03 * Math.sin(time * 2 * Math.PI / 2.8) * (reduced ? 0.3 : 1);
+  ctx.fillStyle = 'rgba(48,36,72,0.38)'; shapePath(s.shape, 1.08, s.x, s.y); ctx.fill();
+  ctx.fillStyle = 'rgba(255,243,214,0.5)'; shapePath(s.shape, 0.82, s.x, s.y); ctx.fill();   // light backing: the colour hint reads true on any body
+  ctx.fillStyle = c.tint; ctx.fill();
+  ctx.fillStyle = TOK.cream; dots(OUTLINE[s.shape], s.x, s.y, b, 1.7);
+}
+function drawSocketFx(s) {
+  if (s.glow > 0 && !s.filled) {                                   // hint glow (~1.1 Hz, well under 3 flashes/s)
+    ctx.strokeStyle = TOK.hintGlow; ctx.lineWidth = 4; ctx.lineJoin = 'round';
+    ctx.globalAlpha = (0.5 + 0.4 * Math.sin(time * 2 * Math.PI / TOK.glowPeriod)) * clamp(s.glow * 2, 0, 1);
+    shapePath(s.shape, 1.28, s.x, s.y); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  if (s.pulse > 0) {                                               // snap: a ring in the piece's light colour grows out
+    const k = 1 - s.pulse / 0.6;
+    ctx.strokeStyle = SHAPES[s.shape].light; ctx.lineWidth = 3; ctx.globalAlpha = 1 - k;
+    shapePath(s.shape, 1.1 + 0.4 * k, s.x, s.y); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+}
+// ---------- vehicles (side view, facing right; sockets are the doors / portholes) ----------
+function bodyGrad(v, y0, y1) {
+  const g = ctx.createLinearGradient(0, y0, 0, y1);
+  g.addColorStop(0, v.light); g.addColorStop(0.3, v.base); g.addColorStop(1, v.shadow);
+  return g;
+}
+function glassGrad(y0, y1) {
+  const g = ctx.createLinearGradient(0, y0, 0, y1);
+  g.addColorStop(0, '#EAF8FF'); g.addColorStop(1, '#A6DDF7');
+  return g;
+}
+function finish(fill, stroke, lw = 2) { ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.stroke(); }
+function drawWheel(x, y, r, a) {
+  ctx.fillStyle = TOK.tyre; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  ctx.fillStyle = TOK.steel; ctx.beginPath(); ctx.arc(x, y, r * 0.55, 0, 7); ctx.fill();
+  ctx.strokeStyle = TOK.steelDark; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath();
+  for (let i = 0; i < 3; i++) { const t = a + i * 2.094; ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(t) * r * 0.48, y + Math.sin(t) * r * 0.48); }
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.arc(x - r * 0.42, y - r * 0.42, r * 0.2, 0, 7); ctx.fill();
+}
+function drawCar(v, g, bg) {
+  const L = g.L, R = g.R, x0 = g.cx - g.cw / 2, x1 = g.cx + g.cw / 2;
+  ctx.beginPath(); ctx.moveTo(x0 - 4, 92); ctx.lineTo(x0 + 10, 70); ctx.quadraticCurveTo(x0 + 13, 64, x0 + 20, 64);   // cabin
+  ctx.lineTo(x1 - 26, 64); ctx.quadraticCurveTo(x1 - 19, 64, x1 - 15, 70); ctx.lineTo(x1 + 8, 92); ctx.closePath();
+  finish(bg, v.shadow);
+  ctx.beginPath(); ctx.moveTo(x0 + 5, 89); ctx.lineTo(x0 + 14, 73); ctx.quadraticCurveTo(x0 + 16, 69, x0 + 21, 69);  // window
+  ctx.lineTo(x1 - 27, 69); ctx.quadraticCurveTo(x1 - 22, 69, x1 - 20, 73); ctx.lineTo(x1 - 3, 89); ctx.closePath();
+  finish(glassGrad(69, 89), v.shadow, 1.5);
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x1 - 10, 86); ctx.lineTo(x1 - 17, 75); ctx.stroke();
+  roundRect(L, BODY_T, R - L, BODY_B - BODY_T, 20); finish(bg, v.shadow);                                         // body
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(L + 20, 93); ctx.lineTo(R - 20, 93); ctx.stroke();
+  ctx.fillStyle = '#FFF6C8'; ctx.beginPath(); ctx.ellipse(R - 5, 106, 4, 7, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = v.shadow; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = '#FF8A5C'; roundRect(L + 1, 99, 6, 13, 3); ctx.fill();
+  ctx.fillStyle = TOK.steel; ctx.strokeStyle = TOK.steelDark;
+  roundRect(R - 12, 141, 18, 9, 4); ctx.fill(); ctx.stroke(); roundRect(L - 6, 141, 18, 9, 4); ctx.fill(); ctx.stroke();
+}
+function drawTruck(v, g, bg) {
+  const L = g.L, R = g.R, CR = g.CR;
+  ctx.fillStyle = TOK.steel; ctx.strokeStyle = TOK.steelDark; ctx.lineWidth = 1.5;
+  roundRect(CR + 1, 62, 7, 78, 3); ctx.fill(); ctx.stroke();                                                       // exhaust stack
+  roundRect(L, 76, CR - L, 78, 10); finish(bg, v.shadow);                                                          // cargo box
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath();
+  ctx.moveTo(L + 10, 81); ctx.lineTo(CR - 10, 81);
+  for (let i = 0; i < veh.n - 2; i++) { const x = L + 72 + 64 * i; ctx.moveTo(x, 86); ctx.lineTo(x, 146); }
+  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CR + 8, 154); ctx.lineTo(CR + 8, 70); ctx.quadraticCurveTo(CR + 8, 64, CR + 14, 64);   // cab
+  ctx.lineTo(R - 24, 64); ctx.quadraticCurveTo(R - 16, 64, R - 13, 71); ctx.lineTo(R - 3, 95); ctx.quadraticCurveTo(R, 99, R, 106);
+  ctx.lineTo(R, 146); ctx.quadraticCurveTo(R, 154, R - 8, 154); ctx.closePath(); finish(bg, v.shadow);
+  ctx.beginPath(); ctx.moveTo(CR + 15, 91); ctx.lineTo(CR + 15, 73); ctx.quadraticCurveTo(CR + 15, 69, CR + 19, 69);
+  ctx.lineTo(R - 26, 69); ctx.quadraticCurveTo(R - 21, 69, R - 19, 73); ctx.lineTo(R - 11, 91); ctx.closePath();
+  finish(glassGrad(69, 91), v.shadow, 1.5);
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(R - 15, 88); ctx.lineTo(R - 21, 76); ctx.stroke();
+  ctx.fillStyle = '#FFF6C8'; ctx.beginPath(); ctx.ellipse(R - 2, 114, 3.5, 6, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = v.shadow; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = TOK.steel; ctx.strokeStyle = TOK.steelDark; roundRect(R - 10, 142, 16, 10, 4); ctx.fill(); ctx.stroke();
+}
+function drawRocket(v, g, bg) {
+  const L = g.L, R = g.R, T = 90, B = 156, cy = 123, rr = 33;
+  const fl = st.phase === 'DRIVE_OFF' ? 1 : veh.awake ? 0.4 : 0;
+  if (fl > 0) {                                                    // flame flickers in size (~2.9 Hz), never flashes
+    const len = (16 + 26 * fl) * (1 + 0.12 * Math.sin(time * 2 * Math.PI * 2.9) * (reduced ? 0.3 : 1)), x = L - 8;
+    ctx.fillStyle = '#FF8A2A'; ctx.beginPath(); ctx.moveTo(x, cy - 12); ctx.quadraticCurveTo(x - len * 0.6, cy - 11, x - len, cy);
+    ctx.quadraticCurveTo(x - len * 0.6, cy + 11, x, cy + 12); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#FFD23F'; ctx.beginPath(); ctx.moveTo(x, cy - 7); ctx.quadraticCurveTo(x - len * 0.35, cy - 6, x - len * 0.6, cy);
+    ctx.quadraticCurveTo(x - len * 0.35, cy + 6, x, cy + 7); ctx.closePath(); ctx.fill();
+  }
+  ctx.beginPath(); ctx.moveTo(L + 16, T + 6); ctx.quadraticCurveTo(L + 4, T - 4, L - 4, T - 22);                     // fins
+  ctx.quadraticCurveTo(L + 10, T - 22, L + 22, T - 12); ctx.quadraticCurveTo(L + 36, T - 2, L + 48, T + 4); ctx.closePath();
+  ctx.moveTo(L + 16, B - 6); ctx.quadraticCurveTo(L + 4, B + 2, L - 2, B + 14);
+  ctx.quadraticCurveTo(L + 12, B + 14, L + 22, B + 8); ctx.quadraticCurveTo(L + 34, B + 2, L + 44, B - 4); ctx.closePath();
+  finish(v.light, v.shadow);
+  ctx.beginPath(); ctx.moveTo(L + 4, cy - 12); ctx.lineTo(L - 10, cy - 16); ctx.lineTo(L - 10, cy + 16); ctx.lineTo(L + 4, cy + 12); ctx.closePath();
+  finish(TOK.steel, TOK.steelDark, 1.5);                                                                          // nozzle
+  ctx.beginPath(); ctx.moveTo(L + rr, T); ctx.lineTo(R, T); ctx.lineTo(R, B); ctx.lineTo(L + rr, B);                 // capsule
+  ctx.arc(L + rr, cy, rr, Math.PI / 2, Math.PI * 1.5); ctx.closePath(); finish(bg, v.shadow);
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(L + rr, T + 5); ctx.lineTo(R - 8, T + 5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(R - 2, T); ctx.quadraticCurveTo(R + 20, T + 3, R + 30, cy);                          // nose cone
+  ctx.quadraticCurveTo(R + 20, B - 3, R - 2, B); ctx.closePath(); finish(TOK.cream, v.shadow);
+  ctx.strokeStyle = v.light; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(R - 2, T + 3); ctx.lineTo(R - 2, B - 3); ctx.stroke();
+  const f = g.face;
+  ctx.beginPath(); ctx.arc(f.x, 92, 24, Math.PI, Math.PI * 2); ctx.closePath(); finish(glassGrad(68, 92), v.shadow, 1.5);   // dome
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(f.x, 92, 19, 1.6 * Math.PI, 1.82 * Math.PI); ctx.stroke();
+}
+function drawTrailer(g) {
+  const L = g.L, R = g.R;
+  ctx.strokeStyle = '#5A5470'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(R + 26, 159); ctx.lineTo(R + 26, 167); ctx.stroke();                                // jockey wheel stem
+  ctx.fillStyle = TOK.tyre; ctx.beginPath(); ctx.arc(R + 26, 169, 4.5, 0, 7); ctx.fill();
+  ctx.fillStyle = '#5A5470'; roundRect(L + 6, 155, R - L + 12, 7, 3.5); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(R + 14, 155.5); ctx.lineTo(R + 36, 159); ctx.lineTo(R + 14, 161.5); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = TOK.steelDark; ctx.beginPath(); ctx.arc(R + 36, 159, 3, 0, 7); ctx.fill();
+}
+function drawBoat(v, g, bg) {
+  const L = g.L, R = g.R, cx = g.cx, wv = Math.sin(time * 2.4) * 2 * (reduced ? 0.3 : 1);
+  ctx.strokeStyle = TOK.steelDark; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(L + 12, 96); ctx.lineTo(L + 12, 65); ctx.stroke();                                  // stern pole + pennant
+  ctx.fillStyle = '#FF7A59'; ctx.beginPath(); ctx.moveTo(L + 13, 65); ctx.quadraticCurveTo(L + 22, 66 + wv, L + 32, 69 + wv);
+  ctx.quadraticCurveTo(L + 22, 71 + wv * 0.6, L + 13, 75); ctx.closePath(); ctx.fill();
+  roundRect(cx - 59, 68, 14, 26, 3); finish(TOK.cream, v.shadow, 1.5);                                            // funnel
+  ctx.fillStyle = '#FF7A59'; ctx.fillRect(cx - 58, 72, 12, 5);
+  roundRect(cx - 36, 67, 72, 30, 6); finish(TOK.cream, v.shadow);                                                // wheelhouse
+  ctx.fillStyle = v.shadow; roundRect(cx - 41, 63, 82, 8, 4); ctx.fill();
+  roundRect(cx - 28, 71, 56, 18, 5); finish(glassGrad(71, 89), v.shadow, 1.5);
+  ctx.beginPath(); ctx.moveTo(L, 92); ctx.lineTo(R + 26, 86); ctx.quadraticCurveTo(R + 16, 138, R - 14, 156);       // hull
+  ctx.lineTo(L + 14, 156); ctx.quadraticCurveTo(L - 2, 142, L, 92); ctx.closePath(); finish(bg, v.shadow);
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(L + 5, 96); ctx.lineTo(R + 16, 90.5); ctx.stroke();
+}
+// Sleepy vehicle face: closed curved eyes while it waits (one eye peeks when a piece clicks in), eyes pop open
+// on completion, then blink and look at touches. The smile grows as the sockets fill.
+function drawFace(f, fill) {
+  const ln = Math.hypot(veh.look[0], veh.look[1]) || 1, lx = veh.look[0] / ln * f.er * 0.35, ly = veh.look[1] / ln * f.er * 0.35;
+  ctx.lineCap = 'round';
+  for (const s of [-1, 1]) {
+    const ex = f.x + s * f.sp, o = !veh.awake && s > 0 && veh.peek > 0 ? Math.min(1, veh.peek * 4) : veh.eye;
+    if (o < 0.15 || (veh.awake && veh.blink < 0)) {
+      ctx.strokeStyle = TOK.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ex, f.y - 2, f.er * 0.8, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+      continue;
+    }
+    const rx = f.er * Math.max(1, o), ry = f.er * Math.max(0.2, o);
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.ellipse(ex, f.y, rx, ry, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(59,53,80,0.45)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.arc(ex + lx, f.y + ly * Math.min(1, o), f.er * 0.55 * Math.min(1, o), 0, 7); ctx.fill();
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(ex + lx - f.er * 0.2, f.y + ly - f.er * 0.22, f.er * 0.18, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(240,107,184,0.45)'; ctx.beginPath();
+  ctx.arc(f.x - f.sp - f.er + 1, f.y + f.er + 1.5, 2.6, 0, 7); ctx.arc(f.x + f.sp + f.er - 1, f.y + f.er + 1.5, 2.6, 0, 7); ctx.fill();
+  ctx.strokeStyle = TOK.ink; ctx.fillStyle = TOK.ink; ctx.lineWidth = 2;
+  if (veh.awake) { ctx.beginPath(); ctx.arc(f.x, f.y + 4.5, 4.5, 0.05 * Math.PI, 0.95 * Math.PI); ctx.closePath(); ctx.fill(); }
+  else { const r = 2.5 + 2 * fill; ctx.beginPath(); ctx.arc(f.x, f.y + 6 - r, r, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke(); }
+}
+function drawBubbles() {                                           // sleep bubbles (no letters in the scene)
+  ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5;
+  for (const b of bubbles) {
+    const k = b.t / 1.8, r = 2 + 3.5 * k;
+    ctx.globalAlpha = 0.85 * (1 - k) * clamp(k * 6, 0, 1);
+    ctx.beginPath(); ctx.arc(b.x + Math.sin(k * 5) * 3, b.y - 10 * k, r, 0, 7); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+function drawVehicle() {
+  if (!veh.on) return;
+  const v = VEHICLES[veh.type], g = veh.g, cx = (g.L + g.R) / 2, lift = clamp(-veh.y / 60, 0, 1);
+  ctx.fillStyle = `rgba(60,40,30,${(0.24 * (1 - lift)).toFixed(3)})`;                                            // floor shadow
+  ctx.beginPath(); ctx.ellipse(cx + veh.x + 6, FLOOR_Y - 1, (g.R - g.L) / 2 + 18, 5, 0, 0, 7); ctx.fill();
+  ctx.save(); ctx.translate(veh.x, veh.y);
+  if (veh.lean) { const px = g.wheels[0]; ctx.translate(px, FLOOR_Y); ctx.rotate(veh.lean); ctx.translate(-px, -FLOOR_Y); }
+  if (veh.type === 1) { ctx.fillStyle = '#5A5470'; roundRect(g.L + 6, 148, g.R - g.L - 12, 9, 3); ctx.fill(); }   // chassis rail
+  if (veh.type === 3) drawTrailer(g);
+  for (const wx of g.wheels) drawWheel(wx, g.wy, g.wr, veh.wa);
+  const breathe = veh.awake ? 0 : Math.sin(time * 2 * Math.PI / 2.8) * 0.012 * (reduced ? 0.3 : 1);
+  ctx.translate(cx, FLOOR_Y); ctx.scale(1 + veh.q, 1 - veh.q + breathe); ctx.translate(-cx, -FLOOR_Y);              // squash about the floor
+  const bg = bodyGrad(v, g.top, BODY_B);
+  if (veh.type === 0) drawCar(v, g, bg); else if (veh.type === 1) drawTruck(v, g, bg);
+  else if (veh.type === 2) drawRocket(v, g, bg); else drawBoat(v, g, bg);
+  let filled = 0;
+  for (const s of sockets) if (s.filled) filled++; else drawSocketHole(s);
+  for (const p of pieces) if (p.state === 'placed') drawPiece(p, p.x, p.y, 1, 0, 0, false);
+  for (const s of sockets) drawSocketFx(s);
+  drawFace(g.face, filled / Math.max(1, sockets.length));
+  drawBubbles();
+  ctx.restore();
+}
+// Tray pieces (calm breathing bob), then pieces in the air (held / flying / bumping) above everything.
+function drawPieces() {
+  const hp = st.phase === 'BUILD' && st.hint >= 1 ? nextPiece() : null, m = reduced ? 0.3 : 1;
+  for (let pass = 0; pass < 2; pass++) for (const p of pieces) {
+    if (p.state === 'placed') continue;
+    const air = p.state === 'held' || p.state === 'fly' || p.state === 'bonk';
+    if (air !== (pass === 1)) continue;
+    const sc = p.s * (st.phase === 'ROLL_IN' ? p.pop : 1) * (p.state === 'tray' ? 1 + TOK.breathScale * 0.6 * m * Math.sin(time * 2 * Math.PI / 2.6 + p.hx * 0.05) : 1);
+    if (sc <= 0.02) continue;
+    const hop = p.hop > 0 ? -Math.sin((1 - p.hop / 0.5) * Math.PI) * 8 * (reduced ? 0.5 : 1) : 0;
+    const glow = p.state === 'sel' || p === hp ? 1 : clamp(p.glow * 2, 0, 1);
+    drawPiece(p, p.x, p.y + hop, sc, glow, clamp((p.s - 1) / 0.1, 0, 1), true);
+  }
+}
+function drawFx() {
+  for (const r of rings) {
+    const k = r.t / r.dur; ctx.globalAlpha = 1 - k; ctx.strokeStyle = r.color; ctx.lineWidth = r.w;
+    ctx.beginPath(); ctx.arc(r.x, r.y, lerp(r.r0, r.r1, easeOutCubic(k)), 0, 7); ctx.stroke();
+  }
+  for (const p of parts) {
+    ctx.globalAlpha = clamp(p.life / p.max * 1.6, 0, 1);
+    ctx.globalCompositeOperation = p.add ? 'lighter' : 'source-over';
+    ctx.fillStyle = p.color;
+    if (p.shape === 'star') { starPath(p.x, p.y, p.size, p.size * 0.45, p.rot); ctx.fill(); }
+    else if (p.shape === 'sq' || p.shape === 'tri') {
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      if (p.shape === 'sq') ctx.fillRect(-p.size * 0.45, -p.size * 0.45, p.size * 0.9, p.size * 0.9);
+      else { ctx.beginPath(); ctx.moveTo(0, -p.size * 0.6); ctx.lineTo(p.size * 0.55, p.size * 0.4); ctx.lineTo(-p.size * 0.55, p.size * 0.4); ctx.closePath(); ctx.fill(); }
+      ctx.restore();
+    } else if (p.shape === 'puff') {                               // dust / smoke: grows while it fades
+      const a = 1 - p.life / p.max; ctx.globalAlpha = 0.75 * (1 - a);
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (1 + 1.2 * a), 0, 7); ctx.fill();
+    } else { ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (0.5 + 0.5 * p.life / p.max), 0, 7); ctx.fill(); }
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+// Spoken-hint demo: a see-through copy of the next piece arcs from the tray into its socket with the helper hand.
+function drawHelperHand() {
+  if (st.phase !== 'BUILD' || st.hint < 2 || drag) return;
+  const p = nextPiece(), s = p && sockFor(p);
+  if (!s) return;
+  const k = (st.demo % 2.2) / 2.2, c = clamp((k - 0.15) / 0.6, 0, 1), e = c * c * (3 - 2 * c);
+  const x = lerp(p.hx, s.x, e), y = lerp(p.hy, s.y, e) - 120 * e * (1 - e) * (reduced ? 0.5 : 1);
+  const a = clamp(k / 0.08, 0, 1) * clamp((1 - k) / 0.12, 0, 1), press = k < 0.15 || k > 0.75 ? 3 : 0;
+  ctx.globalAlpha = 0.5 * a; ctx.fillStyle = SHAPES[p.shape].light; shapePath(p.shape, 0.9, x, y); ctx.fill();
+  ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.globalAlpha = a;
+  ctx.save(); ctx.translate(x + 8, y + 18 + press); ctx.rotate(-0.5);
+  ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = TOK.ink; ctx.lineWidth = 1.5;
+  roundRect(-4, -16, 8, 18, 4); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0, 6, 9, 8, 0, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+function drawChrome() {
+  ctx.fillStyle = TOK.cream; roundRect(6, 6, 44, 44, 14); ctx.fill();               // Home
+  ctx.strokeStyle = '#D9C7A3'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.moveTo(28, 15); ctx.lineTo(41, 27); ctx.lineTo(37, 27); ctx.lineTo(37, 39);
+  ctx.lineTo(19, 39); ctx.lineTo(19, 27); ctx.lineTo(15, 27); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 0.45; ctx.fillStyle = TOK.cream; roundRect(270, 6, 44, 44, 14); ctx.fill();   // Mic (disabled)
+  ctx.fillStyle = TOK.ink; roundRect(287, 14, 10, 18, 5); ctx.fill();
+  ctx.strokeStyle = TOK.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(292, 25, 9, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(292, 34); ctx.lineTo(292, 40); ctx.stroke(); ctx.globalAlpha = 1;
+}
+function gearPath(ro, ri, teeth, rot) {                            // square-ish teeth: 4 points per tooth
+  ctx.beginPath();
+  for (let i = 0; i < teeth * 4; i++) {
+    const a = rot + (i + 0.5) * Math.PI * 2 / (teeth * 4), r = (i % 4) < 2 ? ro : ri;
+    ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  ctx.closePath();
+}
+// Badge: the next piece's shape in its colour (tap = replay the prompt); a gear while a vehicle rolls in;
+// a happy face in the vehicle's colour after it is finished.
+function drawBadge() {
+  if (st.phase === 'START') return;
+  const bob = Math.sin(time * 2.2) * 1.5 * (reduced ? 0.3 : 1), press = 1 + clamp(-badge.sv * 0.012, -0.1, 0.12);
+  ctx.save(); ctx.translate(160, 32 + bob); ctx.scale(press, 2 - press);
+  if (st.hint >= 1 && st.phase === 'BUILD') {
+    ctx.strokeStyle = TOK.hintGlow; ctx.lineWidth = 4; ctx.globalAlpha = 0.4 + 0.4 * Math.sin(time * 2 * Math.PI / TOK.glowPeriod);
+    ctx.beginPath(); ctx.arc(0, 0, 29, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = TOK.cream; ctx.beginPath(); ctx.arc(0, 0, 26, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#D9C7A3'; ctx.lineWidth = 2; ctx.stroke();
+  const p = st.phase === 'BUILD' ? nextPiece() : null;
+  if (badge.happy > 0 && veh.on) {
+    ctx.fillStyle = VEHICLES[veh.type].base; ctx.beginPath(); ctx.arc(0, 0, 20, 0, 7); ctx.fill();
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(-7, -4, 2.5, 0, 7); ctx.arc(7, -4, 2.5, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, 2, 8, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+  } else if (p) {
+    const c = SHAPES[p.shape];
+    ctx.fillStyle = c.base; shapePath(p.shape, 0.6); ctx.fill();
+    ctx.strokeStyle = c.shadow; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.ellipse(SHINE[p.shape][0] * 0.6, SHINE[p.shape][1] * 0.6, 3.5, 2, -0.6, 0, 7); ctx.fill();
+  } else {
+    ctx.fillStyle = TOK.steel; ctx.strokeStyle = TOK.steelDark; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+    gearPath(17, 13, 8, time * 0.8 * (reduced ? 0.3 : 1)); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = TOK.cream; ctx.beginPath(); ctx.arc(0, 0, 5.5, 0, 7); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawStart() {
+  ctx.fillStyle = 'rgba(30,34,69,0.35)'; ctx.fillRect(0, 0, W, H);
+  const p = 1 + Math.sin(time * 3) * 0.04;
+  ctx.save(); ctx.translate(160, 120); ctx.scale(p, p);
+  ctx.fillStyle = TOK.cream; ctx.beginPath(); ctx.arc(0, 0, 36, 0, 7); ctx.fill();
+  ctx.fillStyle = '#2DB26E'; ctx.beginPath(); ctx.moveTo(-10, -16); ctx.lineTo(18, 0); ctx.lineTo(-10, 16); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+let fps = 60, frameMs = 0;
+function drawHud() {
+  if (!debug) return;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(176, 214, 144, 26);
+  ctx.fillStyle = parts.length > TOK.deviceMaxParticles ? '#FF9A92' : '#FFFFFF'; ctx.font = '8px monospace';
+  ctx.fillText(`fps ${fps.toFixed(0)} draw ${frameMs.toFixed(1)}ms p ${parts.length}/${maxParticles}`, 180, 224);
+  const placed = sockets.filter(s => s.filled).length;
+  ctx.fillText(`seed ${seed} ${st.phase} r${st.round} ${placed}/${sockets.length} hint ${st.hint}${st.helped ? ' help' : ''} ${reduced ? 'RM' : ''}`, 180, 235);
+}
+// One full frame of the game scene (the golden harness calls this directly).
+function drawScene() {
+  drawBackground();
+  drawAmbient();
+  drawVehicle();
+  drawPieces();
+  drawHelperHand(); drawFx(); drawBadge(); drawChrome();
+}
+
+// Test hook for tools/quality_bar_golden/sketch_check.mjs (not ported): the logical point a helpful player taps next, or null.
+function autoTarget() {
+  if (st.phase !== 'BUILD' || drag) return null;
+  if (sel) { const s = sockFor(sel); return s ? { x: s.x, y: s.y } : null; }
+  const p = nextPiece();                                           // nothing selected: the next unplaced tray piece
+  return p ? { x: p.hx, y: p.hy } : null;
+}
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  update(dt); if (ac) musicTick();
+  const t0 = performance.now();
+  drawScene();
+  if (st.phase === 'START') drawStart();
+  frameMs = lerp(frameMs, performance.now() - t0, 0.1); fps = lerp(fps, 1 / Math.max(dt, 1e-3), 0.05);
+  drawHud();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,1151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Little Arcade v2 – reference sketch (Silly Faces)</title>
+<!--
+  REFERENCE SKETCH: the device port must match this file exactly (see docs/06 §4).
+  Same visual language, motion tokens and audio graph as quality_bar.html (Color Pop) and hatch_a_pet.html.
+  World: Mirror Pond (scene_art mirror_pond palette). A friendly pond monster (4 original bodies) looks up
+  from the water; tap its eyes or mouth to cycle 4 styles each. Matching eyes + mouth = a feeling
+  (HAPPY, SLEEPY, SURPRISED, SAD) that the monster acts out, and a sticker flies to the sticker row.
+  Buttons: Show (mirror: asks for a feeling), Mix (dice: random silly face), New (egg: new monster).
+  Canvas features are limited to what firmware ui/ctx2d supports: paths, arcs, ellipses,
+  bezier/quadratic curves, linear/radial gradients, globalAlpha, 'lighter', transforms.
+  No clip, drawImage, text, shadows or filters in the game scene. The monster stands in the water
+  without clipping: a water-coloured half ellipse covers its base, then the reflection is drawn on top.
+  Audio nodes (G major pentatonic, 110 bpm): sine oscillators, linear-attack/exponential-decay gains,
+  exponential pitch glides, sine LFOs (boing wobble, slide-whistle vibrato), 2-operator sine FM for the
+  kazoo (the doc asks for kazoo-like FM), one noise buffer (16 kHz) through one bandpass biquad for
+  splashes, an original looping tune on its own small voice pool that ducks under the cues, one compressor.
+  All art is procedural and original; no external resources, no network, no storage, no mic.
+  Keys: D = debug HUD, R = reduced motion, P = toggle device/web particle cap. URL ?seed=N.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #1E2245; overflow: hidden;
+    touch-action: none; user-select: none; -webkit-user-select: none; }
+  #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,.45); }
+  #note { position: fixed; left: 8px; bottom: 6px; color: #9DB8FA; font: 12px system-ui, sans-serif; opacity: .7; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" aria-label="Silly Faces reference sketch"></canvas></div>
+<div id="note">v2 reference sketch · Silly Faces · 320×240 logical stage · D debug · R reduced motion · P particle cap</div>
+<script>
+'use strict';
+// ---------- tokens (same subset as quality_bar.html, plus the mirror_pond palette) ----------
+const W = 320, H = 240;
+const TOK = {
+  ink: '#3B3550', paper: '#FFF8EC', cream: '#FFF3D6', creamLine: '#D9C7A3', hintGlow: '#FFE066',
+  skyTop: '#F8D8E9', skyBot: '#E8F4FF', waterTop: '#B6E9EB', waterBot: '#61C5CD', bankFar: '#A8DDA0', bankNear: '#7CCB7A',
+  squashPress: [1.12, 0.88], wiggleDeg: 6, wiggleMs: 360, glowPeriod: 0.9,
+  idleVisualHint: 8, idleSpokenHint: 12, autoHelpMisses: 2, maxInputBlock: 0.3,
+  springBouncy: { k: 380, c: 14 }, breathScale: 0.025, bob: 2, tapDebounce: 0.08,
+  deviceMaxParticles: 96, webMaxParticles: 400,
+};
+// Original pond monsters. T = crown height above the waterline, B = half width (monster-local px).
+const MONSTERS = [
+  { name: 'LILLOO',   base: '#2DB26E', light: '#8EE0B4', shadow: '#1E8452', T: -122, B: 88 },  // lily-leaf hat
+  { name: 'PLUMBO',   base: '#8F5BE0', light: '#C9AEF5', shadow: '#6236A6', T: -128, B: 80 },  // horn buds, stripes
+  { name: 'MARMALOO', base: '#FF8A2A', light: '#FFC07F', shadow: '#C2621B', T: -120, B: 96 },  // squat, big dots
+  { name: 'JELLYPIP', base: '#F06BB8', light: '#FBB6DC', shadow: '#B23E86', T: -122, B: 86 },  // scalloped crest
+];
+// Feelings: eyes style e + mouth style e (the matching pair) acts out feeling e.
+const HAPPY = 0, SLEEPY = 1, SURPRISED = 2, SAD = 3;
+const ACT_DUR = [1.6, 1.8, 1.5, 2.4];                 // SAD: hug at 1.1 s, smile at 1.7 s (SF-2: <= 2.5 s)
+// Stickers: [fill, rim, highlight] per feeling (sun, night-cap face, star burst, droplet with a heart).
+const STICKER = [['#FFD23F', '#C99A0E', '#FFEB9C'], ['#C9AEF5', '#6236A6', '#EFE6FD'],
+  ['#FF8A2A', '#C2621B', '#FFC07F'], ['#A9DBFB', '#2B79B8', '#FFFFFF']];
+// Stage geometry (logical px). The doc's boxes are used as-is.
+const MON = { x: 160, y: 182 };                       // monster waterline centre (body grows upwards)
+const EYE_Y = -84, EYE_X = 36, EYE_R = 15, MOUTH_Y = -30; // face, monster-local (world eyes y 98, mouth y 152)
+const EYES_HIT = [72, 64, 176, 56], MOUTH_HIT = [96, 128, 128, 56];
+const HOME_HIT = [0, 0, 56, 56], MIC_HIT = [264, 0, 56, 56];
+const SLOT_X = i => 100 + 40 * i, SLOT_Y = 28;        // sticker row: 4 slots x 40 px at x 80..240, y 0..56
+const BUTTONS = [
+  { id: 'show', hit: [24, 184, 64, 56], x: 56, y: 208 },
+  { id: 'mix', hit: [128, 184, 64, 56], x: 160, y: 208 },
+  { id: 'new', hit: [232, 184, 64, 56], x: 264, y: 208 },
+];
+
+// ---------- utils ----------
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+const easeOutBack = t => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+const smooth = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+const bell = (t, a, b) => (t <= a || t >= b) ? 0 : Math.sin((t - a) / (b - a) * Math.PI);  // 0 -> 1 -> 0 on [a, b]
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const seed = parseInt(new URLSearchParams(location.search).get('seed') || '1234', 10);
+const grng = mulberry32(seed);          // gameplay RNG (deterministic per seed)
+const frng = Math.random;               // cosmetic RNG
+const inRect = (x, y, r) => x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3];
+function shuffled(n) {                  // grng shuffle bag 0..n-1
+  const b = []; for (let i = 0; i < n; i++) b.push(i);
+  for (let i = n - 1; i > 0; i--) { const j = (grng() * (i + 1)) | 0; [b[i], b[j]] = [b[j], b[i]]; }
+  return b;
+}
+
+// ---------- canvas ----------
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let scale = 1;
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  scale = Math.min(innerWidth / W, innerHeight / H) * 0.96;
+  cv.style.width = (W * scale) + 'px'; cv.style.height = (H * scale) + 'px';
+  cv.width = Math.round(W * scale * dpr); cv.height = Math.round(H * scale * dpr);
+  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+let reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let debug = false, maxParticles = TOK.deviceMaxParticles;
+
+// ---------- audio (Web Audio, G major pentatonic, conservative gain) ----------
+// Degrees: 0 G4, 1 A4, 2 B4, 3 D5, 4 E5, 5 G5, 6 A5, 7 B5, 8 D6; -1 E4, -2 D4, -3 B3.
+let ac = null, master = null, voices = [], noiseBuf = null;
+const PENT = [0, 2, 4, 7, 9];
+function degFreq(deg, oct = 0) {
+  const o = Math.floor(deg / 5), i = ((deg % 5) + 5) % 5;
+  return 392.00 * Math.pow(2, (PENT[i] + 12 * (o + oct)) / 12);
+}
+function initAudio() {
+  if (ac) return;
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  const comp = ac.createDynamicsCompressor();
+  comp.threshold.value = -14; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.15;
+  master = ac.createGain(); master.gain.value = 0;
+  master.connect(comp); comp.connect(ac.destination);
+  master.gain.setTargetAtTime(0.35, ac.currentTime, 0.1);   // ramp in: never a loud start
+}
+// 8-voice cue limit: a voice is [start, end]; only voices overlapping the new one count.
+function voiceOk(len, when = 0) {
+  const now = ac.currentTime, s = now + when, e = s + len;
+  voices = voices.filter(v => v[1] > now);
+  let n = 0; for (const v of voices) if (v[0] < e && v[1] > s) n++;
+  if (n >= 8) return false;                                    // voice limit
+  voices.push([s, e]); duckMusic(now, when + len); return true;
+}
+function env(g, t, peak, attack, dur) {
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+}
+function envHold(g, t, peak, attack, dur) {                    // sustained voices (slide, kazoo)
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + attack);
+  g.gain.exponentialRampToValueAtTime(peak * 0.6, t + dur * 0.75);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+}
+function marimba(freq, when = 0, vel = 1, dur = 0.55) {        // keep freq <= A6 (3.99x partial < 7.8 kHz)
+  if (!ac || !voiceOk(dur, when)) return;
+  const t = ac.currentTime + when;
+  const g = ac.createGain(); env(g, t, 0.45 * vel, 0.003, dur);
+  const o1 = ac.createOscillator(); o1.type = 'sine'; o1.frequency.value = freq;
+  const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 3.99;
+  const g2 = ac.createGain(); env(g2, t, 0.18 * vel, 0.003, 0.09);
+  o1.connect(g); o2.connect(g2); g2.connect(g); g.connect(master);
+  o1.start(t); o2.start(t); o1.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
+}
+// Pitched sine with an exponential glide (plop, bloop, plink use this voice).
+function glide(f0, f1, glideS, when, peak, dur) {
+  if (!ac || !voiceOk(dur, when)) return;
+  const t = ac.currentTime + when;
+  const o = ac.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + glideS);
+  const g = ac.createGain(); env(g, t, peak, 0.003, dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.04);
+}
+const plop = (when = 0, vel = 1, hi = 1) => glide(760 * hi, 230 * hi, 0.07, when, 0.35 * vel, 0.14);
+const bloop = (f, when = 0, vel = 1) => glide(f, f * 2, 0.06, when, 0.22 * vel, 0.12);
+// Woodblock knock: short body with a slight pitch drop plus a bright inharmonic tick.
+function woodblock(freq, when = 0, vel = 1) {
+  glide(freq, freq * 0.92, 0.05, when, 0.42 * vel, 0.12);
+  glide(freq * 2.76, freq * 2.76, 0.01, when, 0.14 * vel, 0.04);
+}
+// Boing: fast upward glide into the note plus a decaying 21 Hz sine LFO on the pitch (spring wobble).
+function boing(f, when = 0, vel = 1) {
+  if (!ac || !voiceOk(0.15, when)) return;
+  const t = ac.currentTime + when;
+  const o = ac.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(f * 0.55, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.045);
+  const l = ac.createOscillator(); l.type = 'sine'; l.frequency.value = 21;
+  const lg = ac.createGain(); lg.gain.setValueAtTime(f * 0.09, t); lg.gain.exponentialRampToValueAtTime(f * 0.004, t + 0.15);
+  l.connect(lg); lg.connect(o.frequency);
+  const g = ac.createGain(); env(g, t, 0.32 * vel, 0.004, 0.15);
+  o.connect(g); g.connect(master);
+  o.start(t); l.start(t); o.stop(t + 0.2); l.stop(t + 0.2);
+}
+// Kazoo: 2-operator FM (one sine modulating one sine at ratio 1); the index swells, then settles.
+function kazoo(f0, f1, when = 0, dur = 0.25, vel = 1) {
+  if (!ac || !voiceOk(dur, when)) return;
+  const t = ac.currentTime + when;
+  const c = ac.createOscillator(), m = ac.createOscillator(); c.type = 'sine'; m.type = 'sine';
+  for (const o of [c, m]) { o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.8); }
+  const mg = ac.createGain();
+  mg.gain.setValueAtTime(f0 * 0.4, t); mg.gain.linearRampToValueAtTime(f0 * 2.0, t + 0.03);
+  mg.gain.linearRampToValueAtTime(f0 * 0.9, t + 0.12);
+  m.connect(mg); mg.connect(c.frequency);
+  const g = ac.createGain(); envHold(g, t, 0.16 * vel, 0.015, dur);
+  c.connect(g); g.connect(master);
+  c.start(t); m.start(t); c.stop(t + dur + 0.05); m.stop(t + dur + 0.05);
+}
+// Slide whistle: sine glide with a gentle 5.5 Hz vibrato (sine LFO, 1.2 % depth).
+function slide(f0, f1, when = 0, dur = 0.45, vel = 1) {
+  if (!ac || !voiceOk(dur, when)) return;
+  const t = ac.currentTime + when;
+  const o = ac.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.85);
+  const l = ac.createOscillator(); l.type = 'sine'; l.frequency.value = 5.5;
+  const lg = ac.createGain(); lg.gain.value = Math.max(f0, f1) * 0.012;
+  l.connect(lg); lg.connect(o.frequency);
+  const g = ac.createGain(); envHold(g, t, 0.2 * vel, 0.03, dur);
+  o.connect(g); g.connect(master);
+  o.start(t); l.start(t); o.stop(t + dur + 0.05); l.stop(t + dur + 0.05);
+}
+// Splash: 0.6 s of seeded white noise rendered at the device rate, one bandpass sweeping down.
+function splash(when = 0, vel = 1) {
+  if (!ac || !voiceOk(0.55, when)) return;
+  if (!noiseBuf) {
+    noiseBuf = ac.createBuffer(1, 9600, 16000);
+    const d = noiseBuf.getChannelData(0), r = mulberry32(99);
+    for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1;
+  }
+  const t = ac.currentTime + when;
+  const s = ac.createBufferSource(); s.buffer = noiseBuf;
+  const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.2;
+  f.frequency.setValueAtTime(2600, t); f.frequency.exponentialRampToValueAtTime(700, t + 0.45);
+  const g = ac.createGain(); env(g, t, 0.22 * vel, 0.01, 0.55);
+  s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + 0.6);
+}
+
+// ---------- music bed (original tune; G major pentatonic, 4/4 at 110 bpm, 8 bars = 17.5 s loop) ----------
+// melody: [beat, degree, beats] at octave 0 (soft plucked sine); bass: [root, fifth] per bar at octave -1.
+const TUNE = { spb: 60 / 110, beats: 32, voices: 6,
+  melody: [[0, 0, .5], [.5, 2, .5], [1, 3, 1], [2, 1, .5], [2.5, 3, .5], [3, 2, 1],
+           [4, 4, 1], [5, 3, .5], [5.5, 4, .5], [6, 5, 1.5],
+           [8, 4, .5], [8.5, 3, .5], [9, 2, 1], [10, 1, .5], [10.5, 2, .5], [11, 0, 1],
+           [12, 1, 1], [13, 2, .5], [13.5, 1, .5], [14, -1, 2],
+           [16, 0, .5], [16.5, 2, .5], [17, 3, 1], [18, 4, .5], [18.5, 5, .5], [19, 6, 1],
+           [20, 5, 1], [21, 4, .5], [21.5, 3, .5], [22, 4, 2],
+           [24, 3, .5], [24.5, 2, .5], [25, 1, .5], [25.5, 2, .5], [26, 3, 1], [27, 4, 1],
+           [28, 3, 1], [29, 2, .5], [29.5, 1, .5], [30, 0, 2]],
+  bass: [[0, 3], [-1, 2], [0, 3], [1, 4], [0, 3], [-1, 2], [-2, 1], [0, 3]] };
+// Events in time order: [beat, freq, peak, attack, dur].
+const SONG = [];
+for (const [b, d, n] of TUNE.melody) SONG.push([b, degFreq(d), 0.065, 0.01, n * TUNE.spb + 0.25]);
+TUNE.bass.forEach(([r, f], i) => { SONG.push([i * 4, degFreq(r, -1), 0.07, 0.01, 0.5]); SONG.push([i * 4 + 2, degFreq(f, -1), 0.05, 0.01, 0.4]); });
+SONG.sort((a, b) => a[0] - b[0] || b[2] - a[2]);
+let music = null, musicBus = null, duck = null, duckUntil = 0, musicVoices = [];
+function startMusic() {
+  if (!ac) return;
+  if (!musicBus) { musicBus = ac.createGain(); duck = ac.createGain(); musicBus.connect(duck); duck.connect(master); }
+  const now = ac.currentTime;
+  musicBus.gain.cancelScheduledValues(now); musicBus.gain.setValueAtTime(0, now);
+  musicBus.gain.setTargetAtTime(1, now + 0.5, 1.5);                // gentle fade-in, never a loud start
+  music = { t0: now + 0.5, i: 0, loop: 0 }; musicVoices = [];
+}
+function stopMusic() {
+  if (!music) return;
+  musicBus.gain.cancelScheduledValues(ac.currentTime); musicBus.gain.setTargetAtTime(0, ac.currentTime, 0.15);
+  music = null;
+}
+function musicVoiceOk(t, len) {                                    // own pool: never takes cue voices
+  musicVoices = musicVoices.filter(e => e > t);
+  if (musicVoices.length >= TUNE.voices) return false;
+  musicVoices.push(t + len); return true;
+}
+function musicNote(t, freq, peak, attack, dur) {
+  if (!musicVoiceOk(t, dur)) return;
+  const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+  const g = ac.createGain(); env(g, t, peak, attack, dur);
+  o.connect(g); g.connect(musicBus); o.start(t); o.stop(t + dur + 0.05);
+}
+function musicTick() {                                             // schedule notes 0.4 s ahead
+  if (!music) return;
+  for (;;) {
+    const e = SONG[music.i], t = music.t0 + (music.loop * TUNE.beats + e[0]) * TUNE.spb;
+    if (t > ac.currentTime + 0.4) return;
+    musicNote(t, e[1], e[2], e[3], e[4]);
+    if (++music.i >= SONG.length) { music.i = 0; music.loop++; }
+  }
+}
+function duckMusic(now, len) {                                     // music dips to 0.35 under cues
+  if (!duck) return;
+  duckUntil = Math.max(duckUntil, now + len);
+  duck.gain.cancelScheduledValues(now);
+  duck.gain.setTargetAtTime(0.35, now, 0.03); duck.gain.setTargetAtTime(1, duckUntil, 0.3);
+}
+
+// ---------- cues (all pitches are scale degrees; no RNG except the cosmetic pond bloop) ----------
+const EYE_DEG = [5, 3, 7, 1], MOUTH_DEG = [2, 0, 4, -1], TAP_DEGS = [0, 2, 4, 3, 1];
+const partBoing = (eyes, style) => boing(degFreq(eyes ? EYE_DEG[style] : MOUTH_DEG[style]));
+// Musical colour per feeling: HAPPY bright major run, SLEEPY slow descent, SURPRISED upward slide,
+// SAD soft minor-ish descent (it resolves to the HAPPY run when the hug lands).
+function motif(e, when = 0, vel = 0.7) {
+  if (e === HAPPY) [0, 2, 3, 5].forEach((d, i) => marimba(degFreq(d), when + i * 0.09, vel, 0.4));
+  else if (e === SLEEPY) [4, 3, 2, 0].forEach((d, i) => marimba(degFreq(d), when + i * 0.2, vel * 0.8, 0.5));
+  else if (e === SURPRISED) slide(degFreq(0), degFreq(5), when, 0.45, vel);
+  else [2, 1, -1].forEach((d, i) => marimba(degFreq(d), when + i * 0.22, vel * 0.6, 0.55));
+}
+const helloSound = () => { kazoo(degFreq(3), degFreq(3), 0, 0.14, 0.9); kazoo(degFreq(5), degFreq(4), 0.17, 0.24, 1); };
+const promptSound = e => { kazoo(degFreq(3), degFreq(5), 0, 0.3, 0.8); motif(e, 0.38, 0.6); };   // "can you...?" + colour
+const hmSound = () => kazoo(degFreq(2), degFreq(3), 0, 0.26, 0.7);
+const plink = e => { marimba(degFreq(5 + e), 0, 0.5, 0.3); marimba(degFreq(8), 0.07, 0.3, 0.25); };
+function sillySound(k) {
+  if (k === 0) { kazoo(degFreq(3), degFreq(2), 0.1, 0.22, 0.9); kazoo(degFreq(2), degFreq(-1), 0.36, 0.3, 0.9); } // wah-wah
+  else if (k === 1) { boing(degFreq(2), 0.1); boing(degFreq(4), 0.4); }                                          // hop hop
+  else if (k === 2) { slide(degFreq(0), degFreq(5), 0.08, 0.28, 0.8); slide(degFreq(5), degFreq(0), 0.36, 0.3, 0.8); } // stretch
+  else { bloop(degFreq(0), 0.08); bloop(degFreq(2), 0.22); bloop(degFreq(4), 0.36); }                          // bubbles
+}
+function mixSound() {
+  slide(degFreq(0), degFreq(5), 0, 0.5, 0.6); slide(degFreq(5), degFreq(2), 0.5, 0.4, 0.5);
+  for (let i = 0; i < 4; i++) woodblock(degFreq(i % 2 ? 3 : 0, -1), 0.08 + i * 0.12, 0.5);
+}
+function celebrateSound() {                                      // 1.6 s sting: kazoo run, chord, splashes
+  [0, 2, 3, 5, 5].forEach((d, i) => kazoo(degFreq(d), degFreq(d), i * TUNE.spb / 2, 0.24, 0.9));
+  [5, 7, 8].forEach(d => marimba(degFreq(d), 1.2, 0.5, 0.45));
+  splash(0, 0.7); splash(0.5, 0.6); splash(1.0, 0.7);
+}
+const pondBloop = () => { const d = (frng() * 3) | 0; bloop(degFreq(d, -1), 0, 0.25); };   // cosmetic (frng)
+
+// ---------- particles, rings ----------
+let parts = [], rings = [], ripples = [], flights = [];
+function emit(x, y, n, o) {
+  n = Math.max(1, Math.round(n * (reduced ? 0.5 : 1)));
+  for (let i = 0; i < n; i++) {
+    if (parts.length >= maxParticles) parts.shift();            // evict oldest, never exceed cap
+    const a = frng() * Math.PI * 2, sp = lerp(o.speed[0], o.speed[1], frng()), life = lerp(o.life[0], o.life[1], frng());
+    parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - (o.up || 0), g: o.gravity, life, max: life,
+      shape: o.shape, color: o.colors[(frng() * o.colors.length) | 0], size: o.size * lerp(0.7, 1.3, frng()),
+      rot: frng() * 6.28, vr: (frng() - 0.5) * 8, add: !!o.additive });
+  }
+}
+const SPARKLE = { speed: [40, 110], life: [0.35, 0.7], gravity: 60, shape: 'star', size: 5, colors: ['#FFEB9C', '#FFFBEF'], additive: true };
+const CONFETTI = { speed: [60, 170], life: [0.9, 1.5], gravity: 140, shape: 'rect', size: 6, up: 60,
+  colors: ['#FFD23F', '#C9AEF5', '#FF8A2A', '#A9DBFB', '#F06BB8', '#8EE0B4'] };
+const BUBBLES = { speed: [8, 26], life: [1.0, 1.6], gravity: -30, shape: 'ring', size: 4, colors: ['#6CB8DE', '#8FD0EA'] };
+const NOTES = { speed: [20, 50], life: [0.7, 1.0], gravity: -40, shape: 'note', size: 6, colors: [TOK.ink, '#6236A6'] };
+const HEARTS = { speed: [30, 70], life: [0.7, 1.1], gravity: -40, shape: 'heart', size: 6, colors: ['#F06BB8', '#FF9A92'] };
+const DROPS = { speed: [40, 110], life: [0.5, 0.9], gravity: 380, shape: 'circle', size: 3.2, up: 120, colors: ['#FFFFFF', '#A9DBFB', '#8FE3DE'] };
+const ring = (x, y, r0, r1, dur, color, w, flat = false) => rings.push({ x, y, r0, r1, t: 0, dur, color, w, flat });
+const tapRipple = (x, y) => ring(x, y, 3, 22, 0.5, '#FFFFFF', 2);
+function splashFx(x, y, n = 10) { emit(x, y, n, DROPS); ring(x, y, 8, 40, 0.7, '#FFFFFF', 2, true); }
+
+// ---------- entities ----------
+// mon: q/qv = body squash spring (sx = 1 - q, sy = 1 + q, pivot on the waterline); ep/mp = eye/mouth pop springs;
+// sub = how far it is sunk (0 up .. 1 under); spin/dive = Mix/New timers; silly/sillyT = silly wobble.
+const mon = { v: 0, eyes: 2, mouth: 0, q: 0, qv: 0, ep: { q: 0, qv: 0 }, mp: { q: 0, qv: 0 }, hair: { q: 0, qv: 0 },
+  sub: 0, spin: 0, swapped: false, dive: 0, dived: false, silly: -1, sillyT: 0, look: [0, 1], blink: 3,
+  wigE: 0, wigM: 0, nextWig: 0, rip: 1 };
+// pose: derived every update from the timers above (the draw code only reads it).
+const pose = { x: 0, y: 0, ang: 0, sx: 1, sy: 1, hair: 0, hug: 0, fin: 0, lid: 0, yawn: 0, droop: 0, tear: -1, front: true };
+const slots = [0, 1, 2, 3].map(() => ({ q: 0, qv: 0, shown: false, wig: 0 }));   // sticker row (RAM only)
+const btns = BUTTONS.map(() => ({ q: 0, qv: 0, roll: 0 }));
+const st = { phase: 'START', t: 0, act: -1, beat: 0, target: -1, showNext: 0, got: [false, false, false, false],
+  idle: 0, hint: 0, spoken: false, misses: 0, bag: [], last: -1, sillyBag: [], lastSilly: -9, tapN: 0, lastTap: {} };
+let time = 0;
+
+function debounced(key) {                                     // 80 ms per-target debounce
+  if (time - (st.lastTap[key] ?? -9) < TOK.tapDebounce) return true;
+  st.lastTap[key] = time; return false;
+}
+function nextMonster() {
+  if (!st.bag.length) {
+    st.bag = shuffled(4);
+    if (st.bag[st.bag.length - 1] === st.last) [st.bag[0], st.bag[st.bag.length - 1]] = [st.bag[st.bag.length - 1], st.bag[0]];
+  }
+  const v = st.bag.pop(); st.last = v; return v;
+}
+function sillyFace() {                                        // never a feeling, never the current face
+  for (let i = 0; i < 40; i++) {
+    const e = (grng() * 4) | 0, m = (grng() * 4) | 0;
+    if (e !== m && (e !== mon.eyes || m !== mon.mouth)) return [e, m];
+  }
+  return [(mon.eyes + 1) % 4, (mon.eyes + 2) % 4];
+}
+function popFace(f) { mon.eyes = f[0]; mon.mouth = f[1]; mon.ep.q = -0.35; mon.mp.q = -0.35; }
+function nextGoal() {                                         // pure: the feeling a helpful player works towards
+  if (st.target >= 0) return st.target;
+  let best = -1, bd = 99;
+  for (let e = 0; e < 4; e++) if (!st.got[e]) {
+    const d = ((e - mon.eyes + 4) % 4) + ((e - mon.mouth + 4) % 4);
+    if (d < bd) { bd = d; best = e; }
+  }
+  return best;
+}
+function startGame() {
+  initAudio(); startMusic();
+  st.phase = 'INTRO'; st.t = 0; st.beat = 0;
+  mon.v = nextMonster(); popFace(sillyFace()); mon.sub = 1; mon.spin = 0; mon.dive = 0;
+}
+
+// ---------- game actions ----------
+function tapPart(eyes, x, y) {
+  if (st.phase === 'SHOW_ME' && (eyes ? mon.eyes : mon.mouth) === st.target) st.misses++;  // that part was right already
+  if (eyes) { mon.eyes = (mon.eyes + 1) % 4; mon.ep.q = -0.35; } else { mon.mouth = (mon.mouth + 1) % 4; mon.mp.q = -0.35; }
+  partBoing(eyes, eyes ? mon.eyes : mon.mouth);
+  mon.qv = -3; ring(x, y, 4, 26, 0.45, '#FFFFFF', 2); emit(x, y, 5, SPARKLE);
+  st.idle = 0; st.spoken = false; st.hint = st.misses >= TOK.autoHelpMisses ? 2 : 0;
+  if (mon.eyes === mon.mouth) startAct(mon.eyes);
+  else if (time - st.lastSilly >= 0.3) silly();
+}
+function silly() {                                            // non-feeling faces: always a goofy reward
+  if (!st.sillyBag.length) st.sillyBag = shuffled(4);
+  const k = st.sillyBag.pop(); mon.silly = k; mon.sillyT = 0.6; st.lastSilly = time; sillySound(k);
+  if (k === 3) emit(160, MON.y + MOUTH_Y - 6, 4, BUBBLES); else emit(160 + (k - 1) * 30, 84, 3, NOTES);
+}
+function startAct(e) {
+  st.phase = 'FOUND'; st.act = e; st.t = 0; st.beat = 0; st.idle = 0; st.hint = 0; st.spoken = false;
+  if (!st.got[e]) { st.got[e] = true; flights.push({ e, t: 0 }); } else slots[e].wig = 0.5;   // a sticker once (SF-1)
+  if (e === st.target) { st.target = -1; st.misses = 0; }
+  ring(MON.x, MON.y - 64, 30, 96, 0.6, STICKER[e][2], 3);
+}
+function endAct() {
+  if (st.act === SAD && mon.mouth === SAD) { mon.mouth = HAPPY; mon.mp.q = -0.35; }   // SAD always resolves to a smile
+  st.act = -1; mon.hair.q = Math.min(mon.hair.q, 1);
+  if (st.got.every(Boolean)) { startAllFound(); return; }
+  st.phase = st.target >= 0 ? 'SHOW_ME' : 'FREE'; st.t = 0;        // idle keeps counting from the last touch
+}
+function startAllFound() { st.phase = 'ALL_FOUND'; st.t = 0; st.beat = 0; st.target = -1; st.misses = 0; st.hint = 0; }
+function show() {                                             // next uncollected feeling, round-robin
+  let e = -1;
+  for (let k = 0; k < 4 && e < 0; k++) { const c = (st.showNext + k) % 4; if (!st.got[c]) e = c; }
+  if (e < 0) return;
+  st.showNext = (e + 1) % 4; st.target = e; st.phase = 'SHOW_ME';
+  st.misses = 0; st.idle = 0; st.hint = 0; st.spoken = false;
+  slots[e].qv = -5; promptSound(e); ring(SLOT_X(e), SLOT_Y, 14, 34, 0.5, TOK.hintGlow, 3);
+  mon.look = [0, -120];
+}
+function mix() { mon.spin = 1.1; mon.swapped = false; btns[1].roll = 0.7; mixSound(); }
+function newMonster() { mon.dive = 0.85; mon.dived = false; btns[2].roll = 0.5; plop(0, 0.7, 0.8); }
+function swapFace() { mon.swapped = true; popFace(sillyFace()); boing(degFreq(5), 0, 0.8); emit(MON.x, MON.y - 80, 6, SPARKLE); }
+function swapBody() {
+  mon.dived = true; mon.v = nextMonster(); splash(0, 0.8); splashFx(MON.x, MON.y, 12);
+}
+function finishBusy() {                                       // a control tap completes Mix/New instantly
+  if (mon.spin > 0) { if (!mon.swapped) swapFace(); mon.spin = 0; }
+  if (mon.dive > 0) { if (!mon.dived) swapBody(); mon.dive = 0; mon.sub = 0; helloSound(); }
+}
+function control(kind, x, y) {
+  if (debounced(kind)) return;
+  st.idle = 0;
+  if (st.phase === 'ALL_FOUND') {                               // celebration plays out; taps just sparkle
+    tapRipple(x, y);
+    if (st.t >= TOK.maxInputBlock) { emit(x, y, 4, SPARKLE); marimba(degFreq(TAP_DEGS[st.tapN++ % 5], 1), 0, 0.3, 0.25); }
+    return;
+  }
+  if (st.phase === 'FOUND') {
+    if (st.t < TOK.maxInputBlock) { tapRipple(x, y); return; }   // input blocked <= 300 ms
+    if (st.act === SAD && st.t < 1.1) { st.t = 1.1; tapRipple(x, y); emit(x, y, 4, SPARKLE); return; } // straight to the hug
+    endAct();
+    if (st.phase === 'ALL_FOUND') { tapRipple(x, y); return; }
+  }
+  const el = mon.spin > 0 ? 1.1 - mon.spin : mon.dive > 0 ? 0.85 - mon.dive : 9;
+  if (el < TOK.maxInputBlock) { tapRipple(x, y); return; }
+  if (el < 9) finishBusy();
+  if (kind === 'eyes' || kind === 'mouth') { tapPart(kind === 'eyes', x, y); return; }
+  const i = BUTTONS.findIndex(b => b.id === kind), b = BUTTONS[i];
+  btns[i].qv = -4; ring(b.x, b.y, 20, 40, 0.4, '#FFFFFF', 2);
+  if (i === 0) show(); else if (i === 1) mix(); else newMonster();
+}
+function tapSlot(i, x, y) {
+  if (debounced('slot' + i)) return;
+  slots[i].qv = -4; st.idle = 0;
+  if (slots[i].shown) { slots[i].wig = 0.5; motif(i, 0, 0.45); emit(SLOT_X(i), SLOT_Y, 5, SPARKLE); }
+  else if (st.phase === 'SHOW_ME' && st.target === i) { promptSound(i); ring(SLOT_X(i), SLOT_Y, 14, 34, 0.5, TOK.hintGlow, 3); }
+  else { tapRipple(x, y); marimba(degFreq(TAP_DEGS[i], 1), 0, 0.3, 0.25); }
+}
+
+// ---------- acted feelings (3-5 beats each; beats fire in order, also when a tap fast-forwards) ----------
+const ACT_BEATS = [[0, 0.6, 1.0, 1.1], [0, 0.2, 0.95, 1.2, 1.45, 1.6], [0, 0.15, 0.3, 0.75], [0, 0.3, 1.1, 1.4, 1.7, 2.0]];
+const INTRO_BEATS = [0.15, 0.6], ALL_BEATS = [0, 0.5, 1.0, 1.45, 1.57, 1.69, 1.81];
+function bubble(x, y, s) {                                     // one slow sleepy bubble (no text in the scene)
+  if (parts.length >= maxParticles) parts.shift();
+  parts.push({ x, y, vx: 5, vy: -16, g: -6, life: 1.3, max: 1.3, shape: 'ring', color: '#6CB8DE', size: s, rot: 0, vr: 0, add: false });
+}
+function actBeat(e, i) {
+  const fx = MON.x, fy = MON.y - 96;
+  if (e === HAPPY) {
+    if (i === 0) { motif(HAPPY, 0, 0.8); mon.qv = -3; emit(fx, fy, 6, HEARTS); emit(fx, fy, 8, SPARKLE); }
+    else if (i === 1) { boing(degFreq(5), 0, 0.7); mon.qv = -2.5; }                      // land hop 1
+    else if (i === 2) { boing(degFreq(7), 0, 0.7); mon.qv = -2.5; emit(fx, fy, 6, SPARKLE); } // land hop 2
+    else kazoo(degFreq(3), degFreq(5), 0, 0.3, 0.8);                                     // "yay" + wiggle
+  } else if (e === SLEEPY) {
+    if (i === 0) { motif(SLEEPY, 0, 0.7); slide(degFreq(5), degFreq(0), 0.95, 0.6, 0.45); }
+    else if (i === 1) kazoo(degFreq(2), degFreq(0), 0, 0.5, 0.45);                       // yawn
+    else if (i <= 4) { bubble(fx + 50, MON.y - 110, 2.5 + i); bloop(degFreq(i - 2), 0, 0.3); } // sleepy bubbles
+    else { mon.qv = -2; marimba(degFreq(5), 0, 0.35, 0.3); }                             // wakes, stretches
+  } else if (e === SURPRISED) {
+    if (i === 0) { mon.qv = -3; slide(degFreq(0), degFreq(5), 0, 0.5, 0.8); }            // crouch + slide up
+    else if (i === 1) { mon.qv = 4; mon.ep.q = 0.22; }                                   // take off, eyes pop
+    else if (i === 2) { kazoo(degFreq(3), degFreq(5), 0, 0.28, 0.9); emit(fx, fy - 20, 8, SPARKLE); } // "Oh!"
+    else { splash(0, 0.8); splashFx(fx - 72, MON.y + 4, 8); splashFx(fx + 72, MON.y + 4, 8);
+      boing(degFreq(0), 0.02, 0.6); mon.qv = -3.5; }                                      // splash landing
+  } else {
+    if (i === 0) { motif(SAD, 0, 0.7); mon.look = [0, 80]; }                             // droop, soft descent
+    else if (i === 1) marimba(degFreq(7), 0, 0.12, 0.35);                                // one slow tear
+    else if (i === 2) { mon.qv = -2; emit(fx, MON.y - 56, 6, HEARTS);                    // hug
+      [0, 2, 3].forEach(d => marimba(degFreq(d), 0, 0.3, 0.6)); }
+    else if (i === 3) emit(fx, MON.y - 60, 4, HEARTS);
+    else if (i === 4) { mon.mouth = HAPPY; mon.mp.q = -0.35; motif(HAPPY, 0, 0.8); emit(fx, MON.y + MOUTH_Y, 8, SPARKLE); } // smile
+    else { mon.qv = -2.5; boing(degFreq(5), 0, 0.5); mon.look = [0, 1]; }
+  }
+}
+function introBeat(i) {
+  if (i === 0) { splash(0, 0.7); splashFx(MON.x, MON.y, 12); }
+  else { helloSound(); mon.qv = -2; mon.look = [0, 1]; }
+}
+function allBeat(i) {                                          // all 4 stickers: splash dance, then reset
+  if (i === 0) { celebrateSound(); emit(160, 100, 36, CONFETTI); splashFx(60, 150, 10); mon.qv = -3; }
+  else if (i === 1) splashFx(260, 150, 10);
+  else if (i === 2) splashFx(160, 204, 12);
+  else { const k = i - 3; st.got[k] = false; slots[k].shown = false;                    // stickers pop off (RAM only)
+    emit(SLOT_X(k), SLOT_Y, 6, SPARKLE); ring(SLOT_X(k), SLOT_Y, 6, 26, 0.4, '#FFFFFF', 2); plop(0, 0.4, 1.3 + 0.1 * k); }
+}
+function spokenHint() {                                        // 12 s: replay the ask / point at Show
+  if (st.phase === 'SHOW_ME' && st.target >= 0) { promptSound(st.target); slots[st.target].qv = -5; }
+  else { hmSound(); btns[0].qv = -5; }
+}
+
+// ---------- input ----------
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W, y = (e.clientY - r.top) / r.height * H;
+  mon.look = [x - MON.x, y - (MON.y + EYE_Y)];
+  if (st.phase === 'START') { startGame(); return; }
+  if (ac && ac.state === 'suspended') ac.resume();
+  if (inRect(x, y, HOME_HIT)) { home(); return; }
+  if (inRect(x, y, MIC_HIT)) { ring(292, 28, 6, 24, 0.4, '#FFFFFF', 2); return; }   // disabled: a ring only
+  if (st.phase === 'INTRO') { st.t = 99; return; }                                   // intro skippable
+  if (y < 56 && x >= 80 && x < 240) { tapSlot(Math.floor((x - 80) / 40), x, y); return; }
+  const b = BUTTONS.find(o => inRect(x, y, o.hit));
+  const kind = inRect(x, y, EYES_HIT) ? 'eyes' : inRect(x, y, MOUTH_HIT) ? 'mouth' : b ? b.id : null;
+  if (kind) { control(kind, x, y); return; }
+  ring(x, y, 3, 22, 0.5, '#FFFFFF', 2); emit(x, y, 4, SPARKLE);                     // empty tap: ripple + note
+  marimba(degFreq(TAP_DEGS[st.tapN++ % 5], 1), 0, 0.3, 0.25); st.idle = 0;
+});
+addEventListener('keydown', e => {
+  if (e.key === 'd' || e.key === 'D') debug = !debug;
+  if (e.key === 'r' || e.key === 'R') reduced = !reduced;
+  if (e.key === 'p' || e.key === 'P') maxParticles = maxParticles === TOK.deviceMaxParticles ? TOK.webMaxParticles : TOK.deviceMaxParticles;
+});
+function home() {
+  stopMusic();
+  parts = []; rings = []; ripples = []; flights = [];
+  Object.assign(st, { phase: 'START', t: 0, act: -1, beat: 0, target: -1, showNext: 0, got: [false, false, false, false],
+    idle: 0, hint: 0, spoken: false, misses: 0, bag: [], last: -1, sillyBag: [], lastSilly: -9 });
+  for (const s of slots) Object.assign(s, { q: 0, qv: 0, shown: false, wig: 0 });
+  for (const b of btns) Object.assign(b, { q: 0, qv: 0, roll: 0 });
+  Object.assign(mon, { v: 0, eyes: 2, mouth: 0, q: 0, qv: 0, sub: 0, spin: 0, dive: 0, silly: -1, sillyT: 0, wigE: 0, wigM: 0 });
+  mon.hair.q = 0; mon.hair.qv = 0;
+}
+
+// ---------- update ----------
+function spring(o, target, dt) {                                    // 2 substeps (stable at 60 Hz)
+  const c = reduced ? 2 * Math.sqrt(TOK.springBouncy.k) : TOK.springBouncy.c;   // reduced motion: no overshoot
+  for (let i = 0; i < 2; i++) {
+    const h = dt / 2, a = -TOK.springBouncy.k * (o.q - target) - c * o.qv;
+    o.qv += a * h; o.q += o.qv * h;
+  }
+}
+function runBeats(list, fn) { while (st.beat < list.length && list[st.beat] <= st.t) fn(st.beat++); }
+function update(dt) {
+  time += dt; st.t += dt;
+  const m = reduced ? 0.3 : 1, eb = reduced ? easeOutCubic : easeOutBack;
+  if (st.phase === 'INTRO') {
+    runBeats(INTRO_BEATS, introBeat);
+    mon.sub = 1 - eb(clamp((st.t - 0.15) / 0.6, 0, 1));
+    if (st.t >= 1.3) { mon.sub = 0; st.phase = 'FREE'; st.t = 0; st.idle = 0; }
+  } else if (st.phase === 'FOUND') {
+    st.idle += dt;                                               // idle counts from the last touch, acts included
+    runBeats(ACT_BEATS[st.act], i => actBeat(st.act, i));
+    if (st.t >= ACT_DUR[st.act]) endAct();
+  } else if (st.phase === 'ALL_FOUND') {
+    runBeats(ALL_BEATS, allBeat);
+    if (st.t >= 2.0) {
+      popFace(sillyFace()); boing(degFreq(5), 0, 0.8);
+      st.phase = 'FREE'; st.t = 0; st.idle = 0; st.showNext = 0;
+    }
+  } else if (st.phase === 'FREE' || st.phase === 'SHOW_ME') {
+    if (mon.spin <= 0 && mon.dive <= 0) st.idle += dt;
+    if (st.idle > TOK.idleVisualHint && st.hint < 1) { st.hint = 1; mon.nextWig = 0; }
+    if (st.idle > TOK.idleSpokenHint && !st.spoken) { st.spoken = true; st.hint = 2; spokenHint(); }
+    if (st.hint >= 1) {                                          // wiggle exactly the parts that need changing (SF-3)
+      mon.nextWig -= dt;
+      if (mon.nextWig <= 0) {
+        mon.nextWig = 1.6; const g = nextGoal();
+        if (g >= 0) { if (mon.eyes !== g) mon.wigE = TOK.wiggleMs / 1000; if (mon.mouth !== g) mon.wigM = TOK.wiggleMs / 1000; }
+      }
+    }
+  }
+
+  // Mix (spin, <= 1 rev/s) and New (dive under, swap the body, pop back up)
+  if (mon.spin > 0) { mon.spin = Math.max(0, mon.spin - dt); if (!mon.swapped && mon.spin <= 0.55) swapFace(); }
+  if (mon.dive > 0) {
+    mon.dive = Math.max(0, mon.dive - dt);
+    const e = 0.85 - mon.dive;
+    if (e < 0.3) mon.sub = (e / 0.3) * (e / 0.3);
+    else if (e < 0.4) { mon.sub = 1; if (!mon.dived) swapBody(); }
+    else mon.sub = 1 - eb(clamp((e - 0.4) / 0.45, 0, 1));
+    if (mon.dive <= 0) { mon.sub = 0; helloSound(); mon.qv = -2.5; }
+  }
+  mon.sillyT = Math.max(0, mon.sillyT - dt);
+  mon.wigE = Math.max(0, mon.wigE - dt); mon.wigM = Math.max(0, mon.wigM - dt);
+  mon.blink -= dt; if (mon.blink < -0.12) mon.blink = 2 + frng() * 4;
+
+  // springs
+  const surprised = st.phase === 'FOUND' && st.act === SURPRISED && st.t > 0.12 && st.t < 1.2;
+  spring(mon, 0, dt); spring(mon.ep, 0, dt); spring(mon.mp, 0, dt);
+  spring(mon.hair, surprised ? 1 : st.phase === 'ALL_FOUND' ? 0.6 : 0, dt);
+  for (const s of slots) { spring(s, 0, dt); s.wig = Math.max(0, s.wig - dt); }
+  for (const b of btns) { spring(b, 0, dt); b.roll = Math.max(0, b.roll - dt); }
+
+  // pose (pivot on the waterline): breathing, squash, silly wobbles, acted feelings, dance, sink, spin
+  const br = Math.sin(time * 2 * Math.PI / 2.8) * TOK.breathScale;
+  let px = 0, py = 0, ang = 0, sx = (1 - br * 0.5) * (1 - mon.q), sy = (1 + br) * (1 + mon.q);
+  let fin = Math.sin(time * 2.4) * 0.15 * m, hug = 0, lid = 0, yawn = 0, droop = 0, tear = -1;
+  if (mon.sillyT > 0) {
+    const k = 1 - mon.sillyT / 0.6;
+    if (mon.silly === 0) ang += Math.sin(k * Math.PI * 6) * 0.09 * (1 - k) * m;
+    else if (mon.silly === 1) py -= Math.abs(Math.sin(k * Math.PI * 2)) * 9 * m;
+    else if (mon.silly === 2) { const s = Math.sin(k * Math.PI); sy *= 1 + 0.12 * s * m; sx *= 1 - 0.06 * s * m; }
+    else { const s = Math.sin(k * Math.PI * 3) * (1 - k); sx *= 1 + 0.05 * s * m; sy *= 1 - 0.05 * s * m; }
+  }
+  const t = st.t, rm = reduced ? 0.4 : 1;
+  if (st.phase === 'FOUND') {
+    if (st.act === HAPPY) {
+      if (t > 0.2 && t < 1.0) py -= Math.abs(Math.sin((t - 0.2) / 0.4 * Math.PI)) * 10 * rm;      // two happy hops
+      if (t > 1.0) ang += Math.sin((t - 1.0) * Math.PI * 8) * 0.07 * (1 - clamp((t - 1.0) / 0.6, 0, 1)) * rm;
+      fin = Math.sin(time * 12) * 0.45 * rm;
+    } else if (st.act === SLEEPY) {
+      yawn = bell(t, 0.15, 0.9); sy *= 1 + 0.06 * yawn;
+      lid = t < 0.75 ? 0 : t < 1.0 ? (t - 0.75) / 0.25 : t < 1.55 ? 1 : clamp(1 - (t - 1.55) / 0.2, 0, 1);
+      ang += 0.08 * smooth((t - 0.9) / 0.3) * (1 - smooth((t - 1.5) / 0.25)) * rm;               // nods off
+      fin *= 0.3;
+    } else if (st.act === SURPRISED) {
+      if (t > 0.15 && t < 0.75) py -= Math.sin((t - 0.15) / 0.6 * Math.PI) * 14 * rm;              // jump
+      if (t < 0.75) fin = 0.6;
+    } else if (st.act === SAD) {
+      droop = smooth(t / 0.4) * (1 - smooth((t - 1.1) / 0.4));
+      sy *= 1 - 0.05 * droop; ang -= 0.04 * droop * rm;
+      if (t >= 0.3 && t < 1.15) tear = (t - 0.3) / 0.85;                                           // one slow tear
+      hug = smooth((t - 1.1) / 0.25) * (1 - smooth((t - 1.9) / 0.25));                              // self-hug
+      sx *= 1 - 0.04 * hug;
+    }
+  } else if (st.phase === 'ALL_FOUND') {
+    const w = Math.sin(t * Math.PI * 2 * 1.4);
+    ang += w * 0.12 * m; py -= Math.abs(w) * 8 * m; fin = Math.sin(time * 10) * 0.5 * rm;
+  }
+  sy *= 1 - mon.sub; sx *= 1 - 0.35 * mon.sub;
+  let front = true;
+  if (mon.spin > 0) {
+    const c = Math.cos((1 - mon.spin / 1.1) * Math.PI * 2);
+    if (reduced) sx *= 0.82 + 0.18 * Math.abs(c);
+    else { sx *= Math.abs(c) < 0.03 ? (c < 0 ? -0.03 : 0.03) : c; front = c >= 0; }
+  }
+  Object.assign(pose, { x: px, y: py, ang, sx, sy, hair: mon.hair.q, hug, fin, lid, yawn, droop, tear, front });
+
+  // stickers flying to the row, particles, rings, pond life
+  for (const f of flights) {
+    f.t += dt;
+    if (f.t >= 0.95 && !f.done) { f.done = true; slots[f.e].shown = true; slots[f.e].qv = -5; emit(SLOT_X(f.e), SLOT_Y, 8, SPARKLE); plink(f.e); }
+  }
+  flights = flights.filter(f => !f.done);
+  for (const p of parts) { p.life -= dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; }
+  parts = parts.filter(p => p.life > 0);
+  for (const r of rings) r.t += dt; rings = rings.filter(r => r.t < r.dur);
+  mon.rip -= dt; if (mon.rip <= 0) { mon.rip = 2.4; ripples.push({ t: 0 }); }
+  for (const r of ripples) r.t += dt; ripples = ripples.filter(r => r.t < 2.2);
+  if (ac && st.phase !== 'START' && frng() < dt * 0.12) {          // cosmetic pond bloop (frng)
+    const bx = frng() < 0.5 ? 54 + frng() * 16 : 250 + frng() * 16, by = 104 + frng() * 40;
+    ring(bx, by, 2, 12, 0.9, '#FFFFFF', 1.5, true); pondBloop();
+  }
+}
+
+// ---------- drawing helpers ----------
+function starPath(cx, cy, ro, ri, rot, n = 5) {
+  ctx.beginPath();
+  for (let i = 0; i < n * 2; i++) { const r = i % 2 ? ri : ro, a = rot + i * Math.PI / n; ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); }
+  ctx.closePath();
+}
+function heartPath(cx, cy, s) {
+  ctx.beginPath(); ctx.moveTo(cx, cy + s * 0.55);
+  ctx.bezierCurveTo(cx - s * 1.1, cy - s * 0.1, cx - s * 0.5, cy - s * 0.95, cx, cy - s * 0.35);
+  ctx.bezierCurveTo(cx + s * 0.5, cy - s * 0.95, cx + s * 1.1, cy - s * 0.1, cx, cy + s * 0.55);
+}
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function dropPath(x, y, s) {                                   // teardrop, tip up; round part centred at (x, y)
+  ctx.beginPath(); ctx.moveTo(x, y - s * 1.75);
+  ctx.quadraticCurveTo(x + s, y - s * 0.6, x + s, y); ctx.arc(x, y, s, 0, Math.PI);
+  ctx.quadraticCurveTo(x - s, y - s * 0.6, x, y - s * 1.75); ctx.closePath();
+}
+let waterG = null;                                             // one water gradient, shared by the pond and the cover
+function waterGrad() {
+  if (!waterG) { waterG = ctx.createLinearGradient(0, 88, 0, 240); waterG.addColorStop(0, TOK.waterTop); waterG.addColorStop(1, TOK.waterBot); }
+  return waterG;
+}
+
+// ---------- monster face (monster-local px: origin on the waterline centre, y up is negative) ----------
+const BODY_K = [0.9, 0.8, 0.95, 0.86];                         // crown fullness per body
+function bodyPath(i) {
+  const v = MONSTERS[i], T = v.T, B = v.B, k = BODY_K[i];
+  ctx.beginPath(); ctx.moveTo(-B, 4);
+  ctx.bezierCurveTo(-B, 0.55 * T, -k * B, T, 0, T);
+  ctx.bezierCurveTo(k * B, T, B, 0.55 * T, B, 4);
+  ctx.quadraticCurveTo(0, 24, -B, 4); ctx.closePath();
+}
+const wiggleAng = w => w > 0 ? Math.sin((1 - w / (TOK.wiggleMs / 1000)) * Math.PI * 3) * TOK.wiggleDeg * Math.PI / 180 * (reduced ? 0.5 : 1) : 0;
+function drawBrow(s, style) {                                  // s = -1 left eye, +1 right eye (eye-local)
+  ctx.strokeStyle = TOK.ink; ctx.lineWidth = 3.5; ctx.lineCap = 'round'; ctx.beginPath();
+  if (style === HAPPY) { ctx.moveTo(-10, -22); ctx.quadraticCurveTo(0, -29, 10, -22); }
+  else if (style === SLEEPY) { ctx.moveTo(s * 11, -15); ctx.lineTo(-s * 10, -19); }
+  else if (style === SURPRISED) { ctx.moveTo(-11, -28); ctx.quadraticCurveTo(0, -38, 11, -28); }
+  else { ctx.moveTo(s * 11, -19); ctx.quadraticCurveTo(0, -21, -s * 10, -28); }        // SAD: inner ends up
+  ctx.stroke();
+}
+function drawEyes(v, style) {
+  const ps = 1 + mon.ep.q, wig = wiggleAng(mon.wigE), ln = Math.hypot(mon.look[0], mon.look[1]) || 1;
+  const lx = mon.look[0] / ln, ly = mon.look[1] / ln;
+  for (const s of [-1, 1]) {
+    ctx.save(); ctx.translate(s * EYE_X, EYE_Y); ctx.rotate(wig); ctx.scale(ps, ps);
+    drawBrow(s, style);
+    const closed = style !== HAPPY && (mon.blink < 0 || pose.lid > 0.85);
+    ctx.lineCap = 'round';
+    if (style === HAPPY) {                                     // smiling crescents
+      ctx.strokeStyle = TOK.ink; ctx.lineWidth = 4.5; ctx.beginPath(); ctx.arc(0, 5, 11, 1.12 * Math.PI, 1.88 * Math.PI); ctx.stroke();
+    } else if (closed) {
+      ctx.strokeStyle = TOK.ink; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(0, -3, 10, 0.18 * Math.PI, 0.82 * Math.PI); ctx.stroke();
+    } else {
+      const r = style === SURPRISED ? 17 : EYE_R;
+      ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill();
+      ctx.strokeStyle = v.shadow; ctx.lineWidth = 2; ctx.stroke();
+      let px, py, pr;
+      if (style === SLEEPY) { px = lx * 4; py = 5; pr = 7; }
+      else if (style === SURPRISED) { px = lx * 4; py = ly * 4; pr = 4.5; }
+      else { px = lx * 2; py = 4; pr = 9.5; }                  // SAD: big puppy pupils looking down
+      ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.arc(px, py, pr, 0, 7); ctx.fill();
+      ctx.fillStyle = '#FFFFFF'; ctx.beginPath();
+      if (style === SAD) { ctx.arc(px - 3.5, py - 3.5, 3.6, 0, 7); ctx.moveTo(px + 4.5, py + 3.5); ctx.arc(px + 3.5, py + 3.5, 1.6, 0, 7); }
+      else ctx.arc(px - pr * 0.35, py - pr * 0.4, Math.max(1.4, pr * 0.3), 0, 7);
+      ctx.fill();
+      if (style === SLEEPY) {                                  // heavy lid in the body colour
+        const ly0 = lerp(-1, r * 0.55, clamp(pose.lid / 0.85, 0, 1));
+        ctx.fillStyle = v.base; ctx.beginPath(); ctx.moveTo(-r - 1.5, ly0); ctx.arc(0, 0, r + 1.5, Math.PI, 2 * Math.PI);
+        ctx.lineTo(r + 1.5, ly0); ctx.quadraticCurveTo(0, ly0 + 4, -r - 1.5, ly0); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = TOK.ink; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-r, ly0); ctx.quadraticCurveTo(0, ly0 + 4, r, ly0); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+}
+function drawMouth(style) {
+  const ps = 1 + mon.mp.q;
+  ctx.save(); ctx.translate(0, MOUTH_Y); ctx.rotate(wiggleAng(mon.wigM)); ctx.scale(ps, ps);
+  ctx.fillStyle = TOK.ink;
+  if (style === HAPPY) {                                       // big D grin, teeth, tongue
+    ctx.beginPath(); ctx.moveTo(-23, -5); ctx.quadraticCurveTo(0, 0, 23, -5); ctx.bezierCurveTo(21, 15, -21, 15, -23, -5); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.moveTo(-17, -3.4); ctx.quadraticCurveTo(0, 0.6, 17, -3.4);
+    ctx.lineTo(15.5, 0.4); ctx.quadraticCurveTo(0, 4.4, -15.5, 0.4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#FF9A92'; ctx.beginPath(); ctx.ellipse(0, 6.6, 8, 3.2, 0, 0, 7); ctx.fill();
+  } else if (style === SLEEPY) {                               // small o (opens into a yawn)
+    const rx = 7 + 5 * pose.yawn, ry = 8 + 8 * pose.yawn;
+    ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#FF9A92'; ctx.beginPath(); ctx.ellipse(0, ry * 0.5, rx * 0.55, ry * 0.3, 0, 0, 7); ctx.fill();
+  } else if (style === SURPRISED) {                            // big tall O
+    ctx.beginPath(); ctx.ellipse(0, 1, 12, 16, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#FF9A92'; ctx.beginPath(); ctx.ellipse(0, 10, 7, 4, 0, 0, 7); ctx.fill();
+  } else {                                                     // SAD: small wobbly frown
+    const w = Math.sin(time * 9) * 1.3 * (reduced ? 0.3 : 1);
+    ctx.strokeStyle = TOK.ink; ctx.lineWidth = 4.5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-16, 8); ctx.bezierCurveTo(-8, -6 + w, 8, -6 - w, 16, 8); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawFace(v) {
+  ctx.fillStyle = 'rgba(255,143,191,0.7)';                     // cheeks
+  const cr = mon.mouth === HAPPY ? 10 : 8.5;
+  ctx.beginPath(); ctx.ellipse(-58, -58, cr, cr * 0.6, 0, 0, 7); ctx.moveTo(58 + cr, -58); ctx.ellipse(58, -58, cr, cr * 0.6, 0, 0, 7); ctx.fill();
+  drawEyes(v, mon.eyes);
+  drawMouth(mon.mouth);
+  if (pose.tear >= 0) {                                        // one slow tear sparkle, then the hug
+    const p = pose.tear, x = lerp(-EYE_X - 8, -EYE_X - 14, p), y = lerp(EYE_Y + 14, EYE_Y + 44, smooth(p)), s = 5.2 * clamp(p * 5, 0.4, 1);
+    ctx.globalAlpha = p < 0.85 ? 1 : (1 - p) / 0.15;
+    dropPath(x, y, s); ctx.fillStyle = '#A9DBFB'; ctx.fill(); ctx.strokeStyle = '#2B79B8'; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(x - s * 0.35, y - s * 0.2, s * 0.3, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ---------- background (static parts would be a cached layer on the device) ----------
+let skyG = null;
+const PADS = [[34, 166, 15, 5, 0.4], [290, 172, 13, 4.5, 2.2], [302, 124, 9, 3, 1.2], [20, 122, 8, 2.6, 3.6]];  // x, y, rx, ry, notch
+function drawBackground() {
+  if (!skyG) { skyG = ctx.createLinearGradient(0, 0, 0, 96); skyG.addColorStop(0, TOK.skyTop); skyG.addColorStop(1, TOK.skyBot); }
+  ctx.fillStyle = skyG; ctx.fillRect(0, 0, W, 96);
+  ctx.fillStyle = TOK.bankFar; ctx.beginPath(); ctx.moveTo(0, 96); ctx.lineTo(0, 82);                 // far bank
+  ctx.bezierCurveTo(46, 72, 92, 80, 136, 84); ctx.bezierCurveTo(180, 88, 214, 74, 256, 78);
+  ctx.bezierCurveTo(286, 81, 304, 74, 320, 77); ctx.lineTo(320, 96); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = TOK.bankNear; ctx.beginPath();                                                        // bushes at the sides
+  for (const [x, y, r] of [[10, 90, 15], [34, 92, 11], [54, 93, 7], [268, 93, 8], [288, 91, 12], [312, 89, 15]]) {
+    ctx.moveTo(x - r, y); ctx.arc(x, y, r, Math.PI, Math.PI * 2);
+  }
+  ctx.fill();
+  ctx.fillStyle = waterGrad(); ctx.fillRect(0, 92, W, H - 92);                                           // the pond
+  ctx.globalAlpha = 0.35; ctx.fillStyle = TOK.bankFar; ctx.beginPath(); ctx.moveTo(0, 92);               // bank reflection
+  ctx.lineTo(0, 99); ctx.bezierCurveTo(60, 103, 120, 97, 180, 100); ctx.bezierCurveTo(240, 103, 290, 97, 320, 99);
+  ctx.lineTo(320, 92); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(0, 92, W, 1.5);                                // shoreline light
+  ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+  for (const [y, a, ph] of [[123, 0.3, 0], [158, 0.19, 2]]) {                                            // still wave lines
+    ctx.globalAlpha = a; ctx.beginPath();
+    for (let x = 0; x <= W; x += 12) { const yy = y + 2 * Math.sin(x * 0.045 + ph); if (x) ctx.lineTo(x, yy); else ctx.moveTo(x, yy); }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#47B96A'; ctx.beginPath();                                                             // notched edge lily pads
+  for (const [x, y, rx, ry, a] of PADS) { ctx.moveTo(x, y); ctx.ellipse(x, y, rx, ry, 0, a, a + Math.PI * 1.8); ctx.closePath(); }
+  ctx.fill(); ctx.strokeStyle = '#2E8F52'; ctx.lineWidth = 1.2; ctx.stroke();
+}
+
+// ---------- ambient pond life (clouds, reeds, glints) ----------
+const REEDS = [[12, 178, 74, 1], [22, 180, 58, 0], [34, 177, 80, 1], [44, 181, 50, 0],
+  [278, 172, 56, 0], [290, 170, 76, 1], [302, 173, 62, 1], [312, 171, 48, 0]];          // x, base y, height, cattail
+const LEAVES = [[16, 180, 40, 1], [40, 181, 34, -1], [284, 172, 38, 1], [308, 172, 30, -1]];
+const GLINTS = [[30, 108], [64, 140], [18, 150], [256, 112], [272, 150], [306, 140], [70, 176], [252, 178]];
+const CLOUD = [[-10, 0, 7], [0, -4, 9.5], [11, 0, 7], [0, 2, 8]];
+function drawAmbient() {
+  const m = reduced ? 0.3 : 1;
+  const cl = [0, 1].map(i => [((time * (3 + i) * (reduced ? 0.5 : 1) + i * 190) % 400) - 40, 58 - i * 10, 1 - i * 0.2]);
+  for (const [k, a] of [[1, 0.95], [-0.45, 0.22]]) {                                     // clouds, then their reflections
+    ctx.fillStyle = '#FFFFFF'; ctx.globalAlpha = a; ctx.beginPath();
+    for (const [x, y, s] of cl) for (const [dx, dy, r] of CLOUD) {
+      const cy = k > 0 ? y + dy * s : 184 - y - dy * s * 0.45;
+      ctx.moveTo(x + dx * s + r * s, cy); ctx.ellipse(x + dx * s, cy, r * s, r * s * Math.abs(k), 0, 0, Math.PI * 2);
+    }
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1; ctx.lineCap = 'round';
+  ctx.strokeStyle = '#4E9A3E'; ctx.lineWidth = 2.5; ctx.beginPath();                    // reed stems sway
+  const tips = [];
+  REEDS.forEach(([x, y, h, c], i) => {
+    const sw = Math.sin(time * 1.3 + i * 1.7) * 2 * m, tx = x + sw + (x < 160 ? 3 : -3), ty = y - h;
+    ctx.moveTo(x, y); ctx.quadraticCurveTo(x + sw * 0.3, y - h * 0.6, tx, ty);
+    if (c) tips.push([tx, ty, sw]);
+  });
+  ctx.stroke();
+  ctx.fillStyle = '#5DB04C'; ctx.beginPath();                                            // leaf blades
+  for (const [x, y, h, s] of LEAVES) {
+    const sw = Math.sin(time * 1.1 + x) * 1.5 * m;
+    ctx.moveTo(x - 3, y); ctx.quadraticCurveTo(x + s * 4, y - h * 0.6, x + s * 10 + sw, y - h);
+    ctx.quadraticCurveTo(x + s * 2, y - h * 0.5, x + 3, y); ctx.closePath();
+  }
+  ctx.fill();
+  ctx.fillStyle = '#B07A4F'; ctx.strokeStyle = '#7A4E2D'; ctx.lineWidth = 1.2; ctx.beginPath();   // cattails
+  for (const [x, y, sw] of tips) { ctx.moveTo(x + 3.5, y + 9); ctx.ellipse(x, y + 9, 3.5, 8, sw * 0.03, 0, Math.PI * 2); }
+  ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5;                                      // glints in two alternating groups
+  for (let g = 0; g < 2; g++) {
+    ctx.globalAlpha = (0.25 + 0.3 * (0.5 + 0.5 * Math.sin(time * 1.7 + g * Math.PI))) * (reduced ? 0.7 : 1);
+    ctx.beginPath();
+    for (let i = g; i < GLINTS.length; i += 2) { const [x, y] = GLINTS[i]; ctx.moveTo(x - 4, y); ctx.lineTo(x + 4, y); }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ---------- the pond monster ----------
+function ripplePass(back) {                                    // waterline rings: back halves behind, front halves after
+  const B = MONSTERS[mon.v].B;
+  ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5;
+  for (const r of ripples) {
+    const k = r.t / 2.2, rr = lerp(B * 0.95, B * 1.4, easeOutCubic(k));
+    ctx.globalAlpha = 0.45 * (1 - k); ctx.beginPath();
+    ctx.ellipse(MON.x, MON.y + 1, rr, rr * 0.12, 0, back ? Math.PI : 0, back ? Math.PI * 2 : Math.PI); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+function drawMonster() {
+  const v = MONSTERS[mon.v], T = v.T, B = v.B, m = reduced ? 0.3 : 1;
+  ripplePass(true);
+  ctx.save(); ctx.translate(MON.x + pose.x, MON.y + pose.y); ctx.rotate(pose.ang); ctx.scale(pose.sx, pose.sy);
+  ctx.lineCap = 'round'; ctx.strokeStyle = v.shadow; ctx.lineWidth = 2.5; ctx.fillStyle = v.light;
+  if (mon.v === 1) {                                           // PLUMBO: horn buds (behind the body)
+    ctx.beginPath();
+    for (const s of [-1, 1]) { ctx.moveTo(s * 30 + 9, T + 6); ctx.ellipse(s * 30, T + 6, 9, 14, s * 0.35, 0, Math.PI * 2); }
+    ctx.fill(); ctx.stroke();
+  } else if (mon.v === 3) {                                    // JELLYPIP: two bobble antennae
+    ctx.beginPath(); const bob = [];
+    for (const s of [-1, 1]) {
+      const tx = s * 27 + Math.sin(time * 3 + s) * 2 * m, ty = T - 16 - pose.hair * 6;
+      ctx.moveTo(s * 14, T + 8); ctx.quadraticCurveTo(s * 16, T - 8, tx, ty); bob.push([tx, ty]);
+    }
+    ctx.stroke(); ctx.beginPath();
+    for (const [x, y] of bob) { ctx.moveTo(x + 5.5, y); ctx.arc(x, y, 5.5, 0, Math.PI * 2); }
+    ctx.fill(); ctx.stroke();
+  }
+  bodyPath(mon.v);                                             // body: one radial gradient, outlined in its shadow colour
+  const g = ctx.createRadialGradient(-B * 0.3, T * 0.72, 8, 0, T * 0.4, B * 1.3);
+  g.addColorStop(0, v.light); g.addColorStop(0.5, v.base); g.addColorStop(1, v.shadow);
+  ctx.fillStyle = g; ctx.fill(); ctx.stroke();
+  if (mon.v === 0) {                                           // LILLOO: tilted lily-leaf hat with a flower
+    ctx.save(); ctx.translate(-20, T - 1); ctx.rotate(-0.2);
+    ctx.fillStyle = '#A6D13B'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.ellipse(0, 0, 28, 8, 0, 0.3, 0.3 + Math.PI * 1.82); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#6E9A1F'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#F06BB8'; ctx.beginPath();
+    for (let i = 0; i < 5; i++) { const a = i * Math.PI * 0.4, x = -12 + Math.cos(a) * 4.5, y = -5 + Math.sin(a) * 4.5; ctx.moveTo(x + 4, y); ctx.arc(x, y, 4, 0, Math.PI * 2); }
+    ctx.fill(); ctx.fillStyle = '#FFD23F'; ctx.beginPath(); ctx.arc(-12, -5, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  } else if (mon.v === 1 && pose.front) {                      // PLUMBO: light belly patch behind the mouth
+    ctx.globalAlpha = 0.45; ctx.fillStyle = v.light; ctx.beginPath(); ctx.ellipse(0, -22, 40, 26, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+  } else if (mon.v === 2) {                                    // MARMALOO: big soft dots
+    ctx.fillStyle = v.light; ctx.beginPath();
+    for (const [x, y, r] of [[-80, -40, 7], [82, -36, 8], [-68, -88, 5], [70, -92, 4], [0, -110, 5], [-44, -10, 5], [46, -8, 6]]) { ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, Math.PI * 2); }
+    ctx.fill();
+  } else if (mon.v === 3) {                                    // JELLYPIP: star freckles
+    ctx.fillStyle = v.light;
+    for (const [x, y, r] of [[-70, -84, 4.5], [70, -84, 4.5], [-76, -62, 3], [76, -62, 3]]) { starPath(x, y, r, r * 0.45, -Math.PI / 2); ctx.fill(); }
+  }
+  const hx = mon.v === 0 ? 14 : 0, hy = T + 4, hu = pose.hair;  // hair tuft: flopped (0) .. straight up (1, surprised)
+  for (const [w, c] of [[4.5, v.shadow], [2, v.light]]) {
+    ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath();
+    for (let i = -1; i <= 1; i++) {
+      const a = lerp(-Math.PI / 2 + 0.95 + i * 0.3, -Math.PI / 2 + i * 0.45, hu) + Math.sin(time * 2 + i) * 0.08 * m;
+      const L = 15 + 7 * hu + (i === 0 ? 3 : 0), bx = hx + i * 4;
+      ctx.moveTo(bx, hy); ctx.quadraticCurveTo(bx + Math.cos(a) * L * 0.2, hy - L * 0.7, bx + Math.cos(a) * L, hy + Math.sin(a) * L);
+    }
+    ctx.stroke();
+  }
+  if (pose.front) { drawFace(v); drawHintGlow(); }
+  ctx.fillStyle = v.base; ctx.strokeStyle = v.shadow; ctx.lineWidth = 2.5;     // fins: wave, or hug the belly
+  for (const s of [-1, 1]) {
+    const hug = pose.hug, fx = s * lerp(B - 4, 46, hug), fy = lerp(-16, -12, hug);
+    ctx.save(); ctx.translate(fx, fy); ctx.rotate(s * ((-0.35 + pose.fin) * (1 - hug) + 0.3 * hug));
+    ctx.beginPath(); ctx.ellipse(s * 10 * (1 - 2 * hug), 0, 13, 7.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
+  }
+  ctx.restore();
+  ctx.fillStyle = waterGrad(); ctx.beginPath(); ctx.ellipse(MON.x, MON.y, 122, 17, 0, 0, Math.PI); ctx.fill();   // water covers the base
+  ctx.save(); ctx.translate(MON.x + pose.x, MON.y + 3 - pose.y * 0.35); ctx.rotate(-pose.ang); ctx.scale(pose.sx, -0.32 * pose.sy);
+  bodyPath(mon.v); ctx.globalAlpha = 0.2; ctx.fillStyle = v.base; ctx.fill(); ctx.restore();                     // soft reflection
+  ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.35; ctx.beginPath();
+  for (const [y, w] of [[196, 50], [206, 38], [215, 24]]) { const o = Math.sin(time * 1.6 + y) * 3 * m; ctx.moveTo(MON.x - w + o, y); ctx.lineTo(MON.x + w + o, y); }
+  ctx.stroke();
+  ctx.globalAlpha = 0.7; ctx.lineWidth = 2; ctx.beginPath();                    // foam where the body meets the water
+  ctx.ellipse(MON.x + pose.x, MON.y + 1, B * Math.abs(pose.sx) * 1.02 + 4, 5, 0, 0.1, Math.PI - 0.1); ctx.stroke();
+  ctx.globalAlpha = 1;
+  ripplePass(false);
+}
+function drawHintGlow() {                                      // pulsing glow around exactly the parts that need changing
+  if (st.hint < 1 || (st.phase !== 'FREE' && st.phase !== 'SHOW_ME')) return;
+  const g = nextGoal(); if (g < 0) return;
+  ctx.strokeStyle = TOK.hintGlow; ctx.lineWidth = 4;
+  ctx.globalAlpha = 0.55 + 0.35 * Math.sin(time * Math.PI * 2 / TOK.glowPeriod); ctx.beginPath();
+  if (mon.eyes !== g) { ctx.moveTo(64, EYE_Y); ctx.ellipse(0, EYE_Y, 64, 27, 0, 0, Math.PI * 2); }
+  if (mon.mouth !== g) { ctx.moveTo(34, MOUTH_Y); ctx.ellipse(0, MOUTH_Y, 34, 22, 0, 0, Math.PI * 2); }
+  ctx.stroke(); ctx.globalAlpha = 1;
+}
+
+// ---------- stickers (sun, night-cap, star burst, droplet-with-heart) ----------
+function stickerPath(e) {
+  if (e === HAPPY) { ctx.beginPath(); for (let i = 0; i <= 48; i++) { const a = i * Math.PI / 24, r = 13 + 1.6 * Math.cos(12 * a); ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.closePath(); }
+  else if (e === SLEEPY) { ctx.beginPath(); ctx.arc(0, 2, 12.5, 0, 7); }
+  else if (e === SURPRISED) starPath(0, 0, 16, 10.5, -Math.PI / 2, 8);
+  else dropPath(0, 4, 10.5);
+}
+function drawSticker(e, x, y, s, rot, a) {
+  const [fill, rim] = STICKER[e];
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(s, s); ctx.globalAlpha = a;
+  stickerPath(e); ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 4; ctx.stroke();        // die-cut white border
+  ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = rim; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = TOK.ink; ctx.strokeStyle = TOK.ink; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
+  if (e === HAPPY) {
+    ctx.beginPath(); ctx.arc(-4.5, -2.5, 1.8, 0, 7); ctx.moveTo(6.3, -2.5); ctx.arc(4.5, -2.5, 1.8, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 1, 6, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke();
+  } else if (e === SLEEPY) {
+    ctx.beginPath(); ctx.arc(-4.5, 2, 3, 0.15 * Math.PI, 0.85 * Math.PI); ctx.moveTo(7.4, 3); ctx.arc(4.5, 2, 3, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, 8.5, 2, 2.4, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#8F5BE0'; ctx.beginPath(); ctx.moveTo(-11, -6); ctx.quadraticCurveTo(-2, -14, 9, -19); ctx.quadraticCurveTo(7, -10, 10, -5);
+    ctx.quadraticCurveTo(0, -9, -11, -6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(9.5, -19, 3, 0, 7); ctx.fill();
+  } else if (e === SURPRISED) {
+    ctx.beginPath(); ctx.arc(-4.5, -3, 2, 0, 7); ctx.moveTo(6.5, -3); ctx.arc(4.5, -3, 2, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 5, 2.8, 3.8, 0, 0, 7); ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.arc(-3.6, 3, 1.6, 0, 7); ctx.moveTo(5.2, 3); ctx.arc(3.6, 3, 1.6, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 6, 3.4, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke();
+    ctx.fillStyle = '#F06BB8'; heartPath(8, -6, 4); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawStickers() {
+  ctx.fillStyle = TOK.cream; roundRect(78, 6, 164, 44, 14); ctx.fill();
+  ctx.strokeStyle = TOK.creamLine; ctx.lineWidth = 2; ctx.stroke();
+  const pulse = Math.sin(time * Math.PI * 2 / TOK.glowPeriod);
+  for (let i = 0; i < 4; i++) {
+    const sl = slots[i], x = SLOT_X(i), target = st.phase === 'SHOW_ME' && st.target === i;
+    if (sl.shown) {
+      const w = sl.wig > 0 ? Math.sin(sl.wig * 30) * 0.15 * (sl.wig / 0.5) * (reduced ? 0.4 : 1) : 0;
+      drawSticker(i, x, SLOT_Y, 1 - sl.q, w, 1);
+      continue;
+    }
+    ctx.fillStyle = TOK.creamLine; ctx.beginPath();                                       // dotted empty slot
+    for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6, px = x + Math.cos(a) * 17, py = SLOT_Y + Math.sin(a) * 17; ctx.moveTo(px + 1.3, py); ctx.arc(px, py, 1.3, 0, 7); }
+    ctx.fill();
+    if (target) {                                                                        // Show: the wanted sticker glows
+      ctx.strokeStyle = TOK.hintGlow; ctx.lineWidth = 4; ctx.globalAlpha = 0.55 + 0.35 * pulse;
+      ctx.beginPath(); ctx.arc(x, SLOT_Y, 19, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    drawSticker(i, x, SLOT_Y, (1 - sl.q) * (target ? 1 + 0.06 * pulse * (reduced ? 0.4 : 1) : 0.9), 0, target ? 0.6 : 0.2);
+  }
+}
+
+// ---------- buttons on lily pads: Show (mirror), Mix (dice), New (egg) ----------
+let btnG = null;
+function drawButtons() {
+  const m = reduced ? 0.3 : 1;
+  if (!btnG) { btnG = ctx.createRadialGradient(-7, -9, 2, 0, 0, 25); btnG.addColorStop(0, '#FFFFFF'); btnG.addColorStop(0.6, TOK.cream); btnG.addColorStop(1, TOK.creamLine); }
+  ctx.fillStyle = '#2DB26E'; ctx.beginPath();                                            // the pads
+  for (const b of BUTTONS) { ctx.moveTo(b.x, 226); ctx.ellipse(b.x, 226, 31, 9, 0, 1.75, 1.75 + Math.PI * 1.85); ctx.closePath(); }
+  ctx.fill(); ctx.strokeStyle = '#8EE0B4'; ctx.lineWidth = 1.5; ctx.stroke();
+  BUTTONS.forEach((b, i) => {
+    const s = btns[i], bob = Math.sin(time * 2 + i * 1.3) * TOK.bob * m;
+    ctx.save(); ctx.translate(b.x, b.y + bob); ctx.scale(1 - 0.5 * s.q, 1 + s.q);
+    if (i === 0 && st.hint >= 1 && st.phase === 'FREE') {
+      ctx.strokeStyle = TOK.hintGlow; ctx.lineWidth = 4; ctx.globalAlpha = 0.55 + 0.35 * Math.sin(time * Math.PI * 2 / TOK.glowPeriod);
+      ctx.beginPath(); ctx.arc(0, 0, 27, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = btnG; ctx.beginPath(); ctx.arc(0, 0, 23, 0, 7); ctx.fill();
+    ctx.strokeStyle = TOK.creamLine; ctx.lineWidth = 2; ctx.stroke();
+    if (i === 0) {                                                                       // hand mirror with a tiny smile
+      ctx.strokeStyle = '#C99A0E'; ctx.lineWidth = 4.5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(0, 6); ctx.lineTo(0, 15); ctx.stroke();
+      ctx.fillStyle = '#FFD23F'; ctx.beginPath(); ctx.arc(0, -4, 11, 0, 7); ctx.fill(); ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = '#A9DBFB'; ctx.beginPath(); ctx.arc(0, -4, 7.5, 0, 7); ctx.fill();
+      ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.arc(-2.5, -6, 1.2, 0, 7); ctx.moveTo(3.7, -6); ctx.arc(2.5, -6, 1.2, 0, 7); ctx.fill();
+      ctx.strokeStyle = TOK.ink; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(0, -4, 3.2, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke();
+    } else if (i === 1) {                                                                // die, tumbles a quarter turn on Mix
+      ctx.rotate((s.roll / 0.7) * Math.PI / 2 * (reduced ? 0.3 : 1));
+      ctx.fillStyle = '#FFFFFF'; roundRect(-11, -11, 22, 22, 5); ctx.fill();
+      ctx.strokeStyle = TOK.ink; ctx.lineWidth = 1.6; ctx.stroke();
+      ctx.fillStyle = TOK.ink; ctx.beginPath();
+      for (const [x, y] of [[-5, -5], [5, -5], [0, 0], [-5, 5], [5, 5]]) { ctx.moveTo(x + 2, y); ctx.arc(x, y, 2, 0, 7); }
+      ctx.fill();
+    } else {                                                                             // spotty egg (wobbles on New)
+      ctx.rotate(Math.sin(s.roll * 25) * 0.25 * (s.roll / 0.5) * m);
+      ctx.fillStyle = '#FFFBEF'; ctx.beginPath(); ctx.moveTo(0, -14); ctx.bezierCurveTo(9, -14, 12, 2, 11, 6);
+      ctx.bezierCurveTo(10, 14, -10, 14, -11, 6); ctx.bezierCurveTo(-12, 2, -9, -14, 0, -14); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = TOK.creamLine; ctx.lineWidth = 1.5; ctx.stroke();
+      MONSTERS.forEach((v, k) => { const [x, y, r] = [[-4, -6, 2.6], [5, -1, 3], [-4, 6, 2.4], [5, 8, 2]][k]; ctx.fillStyle = v.base; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); });
+    }
+    ctx.restore();
+  });
+}
+
+// ---------- flights, helper hand, particles ----------
+function drawFlights() {
+  for (const f of flights) {
+    const tx = SLOT_X(f.e);
+    if (f.t < 0.2) { const k = f.t / 0.2; drawSticker(f.e, 160, 92, 1.4 * (reduced ? easeOutCubic(k) : easeOutBack(k)), 0, 1); continue; }
+    const k = smooth((f.t - 0.2) / 0.75), cx = lerp(160, tx, 0.3), cy = 30;
+    const x = (1 - k) * (1 - k) * 160 + 2 * (1 - k) * k * cx + k * k * tx, y = (1 - k) * (1 - k) * 92 + 2 * (1 - k) * k * cy + k * k * SLOT_Y;
+    drawSticker(f.e, x, y, lerp(1.4, 1, k), Math.sin(k * Math.PI) * 0.3 * (reduced ? 0.3 : 1), 1);
+  }
+}
+function drawHelperHand() {
+  if (st.hint < 2) return;
+  const p = autoTarget(); if (!p) return;
+  const y = p.y + 16 + Math.abs(Math.sin(time * 4)) * -6 * (reduced ? 0.3 : 1);
+  ctx.save(); ctx.translate(p.x + 10, y); ctx.rotate(-0.5);
+  ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = TOK.ink; ctx.lineWidth = 1.5;
+  roundRect(-4, -16, 8, 18, 4); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0, 6, 9, 8, 0, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+function drawFx() {
+  for (const r of rings) {
+    const k = r.t / r.dur, rr = lerp(r.r0, r.r1, easeOutCubic(k));
+    ctx.globalAlpha = 1 - k; ctx.strokeStyle = r.color; ctx.lineWidth = r.w; ctx.beginPath();
+    if (r.flat) ctx.ellipse(r.x, r.y, rr, rr * 0.35, 0, 0, 7); else ctx.arc(r.x, r.y, rr, 0, 7);
+    ctx.stroke();
+  }
+  ctx.lineCap = 'round';
+  for (const p of parts) {
+    ctx.globalAlpha = clamp(p.life / p.max * 1.6, 0, 1);
+    ctx.globalCompositeOperation = p.add ? 'lighter' : 'source-over';
+    ctx.fillStyle = p.color; ctx.strokeStyle = p.color;
+    if (p.shape === 'star') { starPath(p.x, p.y, p.size, p.size * 0.45, p.rot); ctx.fill(); }
+    else if (p.shape === 'rect') { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2); ctx.restore(); }
+    else if (p.shape === 'heart') { heartPath(p.x, p.y, p.size); ctx.fill(); }
+    else if (p.shape === 'ring') { ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, 7); ctx.stroke(); }
+    else if (p.shape === 'note') {
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, p.size * 0.6, p.size * 0.45, -0.4, 0, 7); ctx.fill();
+      ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(p.x + p.size * 0.5, p.y); ctx.lineTo(p.x + p.size * 0.5, p.y - p.size * 1.6); ctx.stroke();
+    }
+    else { ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (0.5 + 0.5 * p.life / p.max), 0, 7); ctx.fill(); }
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+
+// ---------- chrome, start, HUD ----------
+function drawChrome() {
+  ctx.fillStyle = TOK.cream; roundRect(6, 6, 44, 44, 14); ctx.fill();               // Home
+  ctx.strokeStyle = TOK.creamLine; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.moveTo(28, 15); ctx.lineTo(41, 27); ctx.lineTo(37, 27); ctx.lineTo(37, 39);
+  ctx.lineTo(19, 39); ctx.lineTo(19, 27); ctx.lineTo(15, 27); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 0.45; ctx.fillStyle = TOK.cream; roundRect(270, 6, 44, 44, 14); ctx.fill();   // Mic (disabled)
+  ctx.fillStyle = TOK.ink; roundRect(287, 14, 10, 18, 5); ctx.fill();
+  ctx.strokeStyle = TOK.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(292, 25, 9, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(292, 34); ctx.lineTo(292, 40); ctx.stroke(); ctx.globalAlpha = 1;
+}
+function drawStart() {
+  ctx.fillStyle = 'rgba(30,34,69,0.35)'; ctx.fillRect(0, 0, W, H);
+  const p = 1 + Math.sin(time * 3) * 0.04;
+  ctx.save(); ctx.translate(160, 120); ctx.scale(p, p);
+  ctx.fillStyle = TOK.cream; ctx.beginPath(); ctx.arc(0, 0, 36, 0, 7); ctx.fill();
+  ctx.fillStyle = '#2DB26E'; ctx.beginPath(); ctx.moveTo(-10, -16); ctx.lineTo(18, 0); ctx.lineTo(-10, 16); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+let fps = 60, frameMs = 0;
+function drawHud() {
+  if (!debug) return;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(176, 214, 144, 26);
+  ctx.fillStyle = parts.length > TOK.deviceMaxParticles ? '#FF9A92' : '#FFFFFF'; ctx.font = '8px monospace';
+  ctx.fillText(`fps ${fps.toFixed(0)} draw ${frameMs.toFixed(1)}ms p ${parts.length}/${maxParticles}`, 180, 224);
+  ctx.fillText(`seed ${seed} ${st.phase} e${mon.eyes} m${mon.mouth} got ${st.got.filter(Boolean).length} hint ${st.hint} ${reduced ? 'RM' : ''}`, 180, 235);
+}
+// One full frame of the game scene (the golden harness calls this directly).
+function drawScene() {
+  drawBackground();
+  drawAmbient();
+  drawStickers();                // the shelf sits behind the monster: a raised tuft may poke over it
+  drawMonster();
+  drawButtons(); drawFlights(); drawHelperHand(); drawFx(); drawChrome();
+}
+
+// Test hook for tools/quality_bar_golden/sketch_check.mjs (not ported): the logical point a helpful player taps next, or null.
+function autoTarget() {
+  if (st.phase !== 'FREE' && st.phase !== 'SHOW_ME') return null;     // null while a feeling is acted out
+  const g = nextGoal(); if (g < 0) return null;
+  return mon.eyes !== g ? { x: 160, y: 92 } : { x: 160, y: 156 };
+}
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  update(dt); if (ac) musicTick();
+  const t0 = performance.now();
+  drawScene();
+  if (st.phase === 'START') drawStart();
+  frameMs = lerp(frameMs, performance.now() - t0, 0.1); fps = lerp(fps, 1 / Math.max(dt, 1e-3), 0.05);
+  drawHud();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

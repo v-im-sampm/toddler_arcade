@@ -8,6 +8,22 @@
 | Play value | Free musical exploration, shapes, colours, optional follow-the-light |
 | Capabilities | music, narration, pointer_drag (glissando), particles |
 
+**Reference sketch (v2 mockup, awaiting owner review):** [`rainbow_piano.html`](../reference/rainbow_piano.html) is the
+runnable browser reference for this design: scene, motion and Web Audio score. Once the owner approves
+it, the device port follows it line by line ([06 §4.5](../docs/06_visual_motion_design.md)).
+Notable differences from the design below:
+- Instrument picker: bells, flute, drum and marimba fill the top band x 64..256 exactly (4 × 48 px). Toy piano, the default, sits on the rainbow's left cloud foot {4,58,56,58}, because five 48 px icons do not fit in 64..256.
+- The groove toggle is a metronome on the right cloud foot {260,58,56,58}, not a drum, so it is not confused with the drum instrument. It is off by default and has its own 6-voice pool. The visual quantise is note creatures popping on the beat.
+- Follow mode: entering plays the "Follow the light!" cue, then the light previews the whole tune. Tapping the bulb off and on keeps the tune and step and replays the preview; this is the touch path for AGAIN.
+- Follow progress: each correct note lights one rainbow band. Tunes are 6 original 5-note phrases from a seeded shuffle bag.
+- Help: follow mode bounces the target after 5 s, plays the spoken cue at 12 s, and shows a helper hand after 2 wrong keys or the spoken cue. Free play, which the design does not specify, gets a silent glow wave at 6 s and "Play the rainbow!" at 12 s.
+- "Spoken" prompts are marimba motif stand-ins until the voice pack exists.
+- Glissando: key entries are queued and played ≥ 60 ms apart; fast slides fill in skipped keys. A 3 px hysteresis stops chatter at key edges.
+- Voices: key notes have their own 5-voice pool, one per key; a retrigger or steal fades in about 20 ms. UI cues keep the shared 8-voice limit, and the groove has its own 6, so the total can exceed §9's 6.
+- Key note tails of 0.4–1.2 s exceed the 150 ms tap-sound rule by design (§5 release tails).
+- Note creatures can be tapped (pop plus a soft note). Particles are capped at 48 per §9.
+- Keys still play during the 2 s RAINBOW celebration (no input block).
+
 ## 1. Pitch
 Five glowing shape-keys on a rainbow bridge sing when touched, and little notes fly into the sky.
 *Feels like:* a real instrument that always sounds good.

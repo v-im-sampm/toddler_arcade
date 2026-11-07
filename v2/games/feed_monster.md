@@ -8,6 +8,21 @@
 | Play value | Counting 1–3 (later 1–5), one-to-one correspondence |
 | Capabilities | music, narration, voice_intents, pointer_drag, particles |
 
+**Reference sketch (v2 mockup, awaiting owner review):** [`feed_monster.html`](../reference/feed_monster.html) is the
+runnable browser reference for this design: scene, motion and Web Audio score. Once the owner approves
+it, the device port follows it line by line ([06 §4.5](../docs/06_visual_motion_design.md)).
+Notable differences from the design below:
+- No narration or speech. Numbers come from Munch's paw (N fingers) and N dots in the thought bubble, plus one rising note per finger and per snack. "Too many!" is a giggle sound with hearts.
+- The N fingers are on Munch's paw inside the thought bubble, not on Munch's own round paws.
+- A request is N snacks of any kind from a mixed bowl, not "two berries".
+- The ONE/TWO/THREE/AGAIN/HELP voice intents are keys 1/2/3/A/H, because the mic chrome is disabled.
+- Any dot card auto-feeds that many snacks, and extras giggle. A second card tap replaces the rest of a running card feed. Only cards 1–3 exist, so N = 4–5 needs two cards or drag/tap.
+- HELP also starts from the 12 s idle hint and after 2 missed drops. The fingers re-count with a hum, the bowl glows, a helper hand traces the drag path, and the matching card glows.
+- The kitchen bed is an original bouncy music bed: a marimba melody over a tuba-pluck bass in E♭ pentatonic at 100 BPM, ducked under cues. There is no kitchen ambience.
+- The dragged snack follows the finger on a stiffer spring (k 520, c 40) than `spring.soft`, so it stays under the fingertip.
+- The 1.5 s celebration, after the 0.8 s belly-rub/burp FULL state, cannot be skipped by tapping (06 §3.5), as in the hatch and Color Pop references. Input is never blocked, and taps and extra snacks still work during it.
+- Adaptation: 5 unhelped rounds in a row raise the maximum N by one, up to 5. 2 helped rounds in a row lower it, but not below 3. The sketch has no parent cap.
+
 ## 1. Pitch
 Munch, a big fluffy monster, wants exactly *two* berries. Feed it and watch it chomp!
 *Feels like:* feeding a silly pet.

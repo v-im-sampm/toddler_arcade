@@ -42,6 +42,7 @@ structure does not have to.
 | — | [schemas/](schemas/) | JSON Schemas for game and asset manifests, with a worked example |
 | — | [design/tokens.json](design/tokens.json) | Design tokens for colour, motion, layout and audio, shared by every platform |
 | — | [reference/quality_bar.html](reference/quality_bar.html) | Runnable browser sketch of the intended feel (motion, particles, harmonised audio) |
+| — | [reference/](reference/) | One runnable reference sketch per game (`<game_id>.html`; Color Pop is `quality_bar.html`). The device port follows an approved sketch line by line |
 | — | [agents/](agents/) | Specialist agent prompts for v2 roles |
 | — | [decisions/](decisions/) | ADR template and the list of decisions Phase 0 must produce |
 

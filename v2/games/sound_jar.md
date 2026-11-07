@@ -8,6 +8,22 @@
 | Play value | Voice play, cause-and-effect, pitch and effects |
 | Capabilities | music, narration, microphone_sampler, pointer_drag, particles |
 
+**Reference sketch (v2 mockup, awaiting owner review):** [`sound_jar.html`](../reference/sound_jar.html) is the
+runnable browser reference for this design: scene, motion and Web Audio score. Once the owner approves
+it, the device port follows it line by line ([06 §4.5](../docs/06_visual_motion_design.md)).
+Notable differences from the design below:
+- No microphone in the sketch: a "recording" replays one of four original voices synthesised at load (16 kHz) in a seeded rotation; every 4th take is a too-quiet whisper that triggers the retry.
+- Effect toggles are centred at x 82..238 (48×48 hit boxes from x 58 to 262), because four 48 px targets do not fit inside 72..248.
+- The spoken "Let's try again, a bit louder!" is nonverbal (no speech synth): the jar wiggles with raised brows and hums "hm-hm?", and yellow "louder" arcs ripple from the record button.
+- The countdown dots are silent. The lid hops off to lean on the jar's left shoulder while recording, and tapping the record button again stops a recording early.
+- After the pop and a short cheer, the jar plays the new take once by itself; tapping the jar plays its sound.
+- The jar is emptied only with the bin (there is no 2 s jar hold), so a jar tap always plays.
+- There is no prompt badge (the game has no prompts). The 12 s hint is the jar humming plus the helper hand pointing at the next thing: the record button, then a fixed tour of pads and effects.
+- PLAYING is derived (a live sampler voice in EMPTY or FULL) rather than a separate state.
+- Echo and ring mod run on one shared sampler bus (≤ 4 voices) rather than per voice; reverse and wobble are per voice.
+- Pad visuals are at most 54 px and shrink with pitch (size encodes pitch); every pad keeps the full 64×72 hit box.
+- The mist motes in the jar (bubble, heart, star or dot, chosen per take) are computed shapes rather than pool particles; pool particles are used for pours, sparkles and confetti.
+
 ## 1. Pitch
 Say something into the magic jar, then play your own voice high, low, backwards, robot or wobbly.
 *Feels like:* a magic echo that plays with you.

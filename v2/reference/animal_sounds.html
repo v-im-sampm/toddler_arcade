@@ -1,0 +1,1127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Little Arcade v2 – reference sketch (Animal Sounds)</title>
+<!--
+  REFERENCE SKETCH: the device port must match this file exactly (see docs/06 §4).
+  Same visual language, motion tokens and audio graph as quality_bar.html and hatch_a_pet.html.
+  Canvas features are limited to what firmware ui/ctx2d supports: paths, arcs, ellipses,
+  bezier/quadratic curves, linear/radial gradients, globalAlpha, 'lighter', transforms.
+  No clip, drawImage, text, shadows or filters in the game scene: animals hide behind bushes,
+  barn half doors and pond water purely by draw order (back layer, animal, front occluder).
+  Audio nodes: sine oscillators (additive partials), linear-attack/exponential-decay gains,
+  exponential pitch glides, sine LFOs on gain or frequency, white noise through one biquad,
+  an original looping farm tune (ukulele plucks + soft whistle, A major pentatonic, 90 BPM)
+  on its own small voice pool that ducks under the cues, one compressor.
+  The eight animal calls are original synthesized voices: no recordings, no speech.
+  All art is procedural and original; no external resources, no network, no storage, no mic.
+  Keys: D = debug HUD, R = reduced motion, P = toggle device/web particle cap,
+        M = mute (audio-off mode: the horn badge shows the hidden animal's silhouette).
+  URL ?seed=N.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #1E2245; overflow: hidden;
+    touch-action: none; user-select: none; -webkit-user-select: none; }
+  #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,.45); }
+  #note { position: fixed; left: 8px; bottom: 6px; color: #9DB8FA; font: 12px system-ui, sans-serif; opacity: .7; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" aria-label="Animal Sounds reference sketch"></canvas></div>
+<div id="note">v2 reference sketch · Animal Sounds · 320×240 logical stage · D debug · R reduced motion · P particle cap · M mute (audio-off: silhouette badge)</div>
+<script>
+'use strict';
+// ---------- tokens (same subset as quality_bar.html, plus the farm palette of scene_art) ----------
+const W = 320, H = 240;
+const TOK = {
+  ink: '#3B3550', inkSoft: '#6F6888', paper: '#FFF8EC', cream: '#FFF3D6', creamLine: '#D9C7A3', hintGlow: '#FFE066',
+  skyTop: '#BFE6FF', skyHaze: '#E6F5FF', limeLight: '#D6EE95', lime: '#A6D13B', limeDark: '#6E9A1F',
+  squashPress: [1.12, 0.88], wiggleDeg: 6, wiggleMs: 360, glowPeriod: 0.9,
+  idleVisualHint: 6, idleSpokenHint: 12, maxInputBlock: 0.3, autoHelpAfter: 2,
+  springBouncy: { k: 380, c: 14 }, springSoft: { k: 160, c: 18 }, breathScale: 0.025, bob: 2, tapDebounce: 0.08,
+  introS: 1.5, celebrateS: 1.8, paradeS: 2.0, paradeEvery: 4,
+  deviceMaxParticles: 96, webMaxParticles: 400,
+};
+// Colour triples from tokens.json (shadow / base / light).
+const HUE = {
+  red:    { shadow: '#B8323A', base: '#EF4B4F', light: '#FF9A92' },
+  orange: { shadow: '#C2621B', base: '#FF8A2A', light: '#FFC07F' },
+  yellow: { shadow: '#C99A0E', base: '#FFD23F', light: '#FFEB9C' },
+  green:  { shadow: '#1E8452', base: '#2DB26E', light: '#8EE0B4' },
+  sky:    { shadow: '#2B79B8', base: '#4FB0F0', light: '#A9DBFB' },
+  purple: { shadow: '#6236A6', base: '#8F5BE0', light: '#C9AEF5' },
+  pink:   { shadow: '#B23E86', base: '#F06BB8', light: '#FBB6DC' },
+  brown:  { shadow: '#7A4E2D', base: '#B07A4F', light: '#DDB892' },
+  cream:  { shadow: '#D9C7A3', base: '#FFF3D6', light: '#FFFBEF' },
+};
+// Eight original farm friends (round Toy Box style, each with its own silhouette). hab = where it hides.
+const ANIMALS = [
+  { name: 'COW',   hab: 'BARN', c: HUE.cream },
+  { name: 'DUCK',  hab: 'POND', c: HUE.yellow },
+  { name: 'SHEEP', hab: 'BUSH', c: HUE.cream },
+  { name: 'PIG',   hab: 'BARN', c: HUE.pink },
+  { name: 'DOG',   hab: 'BARN', c: HUE.brown },
+  { name: 'CAT',   hab: 'BUSH', c: HUE.orange },
+  { name: 'FROG',  hab: 'POND', c: HUE.green },
+  { name: 'OWL',   hab: 'BUSH', c: HUE.purple },
+];
+// Similar-sounding partner of each animal; never mixed in 2-spot rounds (doc §7: easy mixes first).
+const SIMILAR = [2, 6, 0, 4, 3, 7, 1, 5];                 // COW-SHEEP, DUCK-FROG, PIG-DOG, CAT-OWL
+// Stage geometry (logical px). Six 96×80 slots (doc §3.3) and balanced layouts for 2, 3 and 4 spots.
+const SLOTS = [[8, 64], [112, 64], [216, 64], [8, 152], [112, 152], [216, 152]];
+const LAYOUTS = { 2: [[3, 5], [0, 5], [2, 3], [1, 4]], 3: [[3, 4, 5], [0, 2, 4], [1, 3, 5]], 4: [[0, 2, 3, 5], [1, 3, 4, 5], [0, 1, 2, 4]] };
+const SLOT_W = 96, SLOT_H = 80, AS = 0.9;                // AS = animal scale inside a hiding spot
+// Hiding-spot kinds (slot-local px): occ = top edge of the occluder, max = deepest feet y that stays hidden,
+// out = feet y when popped out, hint / auto = extra peek lift for the visual hint and for auto-help.
+const HAB = {
+  BUSH: { occ: 42, max: 66, out: 46, hint: 5, auto: 10 },
+  POND: { occ: 56, max: 72, out: 56, hint: 6, auto: 10 },
+  BARN: { occ: 61, max: 80, out: 77, hint: 5, auto: 10 },
+};
+const BADGE = [132, 4, 56, 56];                          // replay horn (doc §3.3)
+const PARADE = { y: 210, gap: 46, speed: 272, s: 1 };    // farm parade: feet line, spacing, px/s, scale
+
+// ---------- utils ----------
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+const easeOutBack = t => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const seed = parseInt(new URLSearchParams(location.search).get('seed') || '1234', 10);
+const grng = mulberry32(seed);          // gameplay RNG (deterministic per seed)
+const frng = Math.random;               // cosmetic RNG
+const inRect = (x, y, r) => x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3];
+
+// ---------- canvas ----------
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let scale = 1;
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  scale = Math.min(innerWidth / W, innerHeight / H) * 0.96;
+  cv.style.width = (W * scale) + 'px'; cv.style.height = (H * scale) + 'px';
+  cv.width = Math.round(W * scale * dpr); cv.height = Math.round(H * scale * dpr);
+  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+let reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let debug = false, maxParticles = TOK.deviceMaxParticles;
+
+// ---------- audio (Web Audio, A major pentatonic, conservative gain) ----------
+let ac = null, master = null, voices = [], muted = false, noiseBuf = null;
+const PENT = [0, 2, 4, 7, 9];
+function degFreq(deg, oct = 0) {                          // deg 0 = A4; A B C# E F#
+  const o = Math.floor(deg / 5), i = ((deg % 5) + 5) % 5;
+  return 440 * Math.pow(2, (PENT[i] + 12 * (o + oct)) / 12);
+}
+function initAudio() {
+  if (ac) return;
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  const comp = ac.createDynamicsCompressor();
+  comp.threshold.value = -14; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.15;
+  master = ac.createGain(); master.gain.value = 0;
+  master.connect(comp); comp.connect(ac.destination);
+  master.gain.setTargetAtTime(muted ? 0 : 0.35, ac.currentTime, 0.1);   // ramp in: never a loud start
+  noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);           // 1 s of white noise, fixed seed
+  const d = noiseBuf.getChannelData(0), nr = mulberry32(99);
+  for (let i = 0; i < d.length; i++) d[i] = nr() * 2 - 1;
+}
+function setMuted(on) {                                   // M key: audio-off mode (the badge shows a silhouette)
+  muted = on;
+  if (!ac) return;
+  master.gain.cancelScheduledValues(ac.currentTime);
+  master.gain.setTargetAtTime(on ? 0 : 0.35, ac.currentTime, 0.05);
+}
+function voiceOk(len, prio = false) {
+  const now = ac.currentTime; voices = voices.filter(e => e > now);
+  if (voices.length >= 8) {                               // voice limit; an animal call steals the oldest voice
+    if (!prio) return false;
+    voices.sort((a, b) => a - b); voices.shift();
+  }
+  voices.push(now + len); duckMusic(now, len); return true;
+}
+function env(g, t, peak, attack, dur) {
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+}
+// Sustained voice (calls, whistle): linear attack, gentle sag to 60 %, short exponential release.
+function env2(g, t, peak, attack, dur) {
+  const rel = Math.min(0.08, dur * 0.4);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + attack);
+  g.gain.exponentialRampToValueAtTime(peak * 0.6, t + dur - rel);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+}
+// Ukulele-like pluck: sine plus fast-decaying octave and twelfth partials.
+function pluck(freq, when = 0, vel = 1, dur = 0.4) {
+  if (!ac || !voiceOk(when + dur)) return;
+  const t = ac.currentTime + when;
+  const g = ac.createGain(); env(g, t, 0.36 * vel, 0.003, dur); g.connect(master);
+  const o1 = ac.createOscillator(); o1.type = 'sine'; o1.frequency.value = freq; o1.connect(g);
+  const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 2;
+  const g2 = ac.createGain(); env(g2, t, 0.22 * vel, 0.002, Math.min(dur, 0.1)); o2.connect(g2); g2.connect(g);
+  const o3 = ac.createOscillator(); o3.type = 'sine'; o3.frequency.value = freq * 3;
+  const g3 = ac.createGain(); env(g3, t, 0.1 * vel, 0.002, Math.min(dur, 0.05)); o3.connect(g3); g3.connect(g);
+  for (const o of [o1, o2, o3]) { o.start(t); o.stop(t + dur + 0.05); }
+}
+// Pitched sine with an exponential glide (plop, plip and the woodblock use this voice).
+function glide(f0, f1, glideS, when, peak, dur) {
+  if (!ac || !voiceOk(when + dur)) return;
+  const t = ac.currentTime + when;
+  const o = ac.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + glideS);
+  const g = ac.createGain(); env(g, t, peak, 0.003, dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.04);
+}
+const plop = (when = 0, vel = 1, hi = 1) => glide(760 * hi, 230 * hi, 0.07, when, 0.35 * vel, 0.14);
+// Woodblock knock: short body with a slight pitch drop plus a bright inharmonic tick.
+function woodblock(freq, when = 0, vel = 1) {
+  glide(freq, freq * 0.92, 0.05, when, 0.42 * vel, 0.12);
+  glide(freq * 2.76, freq * 2.76, 0.01, when, 0.14 * vel, 0.04);
+}
+// White noise through one biquad (snort, woof breath, leaf rustle, water).
+function noiseBurst(t, type, freq, len, peak, dst = master) {
+  const src = ac.createBufferSource(); src.buffer = noiseBuf;
+  const bq = ac.createBiquadFilter(); bq.type = type; bq.frequency.value = freq; bq.Q.value = type === 'bandpass' ? 1.2 : 0.7;
+  const g = ac.createGain(); env(g, t, peak, 0.01, len);
+  src.connect(bq); bq.connect(g); g.connect(dst); src.start(t); src.stop(t + len + 0.05);
+}
+// ---------- animal calls (original synthesized voices; glide end points are A major pentatonic degrees) ----------
+// Syllable: t start (s), d length, f glide degrees [start, (peak,) end], m peak point (fraction of d), h partial gains,
+// a attack, v peak gain, vib [Hz, depth as a fraction of f], trem [Hz, depth], nz [filter, Hz, length, peak].
+const CALLS = [
+  [{ t: 0, d: 0.9, f: [-7, -5, -7], m: 0.35, h: [1, 0.55, 0.3, 0.15], a: 0.08, v: 0.34, vib: [5, 0.012] }],             // COW moo
+  [{ t: 0, d: 0.16, f: [-1, -3], h: [1, 0.8, 0.6, 0.45, 0.3], a: 0.01, v: 0.3 },                                      // DUCK quack
+   { t: 0.24, d: 0.16, f: [-1, -3], h: [1, 0.8, 0.6, 0.45, 0.3], a: 0.01, v: 0.3 }],                                  //      quack
+  [{ t: 0, d: 0.75, f: [-2, -3], h: [1, 0.6, 0.35, 0.2], a: 0.03, v: 0.32, trem: [9, 0.6] }],                        // SHEEP baa
+  [{ t: 0, d: 0.18, f: [-4, -2, -3], m: 0.4, h: [1, 0.7, 0.5], a: 0.01, v: 0.3, nz: ['lowpass', 900, 0.14, 0.12] },  // PIG oink
+   { t: 0.26, d: 0.18, f: [-4, -2, -3], m: 0.4, h: [1, 0.7, 0.5], a: 0.01, v: 0.3, nz: ['lowpass', 900, 0.14, 0.12] }],
+  [{ t: 0, d: 0.14, f: [-3, -2, -5], m: 0.3, h: [1, 0.5, 0.3], a: 0.008, v: 0.34, nz: ['bandpass', 800, 0.1, 0.14] }, // DOG woof
+   { t: 0.28, d: 0.14, f: [-3, -2, -5], m: 0.3, h: [1, 0.5, 0.3], a: 0.008, v: 0.34, nz: ['bandpass', 800, 0.1, 0.14] }],
+  [{ t: 0, d: 0.6, f: [1, 3, 1], m: 0.45, h: [1, 0.35, 0.15], a: 0.05, v: 0.26, vib: [6, 0.015] }],                  // CAT meow
+  [{ t: 0, d: 0.13, f: [-5, -4, -5], m: 0.5, h: [1, 0.6, 0.4, 0.2], a: 0.01, v: 0.34, trem: [28, 0.85] },            // FROG rib-
+   { t: 0.2, d: 0.12, f: [-3, -4], h: [1, 0.6, 0.4, 0.2], a: 0.01, v: 0.34, trem: [28, 0.85] }],                     //      bit
+  [{ t: 0, d: 0.34, f: [-2, -3], h: [1, 0.08], a: 0.06, v: 0.3, nz: ['bandpass', 1200, 0.2, 0.03] },                 // OWL hoo
+   { t: 0.5, d: 0.18, f: [-2, -3], h: [1, 0.08], a: 0.04, v: 0.26 },                                                 //     hoo-
+   { t: 0.74, d: 0.32, f: [-2, -3], h: [1, 0.08], a: 0.05, v: 0.28 }],                                               //     hoo
+];
+function syllable(s, t0, bus) {
+  const t = t0 + s.t, end = t + s.d + 0.05, f = s.f.map(d => degFreq(d)), sum = s.h.reduce((a, b) => a + b, 0);
+  const out = ac.createGain(); env2(out, t, s.v, s.a, s.d); out.connect(bus);
+  let dst = out, vib = null;
+  if (s.trem) {                                           // tremolo: sine LFO on a series gain (1 - depth/2 ± depth/2)
+    const tg = ac.createGain(); tg.gain.value = 1 - s.trem[1] / 2; tg.connect(out); dst = tg;
+    const l = ac.createOscillator(); l.type = 'sine'; l.frequency.value = s.trem[0];
+    const lg = ac.createGain(); lg.gain.value = s.trem[1] / 2; l.connect(lg); lg.connect(tg.gain); l.start(t); l.stop(end);
+  }
+  if (s.vib) { vib = ac.createOscillator(); vib.type = 'sine'; vib.frequency.value = s.vib[0]; vib.start(t); vib.stop(end); }
+  s.h.forEach((hg, n) => {                                // additive partials, each gliding with the fundamental
+    const m = n + 1, o = ac.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(f[0] * m, t);
+    if (f.length > 2) o.frequency.exponentialRampToValueAtTime(f[1] * m, t + s.d * s.m);
+    o.frequency.exponentialRampToValueAtTime(f[f.length - 1] * m, t + s.d);
+    if (vib) { const vg = ac.createGain(); vg.gain.value = f[0] * m * s.vib[1]; vib.connect(vg); vg.connect(o.frequency); }
+    const g = ac.createGain(); g.gain.value = hg / sum; o.connect(g); g.connect(dst); o.start(t); o.stop(end);
+  });
+  if (s.nz) noiseBurst(t, s.nz[0], s.nz[1], s.nz[2], s.nz[3], bus);
+}
+const callSyl = (k, short) => short ? [{ ...CALLS[k][0], d: Math.min(0.32, CALLS[k][0].d) }] : CALLS[k];
+const callLen = (k, short = false) => Math.max(...callSyl(k, short).map(s => s.t + s.d));
+let calls = [];                                           // live calls: one bus each, so a new pick can hush them
+function playCall(k, when = 0, short = false) {           // a whole call is one cue voice (short = parade)
+  if (!ac || !voiceOk(when + callLen(k, short), true)) return;
+  const t = ac.currentTime + when, bus = ac.createGain(); bus.connect(master);
+  for (const s of callSyl(k, short)) syllable(s, t, bus);
+  calls = calls.filter(c => c.end > ac.currentTime); calls.push({ bus, end: t + callLen(k, short) });
+}
+function hushCalls() {                                    // only one animal speaks at a time (30 ms fade)
+  if (!ac) return;
+  const now = ac.currentTime;
+  for (const c of calls) if (c.end > now) { c.bus.gain.cancelScheduledValues(now); c.bus.gain.setTargetAtTime(0, now, 0.03); }
+  calls = [];
+}
+function callEnv(k, u, short = false) {                   // 0..1 loudness of a call u s after its start (mouth, horn)
+  let e = 0;
+  for (const s of callSyl(k, short)) {
+    const x = u - s.t, rel = Math.min(0.08, s.d * 0.4);
+    if (x < 0 || x > s.d) continue;
+    e = Math.max(e, x < s.a ? x / s.a : x < s.d - rel ? Math.pow(0.6, (x - s.a) / (s.d - rel - s.a))
+      : 0.6 * Math.pow(0.0001 / 0.6, (x - s.d + rel) / rel));
+  }
+  return e;
+}
+// ---------- farm tune (original; A major pentatonic, 4/4 at 90 bpm, 8 bars = 21.3 s loop) ----------
+// Ukulele plucks: bass on beats 1 and 3, a soft three-string strum on beats 2 and 4; a soft whistle on top.
+const TUNE = { spb: 60 / 90, beats: 32, voices: 6,
+  chords: [[-2, 0, 2], [-1, 0, 2], [-2, 0, 2], [-2, 0, 1], [-2, 0, 2], [-1, 0, 2], [-2, 0, 1], [-2, 0, 2]],  // A F#m A Esus A F#m Esus A
+  bass: [0, -1, 0, -2, 0, -1, -2, 0],
+  melody: [[0, 2, 1], [1, 3, 1], [2, 4, 2], [4, 3, 1.5], [5.5, 2, 0.5], [6, 0, 2], [8, 1, 1], [9, 2, 1], [10, 3, 1],
+           [11, 2, 1], [12, 1, 3], [16, 3, 1], [17, 5, 1], [18, 4, 1], [19, 3, 1], [20, 2, 1.5], [21.5, 3, 0.5],
+           [22, 4, 2], [24, 3, 1], [25, 2, 1], [26, 1, 2], [28, 0, 3]] };
+// Events in time order: [beat, freq, peak, attack, dur, kind]; kind 0 = pluck, 1 = whistle.
+const SONG = [];
+TUNE.bass.forEach((d, i) => { SONG.push([i * 4, degFreq(d, -2), 0.07, 0.004, 0.6, 0]); SONG.push([i * 4 + 2, degFreq(d, -2), 0.055, 0.004, 0.5, 0]); });
+TUNE.chords.forEach((c, i) => [1, 3].forEach(b => c.forEach((d, j) => SONG.push([i * 4 + b + j * 0.04, degFreq(d, -1), 0.03, 0.003, 0.32, 0]))));
+for (const [b, d, n] of TUNE.melody) SONG.push([b, degFreq(d), 0.045, 0.06, n * TUNE.spb + 0.15, 1]);
+SONG.sort((a, b) => a[0] - b[0] || b[2] - a[2]);
+let music = null, musicBus = null, duck = null, duckUntil = 0, musicVoices = [];
+function startMusic() {
+  if (!ac) return;
+  if (!musicBus) { musicBus = ac.createGain(); duck = ac.createGain(); musicBus.connect(duck); duck.connect(master); }
+  const now = ac.currentTime;
+  musicBus.gain.cancelScheduledValues(now); musicBus.gain.setValueAtTime(0, now);
+  musicBus.gain.setTargetAtTime(1, now + 0.5, 1.5);                // gentle fade-in, never a loud start
+  music = { t0: now + 0.5, i: 0, loop: 0 }; musicVoices = [];
+}
+function stopMusic() {
+  if (!music) return;
+  musicBus.gain.cancelScheduledValues(ac.currentTime); musicBus.gain.setTargetAtTime(0, ac.currentTime, 0.15);
+  music = null;
+}
+function musicVoiceOk(t, len) {                                    // own pool: never takes cue voices
+  musicVoices = musicVoices.filter(e => e > t);
+  if (musicVoices.length >= TUNE.voices) return false;
+  musicVoices.push(t + len); return true;
+}
+function musicNote(t, freq, peak, attack, dur, kind) {
+  if (!musicVoiceOk(t, dur)) return;
+  const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+  const g = ac.createGain(); o.connect(g); g.connect(musicBus);
+  if (kind === 1) {                                                // soft whistle: sine with a slight vibrato
+    env2(g, t, peak, attack, dur);
+    const l = ac.createOscillator(); l.type = 'sine'; l.frequency.value = 5.5;
+    const lg = ac.createGain(); lg.gain.value = freq * 0.006; l.connect(lg); lg.connect(o.frequency);
+    l.start(t); l.stop(t + dur + 0.05);
+  } else {                                                         // pluck: fundamental + quick octave partial
+    env(g, t, peak, attack, dur);
+    const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 2;
+    const g2 = ac.createGain(); env(g2, t, peak * 0.5, attack, dur * 0.3);
+    o2.connect(g2); g2.connect(musicBus); o2.start(t); o2.stop(t + dur + 0.05);
+  }
+  o.start(t); o.stop(t + dur + 0.05);
+}
+function musicTick() {                                             // schedule notes 0.4 s ahead
+  if (!music) return;
+  for (;;) {
+    const e = SONG[music.i], t = music.t0 + (music.loop * TUNE.beats + e[0]) * TUNE.spb;
+    if (t > ac.currentTime + 0.4) return;
+    musicNote(t, e[1], e[2], e[3], e[4], e[5]);
+    if (++music.i >= SONG.length) { music.i = 0; music.loop++; }
+  }
+}
+function duckMusic(now, len) {                                     // music dips to 0.32 (-10 dB) under cues
+  if (!duck) return;
+  duckUntil = Math.max(duckUntil, now + len);
+  duck.gain.cancelScheduledValues(now);
+  duck.gain.setTargetAtTime(0.32, now, 0.03); duck.gain.setTargetAtTime(1, duckUntil, 0.3);
+}
+// ---------- cues (all pitched notes in A major pentatonic) ----------
+function strum(degs, when = 0, vel = 1, gap = 0.07, dur = 0.3, oct = 0) { degs.forEach((d, i) => pluck(degFreq(d, oct), when + i * gap, vel, dur)); }
+const tapNote = x => pluck(degFreq(clamp((x / 64) | 0, 0, 4), 1), 0, 0.28, 0.15);     // empty tap: pitch rises left to right
+const introStrum = () => strum([-5, -3, -2, 0], 0, 0.6, 0.07, 0.4);
+const winStrum = when => strum([0, 2, 3, 5], when, 0.7, 0.08, 0.3);                 // A C# E A, 0.54 s
+const paradeStrum = () => strum([0, 2, 3, 5, 3, 5], 0, 0.45, 0.11, 0.35);
+function rustle(hab) {                                    // tap on a hiding spot (<= 150 ms)
+  if (!ac) return;
+  if (hab === 'BARN') { woodblock(degFreq(-5), 0, 0.8); return; }                    // knock on the half door
+  if (voiceOk(0.14)) noiseBurst(ac.currentTime, hab === 'POND' ? 'lowpass' : 'bandpass', hab === 'POND' ? 1400 : 2600, 0.13, 0.12);
+  if (hab === 'POND') glide(degFreq(-2), degFreq(2), 0.06, 0, 0.2, 0.12);           // plip
+  else pluck(degFreq(3), 0.02, 0.2, 0.12);                                             // leafy tick
+}
+
+// ---------- particles, rings, ambient ----------
+let parts = [], rings = [], flies = [];
+function emit(x, y, n, o) {
+  n = Math.max(1, Math.round(n * (reduced ? 0.5 : 1)));
+  for (let i = 0; i < n; i++) {
+    if (parts.length >= maxParticles) parts.shift();            // evict oldest, never exceed cap
+    const a = frng() * Math.PI * 2, sp = lerp(o.speed[0], o.speed[1], frng()), life = lerp(o.life[0], o.life[1], frng());
+    parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - (o.up || 0), g: o.gravity, life, max: life,
+      shape: o.shape, color: o.colors[(frng() * o.colors.length) | 0], size: o.size * lerp(0.7, 1.3, frng()),
+      rot: frng() * 6.28, vr: (frng() - 0.5) * 8, add: !!o.additive });
+  }
+}
+const SPARKLE = { speed: [40, 110], life: [0.35, 0.7], gravity: 60, shape: 'star', size: 5, colors: ['#FFEB9C', '#FFFBEF'], additive: true };
+const CONFETTI = { speed: [60, 170], life: [0.9, 1.5], gravity: 140, shape: 'rect', size: 6, up: 60,
+  colors: [HUE.red.base, HUE.yellow.base, HUE.sky.base, HUE.green.base, HUE.pink.base, HUE.purple.base] };
+const BUBBLES = { speed: [6, 24], life: [0.6, 1.0], gravity: -50, shape: 'bubble', size: 3, colors: ['#FFFFFF', HUE.sky.light] };
+const NOTES = { speed: [15, 45], life: [0.8, 1.2], gravity: -45, shape: 'note', size: 6, up: 25, colors: [HUE.purple.base, HUE.sky.shadow, HUE.pink.shadow] };
+const LEAVES = { speed: [40, 90], life: [0.5, 0.8], gravity: 170, shape: 'leaf', size: 5, up: 50, colors: [HUE.green.base, HUE.green.light, TOK.lime] };
+const HAY = { speed: [40, 90], life: [0.4, 0.7], gravity: 220, shape: 'rect', size: 4, up: 60, colors: [HUE.yellow.base, HUE.yellow.light, HUE.yellow.shadow] };
+const DROPS = { speed: [30, 70], life: [0.35, 0.6], gravity: 300, shape: 'circle', size: 2.5, up: 90, colors: ['#FFFFFF', HUE.sky.light] };
+const ring = (x, y, r0, r1, dur, color, w) => rings.push({ x, y, r0, r1, t: 0, dur, color, w });
+
+// ---------- entities ----------
+// spot = one hiding place and its animal. appear / leave: pop-in and shrink-out clocks (s). lift/lv: peek spring (px
+// above the hidden pose); q/qv: animal squash spring (pivot at the feet); hq/hqv: hiding-place squash (bush shake,
+// door rattle, splash). mode: PEEK (hiding) | OUT (popped out after another pick) | WIN (found) | CHEER (the others
+// while celebrating); mt = time in mode, outFor = when an OUT animal hides again; door: barn half door 0 shut..1 open;
+// wig = time since the last hint wiggle; call = game time its own call started (mouth sync).
+function makeSpot(k, slot, delay) {
+  const [x, y] = SLOTS[slot];
+  return { k, slot, x, y, hab: ANIMALS[k].hab, appear: -delay, leave: -1, lift: 0, lv: 0, q: 0, qv: 0, hq: 0, hqv: 0,
+    mode: 'PEEK', mt: 0, outFor: 0, door: 0, wig: 9, nextWig: 0.4, call: -9, blink: 1 + frng() * 4, ph: frng() * 6.28, lastTap: -9 };
+}
+// paraders: the found animals hopping across in the farm parade (call = start of its short call, game time).
+let spots = [], paraders = [], look = [160, 150], time = 0;
+const badge = { sv: 0, happy: 0, happyK: -1, heart: 0, callAt: -9, callK: 0, lastTap: -9 };
+const st = { phase: 'START', t: 0, bag: [], last: -1, round: 0, successes: 0, count: 2, ramp: 0, autoStreak: 0,
+  target: 0, misses: 0, idle: 0, spoken: false, called: false, callAt: 0, helpAt: -1, autoHelped: false, found: [] };
+
+function nextAnimal() {
+  if (!st.bag.length) {
+    st.bag = [0, 1, 2, 3, 4, 5, 6, 7];
+    for (let i = st.bag.length - 1; i > 0; i--) { const j = (grng() * (i + 1)) | 0; [st.bag[i], st.bag[j]] = [st.bag[j], st.bag[i]]; }
+    if (st.bag[st.bag.length - 1] === st.last) [st.bag[0], st.bag[st.bag.length - 1]] = [st.bag[st.bag.length - 1], st.bag[0]];
+  }
+  return st.bag.pop();
+}
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (grng() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function newRound(first) {
+  st.round++; st.target = nextAnimal(); st.last = st.target;
+  st.misses = 0; st.idle = 0; st.spoken = false; st.called = false; st.helpAt = -1; st.autoHelped = false;
+  // distractors: never the target, and never its similar-sounding partner while only two spots show
+  const pool = shuffle([0, 1, 2, 3, 4, 5, 6, 7].filter(k => k !== st.target && !(st.count <= 2 && k === SIMILAR[st.target])));
+  const ks = shuffle([st.target, ...pool.slice(0, st.count - 1)]);
+  const lays = LAYOUTS[st.count], lay = lays[(grng() * lays.length) | 0];
+  const d0 = first ? 0.25 : 0.05, gap = first ? 0.22 : 0.1;
+  spots = lay.map((slot, i) => makeSpot(ks[i], slot, d0 + i * gap)).sort((a, b) => a.slot - b.slot);
+  st.callAt = d0 + (lay.length - 1) * gap + 0.45;         // CALL: the mystery call follows the last pop-in
+  st.phase = first ? 'INTRO' : 'CALL'; st.t = 0;
+}
+function attract() {                                      // START screen: three friends peeking (no gameplay RNG)
+  spots = [makeSpot(0, 3, 0), makeSpot(1, 4, 0), makeSpot(7, 5, 0)];
+  for (const s of spots) s.appear = 1;
+}
+function resetRun() {
+  Object.assign(st, { t: 0, bag: [], last: -1, round: 0, successes: 0, count: 2, ramp: 0, autoStreak: 0, target: 0,
+    misses: 0, idle: 0, spoken: false, called: false, callAt: 0, helpAt: -1, autoHelped: false, found: [] });
+  Object.assign(badge, { sv: 0, happy: 0, happyK: -1, heart: 0, callAt: -9, callK: 0 });
+  parts = []; rings = []; spots = []; paraders = [];
+}
+function startGame() { initAudio(); startMusic(); resetRun(); newRound(true); introStrum(); }
+const choosing = () => (st.phase === 'CALL' && st.called) || st.phase === 'PLAY' || st.phase === 'HINT' || st.phase === 'AUTO_HELP';
+const speaking = () => !!ac && calls.some(c => c.end > ac.currentTime);
+function playMystery() {                                  // "Who says that?": the horn wiggles with the call
+  st.called = true; badge.callAt = time; badge.callK = st.target; badge.sv = -6;
+  playCall(st.target);
+}
+function poke() { st.idle = 0; st.spoken = false; if (st.phase === 'HINT') { st.phase = 'PLAY'; st.t = 0; } }
+function ack(x, y) { ring(x, y, 3, 22, 0.5, '#FFFFFF', 2); emit(x, y, 4, SPARKLE); tapNote(x); }
+
+// ---------- input ----------
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W, y = (e.clientY - r.top) / r.height * H;
+  look = [x, y];
+  if (st.phase === 'START') { startGame(); return; }
+  if (ac && ac.state === 'suspended') ac.resume();
+  if (inRect(x, y, [0, 0, 56, 56])) { home(); return; }
+  if (inRect(x, y, [264, 0, 56, 56])) { ring(292, 28, 6, 24, 0.4, '#FFFFFF', 2); return; } // mic: disabled in sketch
+  if (st.phase === 'INTRO') { ack(x, y); st.t = 99; return; }   // intro skippable
+  if (inRect(x, y, BADGE)) { tapBadge(); return; }
+  for (const s of spots) if (s.appear >= 0 && s.leave < 0 && inRect(x, y, [s.x, s.y, SLOT_W, SLOT_H])) { touchSpot(s); return; }
+  ack(x, y); poke();                                             // empty space: ring + sparkle + soft note
+});
+function tapBadge() {                                     // replay the mystery call (never stacks on a call)
+  if (time - badge.lastTap < TOK.tapDebounce) return;
+  badge.lastTap = time; badge.sv = -12; poke();
+  ring(160, 32, 24, 48, 0.45, '#FFFFFF', 3);
+  if ((choosing() || st.phase === 'CALL') && !speaking()) { playMystery(); emit(160, 52, 3, NOTES); }
+  else { emit(160, 40, 4, SPARKLE); if (!speaking()) tapNote(160); }
+}
+function touchSpot(s) {
+  if (time - s.lastTap < TOK.tapDebounce) return;
+  s.lastTap = time; s.qv = -3; s.hqv = -2.4; poke();
+  const x = s.x + 48, y = s.y + (s.hab === 'BARN' ? 66 : HAB[s.hab].occ + 2);
+  if (s.hab === 'BUSH') emit(x, y, 6, LEAVES);
+  else if (s.hab === 'POND') { emit(x, y, 5, DROPS); emit(x, y + 4, 3, BUBBLES); }
+  else emit(x, y, 6, HAY);
+  ring(x, y, 6, 34, 0.4, '#FFFFFF', 2); rustle(s.hab);
+  if (!choosing() || s.mode !== 'PEEK') return;
+  if (s.k === st.target) win(s); else miss(s);
+}
+function sayHi(s, mode) {                                 // pop out and give its own call (only one animal talks)
+  hushCalls(); badge.callAt = -9;
+  s.mode = mode; s.mt = 0; s.call = time + 0.12; s.qv = 3;
+  playCall(s.k, 0.12);
+  emit(s.x + 48, s.y + HAB[s.hab].out - 44, 4, NOTES);
+}
+function win(s) {
+  sayHi(s, 'WIN'); winStrum(0.16 + callLen(s.k));
+  st.phase = 'CELEBRATE'; st.t = 0; st.successes++;
+  for (const o of spots) if (o !== s) { o.mode = 'CHEER'; o.mt = 0; }
+  const cx = s.x + 48, cy = s.y + HAB[s.hab].out - 24;
+  emit(cx, cy, 16, SPARKLE); ring(cx, cy, 16, 64, 0.6, '#FFFBEF', 3);
+  badge.happy = TOK.celebrateS; badge.happyK = s.k;
+  st.found.push(s.k); if (st.found.length > 4) st.found.shift();
+  // 2 -> 3 -> 4 spots on unaided finds; two auto-helped rounds in a row step back one spot
+  if (st.autoHelped) { st.ramp = 0; if (++st.autoStreak >= 2 && st.count > 2) { st.count--; st.autoStreak = 0; } }
+  else { st.autoStreak = 0; if (++st.ramp >= (st.count === 2 ? 2 : 3) && st.count < 4) { st.count++; st.ramp = 0; } }
+}
+function miss(s) {                                        // another friend: its own call + a wave, never a "wrong" cue
+  sayHi(s, 'OUT'); st.misses++;
+  s.outFor = 0.12 + callLen(s.k) + 0.8;
+  for (const o of spots) if (o !== s && o.mode === 'OUT') { o.mode = 'PEEK'; o.mt = 0; }
+  if (st.misses >= TOK.autoHelpAfter) { st.phase = 'AUTO_HELP'; st.t = 0; st.helpAt = s.outFor; st.autoHelped = true; }
+}
+function startParade() {                                  // every 4 finds: the found friends hop across, calling in rhythm
+  st.phase = 'PARADE'; st.t = 0; spots = []; badge.heart = TOK.paradeS;
+  paraders = st.found.map((k, i) => ({ k, i, q: 0, qv: 0, hop: 0, call: time + 0.35 + i * TUNE.spb / 2, blink: 1 + i * 0.7 }));
+  for (const p of paraders) playCall(p.k, 0.35 + p.i * TUNE.spb / 2, true);
+  paradeStrum(); emit(160, 110, 36, CONFETTI);
+}
+addEventListener('keydown', e => {
+  if (e.key === 'd' || e.key === 'D') debug = !debug;
+  if (e.key === 'r' || e.key === 'R') reduced = !reduced;
+  if (e.key === 'p' || e.key === 'P') maxParticles = maxParticles === TOK.deviceMaxParticles ? TOK.webMaxParticles : TOK.deviceMaxParticles;
+  if (e.key === 'm' || e.key === 'M') setMuted(!muted);
+});
+function home() {
+  stopMusic(); hushCalls();
+  resetRun(); attract(); st.phase = 'START'; st.t = 0;
+}
+
+// ---------- update ----------
+function spr(o, p, v, target, dt, K) {                    // damped spring on o[p] (velocity o[v]); 2 substeps
+  for (let i = 0; i < 2; i++) {
+    const h = dt / 2, a = -K.k * (o[p] - target) - K.c * o[v];
+    o[v] += a * h; o[p] += o[v] * h;
+  }
+}
+const spring = (o, target, dt) => spr(o, 'q', 'qv', target, dt, TOK.springBouncy);
+// Feet y (slot px) of the hidden pose: the eyes just peek over the occluder, ears and top of the head visible.
+function peekY(k) { const f = FACES[k], h = HAB[ANIMALS[k].hab]; return Math.min(h.max, h.occ - 2 + (21 - f.ey - f.er) * AS); }
+function hintLevel() {                                    // 0 none, 1 peek more + glow + wiggle, 2 auto-help (hand)
+  if (!choosing()) return 0;
+  if (st.phase === 'AUTO_HELP') return st.helpAt < 0 ? 2 : 1;
+  return st.phase === 'HINT' || st.misses > 0 ? 1 : 0;
+}
+function liftTarget(s) {
+  const h = HAB[s.hab];
+  if (s.mode === 'OUT' || s.mode === 'WIN') return peekY(s.k) - h.out;
+  if (s.mode === 'CHEER') return h.hint;
+  if (s.k !== st.target) return 0;
+  const lv = hintLevel();
+  return lv === 2 ? h.auto : lv === 1 ? h.hint : 0;
+}
+function update(dt) {
+  time += dt; st.t += dt;
+  if (st.phase === 'INTRO') {
+    if (st.t >= TOK.introS) { st.phase = 'CALL'; st.t = 0; st.callAt = 0.2 + Math.max(0, ...spots.map(s => -s.appear)); }
+  } else if (st.phase === 'CALL') {
+    if (!st.called && st.t >= st.callAt) playMystery();
+    if (st.called && time - badge.callAt >= callLen(badge.callK) + 0.25) { st.phase = 'PLAY'; st.t = 0; st.idle = 0; }
+  } else if (st.phase === 'PLAY' || st.phase === 'HINT' || st.phase === 'AUTO_HELP') {
+    st.idle += dt;
+    if (st.phase === 'PLAY' && st.idle >= TOK.idleVisualHint) { st.phase = 'HINT'; st.t = 0; }        // visual hint
+    if (st.idle >= TOK.idleSpokenHint && !st.spoken) { st.spoken = true; badge.sv = -10; if (!speaking()) playMystery(); } // "Listen..."
+    if (st.phase === 'AUTO_HELP' && st.helpAt >= 0 && st.t >= st.helpAt) { st.helpAt = -1; badge.sv = -10; if (!speaking()) playMystery(); }
+  } else if (st.phase === 'CELEBRATE') {
+    if (st.t >= TOK.celebrateS - 0.3) for (const s of spots) if (s.leave < 0) s.leave = 0;
+    if (st.t >= TOK.celebrateS) { if (st.successes % TOK.paradeEvery === 0) startParade(); else newRound(false); }
+  } else if (st.phase === 'PARADE') {
+    if (st.t >= TOK.paradeS) { paraders = []; newRound(false); }
+  }
+
+  // hiding spots and their animals
+  for (const s of spots) {
+    if (s.appear < 0 && s.appear + dt >= 0) { plop(0, 0.3, 1.3); s.qv = 2.5; s.hqv = -2; }   // pop in
+    s.appear += dt; if (s.leave >= 0) s.leave += dt;
+    s.mt += dt; s.wig += dt; s.ph += dt;
+    s.blink -= dt; if (s.blink < -0.12) s.blink = 2 + frng() * 4;
+    if (s.mode === 'OUT' && s.mt >= s.outFor) { s.mode = 'PEEK'; s.mt = 0; s.qv = -2; plop(0, 0.4, 1.5); }  // hide again
+    const tgt = liftTarget(s);
+    if (reduced) { s.lift = lerp(s.lift, tgt, Math.min(1, dt * 9)); s.lv = 0; }               // no overshoot
+    else spr(s, 'lift', 'lv', tgt, dt, TOK.springSoft);
+    spring(s, 0, dt); spr(s, 'hq', 'hqv', 0, dt, TOK.springBouncy);
+    s.door = lerp(s.door, s.mode === 'OUT' || s.mode === 'WIN' ? 1 : 0, Math.min(1, dt * 12));
+    const lv = s.k === st.target ? hintLevel() : 0;     // periodic hint wiggle: 3 cycles in 360 ms
+    if (lv > 0) { s.nextWig -= dt; if (s.nextWig <= 0) { s.wig = 0; s.nextWig = lv === 2 ? 1.2 : 1.8; } }
+    else s.nextWig = 0.4;
+  }
+  spots = spots.filter(s => s.leave < 0.3);
+
+  // farm parade: hop on every half beat, squash on landing (no hops in reduced motion)
+  for (const p of paraders) {
+    const hb = TUNE.spb / 2, ph = st.t / hb + p.i * 0.5, prev = (st.t - dt) / hb + p.i * 0.5;
+    if (!reduced && Math.floor(ph) !== Math.floor(prev)) p.qv = -2.5;
+    p.hop = reduced ? 0 : Math.sin((ph % 1) * Math.PI) * 7;
+    spring(p, 0, dt); p.blink -= dt; if (p.blink < -0.12) p.blink = 2 + frng() * 4;
+  }
+
+  badge.happy = Math.max(0, badge.happy - dt); badge.heart = Math.max(0, badge.heart - dt);
+  badge.sv *= Math.pow(0.86, dt * 60);
+
+  for (const p of parts) { p.life -= dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; }
+  parts = parts.filter(p => p.life > 0);
+  for (const r of rings) r.t += dt; rings = rings.filter(r => r.t < r.dur);
+  // ambient butterflies (cosmetic, frng; none in reduced motion)
+  if (!reduced && flies.length < 2 && frng() < dt * 0.12) flies.push({ x: -8, y: 86 + frng() * 30, vx: 14 + frng() * 10, ph: frng() * 6.28, c: frng() < 0.5 ? HUE.pink : HUE.yellow });
+  for (const f of flies) { f.ph += dt; f.x += f.vx * dt; f.y += Math.sin(f.ph * 1.3) * 10 * dt; }
+  flies = flies.filter(f => f.x < W + 10 && !reduced);
+}
+
+// ---------- drawing helpers ----------
+const TAU = Math.PI * 2;
+function circ(x, y, r) { ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, TAU); }               // circle subpath (batched fills)
+function ell(x, y, rx, ry, rot = 0) { ctx.moveTo(x + Math.cos(rot) * rx, y + Math.sin(rot) * rx); ctx.ellipse(x, y, rx, ry, rot, 0, TAU); }
+function rr(x, y, w, h, r) { ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }      // rounded-rect subpath
+function roundRect(x, y, w, h, r) { ctx.beginPath(); rr(x, y, w, h, r); }
+function starPath(cx, cy, ro, ri, rot) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) { const r = i % 2 ? ri : ro, a = rot + i * Math.PI / 5; ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); }
+  ctx.closePath();
+}
+function heartPath(cx, cy, s) {
+  ctx.beginPath(); ctx.moveTo(cx, cy + s * 0.55);
+  ctx.bezierCurveTo(cx - s * 1.1, cy - s * 0.1, cx - s * 0.5, cy - s * 0.95, cx, cy - s * 0.35);
+  ctx.bezierCurveTo(cx + s * 0.5, cy - s * 0.95, cx + s * 1.1, cy - s * 0.1, cx, cy + s * 0.55);
+}
+function leafPath(s) {
+  ctx.beginPath(); ctx.moveTo(-s * 0.8, s * 0.6);
+  ctx.quadraticCurveTo(-s * 0.8, -s * 0.8, s * 0.8, -s * 0.6);
+  ctx.quadraticCurveTo(s * 0.8, s * 0.8, -s * 0.8, s * 0.6);
+}
+
+// ---------- farmyard backdrop ----------
+// STATIC LAYER (scene_art farm palette): depends on constants only, never on time or state. The device port
+// renders it once into the backdrop buffer and restores it every frame; everything animated is drawn after it.
+const TUFTS = (() => { const r = mulberry32(9), out = []; for (let i = 0; i < 30; i++) out.push([r() * W, 134 + r() * 102]); return out; })();
+const FLOWERS = (() => { const r = mulberry32(7), out = []; for (let i = 0; i < 12; i++) out.push([8 + r() * 304, 138 + r() * 96, i % 2]); return out; })();
+function drawBackground() {
+  let g = ctx.createLinearGradient(0, 0, 0, 128); g.addColorStop(0, TOK.skyTop); g.addColorStop(1, TOK.skyHaze);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(255,224,102,0.35)'; ctx.beginPath(); ctx.arc(228, 40, 21, 0, TAU); ctx.fill();   // sun
+  ctx.fillStyle = '#FFE58A'; ctx.beginPath(); ctx.arc(228, 40, 14, 0, TAU); ctx.fill();
+  ctx.globalAlpha = 0.6; ctx.fillStyle = TOK.limeDark;                                        // far hill (hazy)
+  ctx.beginPath(); ctx.ellipse(70, 136, 150, 48, 0, Math.PI, TAU); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 0.85;                                     // far barn + silo, in the gap between the top-row friends
+  ctx.fillStyle = HUE.red.base; ctx.beginPath(); ctx.moveTo(97, 99); ctx.lineTo(97, 85); ctx.lineTo(108, 77); ctx.lineTo(119, 85);
+  ctx.lineTo(119, 99); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = TOK.creamLine; ctx.beginPath(); rr(121, 79, 9, 20, 4.5); ctx.fill();
+  ctx.fillStyle = TOK.cream; ctx.beginPath(); rr(104.5, 90, 7, 9, 1); ctx.fill();
+  ctx.strokeStyle = TOK.cream; ctx.lineWidth = 1.5; ctx.lineJoin = 'round'; ctx.beginPath();
+  ctx.moveTo(95, 86); ctx.lineTo(108, 76.5); ctx.lineTo(121, 86); ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.fillStyle = TOK.lime; ctx.beginPath(); ctx.ellipse(250, 138, 170, 44, 0, Math.PI, TAU); ctx.closePath(); ctx.fill();   // near hill
+  ctx.fillStyle = TOK.cream; ctx.strokeStyle = TOK.creamLine; ctx.lineWidth = 1.5;          // fence: rails, then posts
+  ctx.beginPath(); rr(-4, 111, W + 8, 4, 2); rr(-4, 119, W + 8, 4, 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); for (let x = 6; x < W; x += 22) rr(x - 3, 106, 6, 24, 2.5); ctx.fill(); ctx.stroke();
+  g = ctx.createLinearGradient(0, 124, 0, H); g.addColorStop(0, TOK.limeLight); g.addColorStop(1, TOK.lime);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, H);                                       // meadow
+  for (let x = 0; x <= W; x += 16) ctx.lineTo(x, 127 + Math.sin(x / 41) * 3);
+  ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(110,154,31,0.55)'; ctx.lineWidth = 1.5; ctx.lineCap = 'round'; ctx.beginPath();   // grass tufts
+  for (const [x, y] of TUFTS) { ctx.moveTo(x - 3, y - 4); ctx.lineTo(x, y); ctx.lineTo(x + 3, y - 5); }
+  ctx.stroke();
+  ctx.strokeStyle = TOK.limeDark; ctx.lineWidth = 1.2; ctx.beginPath();                      // flowers: stems, petals, centres
+  for (const [x, y] of FLOWERS) { ctx.moveTo(x, y + 2); ctx.lineTo(x - 1, y + 9); }
+  ctx.stroke();
+  for (const kind of [0, 1]) {
+    ctx.fillStyle = kind ? HUE.pink.light : HUE.yellow.base; ctx.beginPath();
+    for (const [x, y, c] of FLOWERS) if (c === kind) for (let i = 0; i < 5; i++) circ(x + Math.cos(i * 1.2566) * 2.6, y + Math.sin(i * 1.2566) * 2.6, 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = HUE.cream.light; ctx.beginPath(); for (const [x, y] of FLOWERS) circ(x, y, 1.4); ctx.fill();
+}
+// Ambient sprites over the backdrop: drifting clouds (static in reduced motion) and the odd butterfly.
+function drawAmbient() {
+  const m = reduced ? 0 : 1;
+  ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.beginPath();
+  for (const [ox, y, sp, s] of [[40, 22, 3, 1], [190, 48, 2.2, 0.8], [292, 16, 2.6, 0.7]]) {
+    const x = ((ox + time * sp * m) % (W + 80)) - 40;
+    circ(x, y, 9 * s); circ(x + 11 * s, y - 4 * s, 11 * s); circ(x + 23 * s, y, 8 * s);
+  }
+  ctx.fill();
+  for (const f of flies) {
+    const fl = 0.35 + 0.65 * Math.abs(Math.cos(f.ph * 9));
+    ctx.save(); ctx.translate(f.x, f.y);
+    ctx.fillStyle = f.c.base; ctx.beginPath(); ell(-3 * fl, -2, 3.4 * fl, 3, 0); ell(3 * fl, -2, 3.4 * fl, 3, 0);
+    ell(-2.2 * fl, 2, 2.2 * fl, 2, 0); ell(2.2 * fl, 2, 2.2 * fl, 2, 0); ctx.fill();
+    ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.ellipse(0, 0, 1, 3.5, 0, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ---------- hiding places (slot-local px): back layer, then the animal, then the front occluder ----------
+const BUSH_FRONT = [[48, 57, 15], [28, 62, 15], [68, 62, 15], [13, 68, 11], [83, 68, 11], [30, 69, 11], [66, 69, 11], [48, 68, 12]];
+const BUSH_CURLS = [[36, 58], [60, 54], [21, 67], [75, 65], [48, 71], [86, 71]];
+const BERRIES = [[24, 59], [71, 58], [40, 71], [59, 73], [84, 65], [11, 70]];
+const shadowEll = (x, y, rx, ry) => { ctx.fillStyle = 'rgba(59,53,80,0.16)'; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, TAU); ctx.fill(); };
+function drawBushBack() {
+  shadowEll(48, 78, 45, 5);
+  ctx.fillStyle = HUE.green.shadow; ctx.beginPath(); circ(21, 57, 14); circ(75, 57, 14); ctx.fill();    // back lumps (depth)
+  ctx.fillStyle = 'rgba(142,224,180,0.35)'; ctx.beginPath(); circ(17, 52, 5); circ(71, 52, 5); ctx.fill();
+}
+function drawBushFront(s) {
+  ctx.save(); ctx.translate(48, 80); ctx.scale(1 - s.hq * 0.5, 1 + s.hq * 0.5); ctx.translate(-48, -80);   // rustle squash
+  ctx.fillStyle = HUE.green.shadow; ctx.beginPath(); for (const [x, y, r] of BUSH_FRONT) circ(x, y, r + 2); ctx.fill();  // outline
+  const g = ctx.createRadialGradient(36, 48, 4, 48, 62, 46);
+  g.addColorStop(0, HUE.green.light); g.addColorStop(0.5, HUE.green.base); g.addColorStop(1, HUE.green.shadow);
+  ctx.fillStyle = g; ctx.beginPath(); for (const [x, y, r] of BUSH_FRONT) circ(x, y, r); ctx.fill();
+  ctx.strokeStyle = 'rgba(30,132,82,0.75)'; ctx.lineWidth = 1.5; ctx.lineCap = 'round'; ctx.beginPath();      // leaf curls
+  for (const [x, y] of BUSH_CURLS) { ctx.moveTo(x - 4, y); ctx.quadraticCurveTo(x, y + 4, x + 4, y); }
+  ctx.stroke();
+  ctx.fillStyle = HUE.red.base; ctx.beginPath(); for (const [x, y] of BERRIES) circ(x, y, 2.6); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.beginPath(); for (const [x, y] of BERRIES) circ(x - 0.8, y - 0.9, 0.9); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.beginPath(); ctx.ellipse(38, 49, 7, 3.5, -0.5, 0, TAU); ctx.fill();   // shine
+  ctx.restore();
+}
+function pondWater() {                                    // one gradient shared by the far and near water of a pond
+  const g = ctx.createLinearGradient(0, 39, 0, 73);
+  g.addColorStop(0, HUE.sky.light); g.addColorStop(0.55, HUE.sky.base); g.addColorStop(1, HUE.sky.shadow);
+  return g;
+}
+function wavePath(y, t) {                                 // waterline from (6, y) to (90, y)
+  ctx.moveTo(6, y);
+  for (let i = 1; i <= 6; i++) ctx.quadraticCurveTo(6 + (i - 0.5) * 14, y + (i % 2 ? -2 : 2) * Math.cos(t * 2.2), 6 + i * 14, y);
+}
+function drawPondBack(g) {
+  shadowEll(48, 77, 47, 4);
+  ctx.strokeStyle = HUE.green.shadow; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath();          // reeds
+  ctx.moveTo(80, 46); ctx.quadraticCurveTo(79, 34, 82, 22); ctx.moveTo(86, 48); ctx.quadraticCurveTo(87, 38, 90, 30);
+  ctx.moveTo(11, 48); ctx.quadraticCurveTo(10, 40, 6, 33); ctx.stroke();
+  ctx.fillStyle = HUE.brown.base; ctx.beginPath(); rr(79.5, 19, 5, 12, 2.5); rr(87.5, 27, 5, 10, 2.5); ctx.fill();   // cattails
+  ctx.fillStyle = HUE.brown.light; ctx.beginPath(); ctx.ellipse(48, 57, 47, 21, 0, 0, TAU); ctx.fill();    // sandy bank
+  ctx.strokeStyle = HUE.brown.base; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(48, 56, 42, 17, 0, 0, TAU); ctx.fill();                 // water (far half)
+  ctx.strokeStyle = HUE.sky.shadow; ctx.lineWidth = 1.5; ctx.stroke();
+}
+function drawPondFront(s, g) {
+  const t = reduced ? 0 : time;
+  ctx.fillStyle = g; ctx.beginPath(); wavePath(56, t);                                                 // near water
+  ctx.ellipse(48, 56, 42, 17, 0, 0, Math.PI); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5; ctx.beginPath(); wavePath(56, t); ctx.stroke();
+  const rp = 17 + Math.sin(t * 2.4) * 2 - s.hq * 40;                                                     // ripple (splash on tap)
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.ellipse(48, 59, rp, rp * 0.2, 0, 0.15, Math.PI - 0.15); ctx.stroke();
+  ctx.fillStyle = HUE.green.base; ctx.beginPath(); ctx.moveTo(20, 66); ctx.ellipse(20, 66, 10, 4.5, 0, 0.4, TAU - 0.4); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = HUE.green.shadow; ctx.lineWidth = 1.5; ctx.stroke();                                // lily pad + bud
+  ctx.fillStyle = HUE.pink.light; ctx.beginPath(); circ(17, 64, 2.6); ctx.fill();
+}
+function doorwayPath() {
+  ctx.moveTo(26, 80); ctx.lineTo(26, 38); ctx.quadraticCurveTo(26, 30, 34, 30); ctx.lineTo(62, 30);
+  ctx.quadraticCurveTo(70, 30, 70, 38); ctx.lineTo(70, 80);
+}
+function drawBarnBack() {
+  shadowEll(48, 79, 46, 4);
+  ctx.fillStyle = '#5A3B2C'; ctx.beginPath(); doorwayPath(); ctx.closePath(); ctx.fill();               // dark inside
+  ctx.fillStyle = HUE.yellow.shadow; ctx.beginPath(); ctx.ellipse(48, 80, 21, 8, 0, Math.PI, TAU); ctx.fill();   // hay
+  const g = ctx.createRadialGradient(30, 22, 4, 48, 44, 58);
+  g.addColorStop(0, HUE.red.light); g.addColorStop(0.5, HUE.red.base); g.addColorStop(1, HUE.red.shadow);
+  ctx.fillStyle = g; ctx.beginPath();                                                                    // front wall around the doorway
+  ctx.moveTo(8, 80); ctx.lineTo(8, 28); ctx.lineTo(48, 6); ctx.lineTo(88, 28); ctx.lineTo(88, 80); ctx.lineTo(70, 80);
+  ctx.lineTo(70, 38); ctx.quadraticCurveTo(70, 30, 62, 30); ctx.lineTo(34, 30); ctx.quadraticCurveTo(26, 30, 26, 38);
+  ctx.lineTo(26, 80); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = HUE.red.shadow; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.strokeStyle = 'rgba(184,50,58,0.6)'; ctx.lineWidth = 1.2; ctx.beginPath();                       // planks
+  for (const x of [14, 20, 76, 82]) { ctx.moveTo(x, 31); ctx.lineTo(x, 78); }
+  ctx.stroke();
+  ctx.lineCap = 'round'; ctx.strokeStyle = TOK.creamLine; ctx.lineWidth = 6; ctx.beginPath();          // roof trim
+  ctx.moveTo(5, 30); ctx.lineTo(48, 5); ctx.lineTo(91, 30); ctx.stroke();
+  ctx.strokeStyle = TOK.cream; ctx.lineWidth = 3.5; ctx.stroke();
+  ctx.lineWidth = 2.5; ctx.beginPath(); doorwayPath(); ctx.stroke();                                    // door frame
+  ctx.fillStyle = TOK.cream; ctx.beginPath(); ctx.arc(48, 19, 6, 0, TAU); ctx.fill();                   // loft window
+  ctx.strokeStyle = TOK.creamLine; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.strokeStyle = HUE.red.shadow; ctx.beginPath(); ctx.moveTo(48, 14); ctx.lineTo(48, 24); ctx.moveTo(43, 19); ctx.lineTo(53, 19); ctx.stroke();
+}
+function drawBarnFront(s) {                               // half door, hinged on the left; swings open when the animal comes out
+  ctx.save(); ctx.translate(26, 80); ctx.rotate(s.hq * 0.25); ctx.scale(1 - 0.82 * s.door, 1);
+  ctx.fillStyle = HUE.red.base; roundRect(0, -19, 44, 19, 2); ctx.fill();
+  ctx.strokeStyle = HUE.red.shadow; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = TOK.cream; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath(); rr(4, -16, 36, 13, 1.5);
+  ctx.moveTo(6, -15); ctx.lineTo(38, -4); ctx.moveTo(38, -15); ctx.lineTo(6, -4); ctx.stroke();
+  ctx.restore();
+}
+
+// ---------- animals (body centre 0,0, radius ~21, feet at y = +21; drawn at AS inside a hiding place) ----------
+// ey/sp/er: eye height, half spacing, radius; mx/my/mr: mouth (mr 0 = the bill or beak is the mouth).
+const FACES = [
+  { ey: -6, sp: 8, er: 4.8, mx: 0, my: 13, mr: 3.4 },    // COW
+  { ey: -6, sp: 8, er: 5, mx: 0, my: 6, mr: 0 },         // DUCK
+  { ey: -3, sp: 5.5, er: 4, mx: 0, my: 10.5, mr: 2.8 },  // SHEEP
+  { ey: -8, sp: 8, er: 4.6, mx: 0, my: 14, mr: 3.2 },    // PIG
+  { ey: -6, sp: 8, er: 4.8, mx: 0, my: 11, mr: 3.4 },    // DOG
+  { ey: -5, sp: 8, er: 5, mx: 0, my: 10, mr: 3.2 },      // CAT
+  { ey: -14, sp: 10, er: 5.5, mx: 0, my: 5, mr: 6 },     // FROG
+  { ey: -7, sp: 7.5, er: 5.4, mx: 0, my: 0, mr: 0 },     // OWL
+];
+let flat = false;                                         // silhouette mode (audio-off badge): ink shapes, white details
+function bodyGrad(c, r) {
+  const g = ctx.createRadialGradient(-10, -12, 4, 0, 0, r);
+  g.addColorStop(0, c.light); g.addColorStop(0.55, c.base); g.addColorStop(1, c.shadow);
+  return g;
+}
+function finishBody(c, r, g) {
+  if (flat) { ctx.fillStyle = TOK.ink; ctx.fill(); return; }
+  ctx.fillStyle = g || bodyGrad(c, r); ctx.fill();
+  ctx.strokeStyle = c.shadow; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+}
+function paint(fill, line, w = 2) {                       // silhouette part: fill (+ darker outline)
+  ctx.fillStyle = flat ? TOK.ink : fill; ctx.fill();
+  if (line && !flat) { ctx.strokeStyle = line; ctx.lineWidth = w; ctx.stroke(); }
+}
+function detail(fill, line, w = 1.5) {                    // inner feature: white line art in silhouette mode
+  if (flat) { ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.6; ctx.stroke(); return; }
+  ctx.fillStyle = fill; ctx.fill();
+  if (line) { ctx.strokeStyle = line; ctx.lineWidth = w; ctx.stroke(); }
+}
+function shine(x, y) {
+  if (flat) return;
+  ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.ellipse(x, y, 5, 3, -0.6, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 6, y - 4, 1.3, 0, TAU); ctx.fill();
+}
+// Face: eyes follow `look`, blink, rosy cheeks; the mouth opens with the call envelope mo (0..1).
+function face(f, look, blink, mo, happy) {
+  const ln = Math.hypot(look[0], look[1]) || 1, lx = look[0] / ln * f.er * 0.35, ly = look[1] / ln * f.er * 0.35;
+  ctx.lineCap = 'round';
+  if (flat) { ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); circ(-f.sp, f.ey, f.er * 0.55); circ(f.sp, f.ey, f.er * 0.55); ctx.fill(); return; }
+  if (happy || blink < 0) {
+    ctx.strokeStyle = TOK.ink; ctx.lineWidth = 2.2; ctx.beginPath();
+    for (const s of [-1, 1]) {
+      const ex = s * f.sp, r = f.er * 0.75;
+      if (happy) { ctx.moveTo(ex + Math.cos(1.15 * Math.PI) * r, f.ey + 2 + Math.sin(1.15 * Math.PI) * r); ctx.arc(ex, f.ey + 2, r, 1.15 * Math.PI, 1.85 * Math.PI); }
+      else { ctx.moveTo(ex - f.er * 0.7, f.ey); ctx.lineTo(ex + f.er * 0.7, f.ey); }
+    }
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); circ(-f.sp, f.ey, f.er); circ(f.sp, f.ey, f.er); ctx.fill();
+    ctx.strokeStyle = 'rgba(59,53,80,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = TOK.ink; ctx.beginPath(); circ(-f.sp + lx, f.ey + ly, f.er * 0.5); circ(f.sp + lx, f.ey + ly, f.er * 0.5); ctx.fill();
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath();
+    circ(-f.sp + lx - f.er * 0.18, f.ey + ly - f.er * 0.2, f.er * 0.17); circ(f.sp + lx - f.er * 0.18, f.ey + ly - f.er * 0.2, f.er * 0.17); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(240,107,184,0.45)'; ctx.beginPath(); circ(-(f.sp + f.er), f.ey + f.er + 2, 3.5); circ(f.sp + f.er, f.ey + f.er + 2, 3.5); ctx.fill();
+  if (!f.mr) return;
+  if (mo > 0.05) {                                         // open mouth follows the call loudness
+    ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.ellipse(f.mx, f.my + 1, f.mr * (0.7 + 0.3 * mo), f.mr * (0.3 + 0.9 * mo), 0, 0, TAU); ctx.fill();
+    if (mo > 0.35) { ctx.fillStyle = HUE.pink.base; ctx.beginPath(); ctx.ellipse(f.mx, f.my + 1 + f.mr * 0.55 * mo, f.mr * 0.5, f.mr * 0.3 * mo, 0, 0, TAU); ctx.fill(); }
+  } else { ctx.strokeStyle = TOK.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(f.mx, f.my - 2, happy ? f.mr * 1.3 : f.mr, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke(); }
+}
+function drawPaw(k, c) {                                  // friendly wave: right arm (or wing) swings up and out at ~1.4 Hz
+  const sheep = k === 2;
+  ctx.save(); ctx.translate(15, 3); ctx.rotate(0.75 + Math.sin(time * 9) * 0.45 * (reduced ? 0.3 : 1));
+  ctx.beginPath(); ctx.ellipse(0, -9, 4.5, 9, 0, 0, TAU); paint(sheep ? TOK.inkSoft : c.base, sheep ? TOK.ink : c.shadow); ctx.restore();
+}
+function drawAnimal(k, mo, look, blink, happy, wave) {
+  const c = ANIMALS[k].c, f = FACES[k], m = reduced ? 0 : 1;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (k === 0) {                                                       // COW: horns, droopy ears, patches, pink muzzle
+    ctx.beginPath(); ell(-10, -20, 3.2, 6, -0.45); ell(10, -20, 3.2, 6, 0.45); paint(HUE.yellow.light, HUE.yellow.shadow, 1.5);
+    ctx.beginPath(); ell(-22, -8, 9, 4.5, 0.35); ell(22, -8, 9, 4.5, -0.35); paint(c.base, c.shadow);
+    if (!flat) { ctx.beginPath(); ell(-24, -7.5, 5, 2.2, 0.35); ell(24, -7.5, 5, 2.2, -0.35); paint(HUE.pink.light); }
+    ctx.beginPath(); ctx.ellipse(0, 0, 23, 21, 0, 0, TAU); finishBody(c, 23);
+    if (!flat) { ctx.beginPath(); ell(-12, -9, 6.5, 5, 0.4); ell(13, 8, 5, 4, -0.3); circ(5, -15, 3.5); paint('rgba(111,104,136,0.8)'); }
+    shine(-11, -13);
+    ctx.beginPath(); ctx.ellipse(0, 9, 12, 7.5, 0, 0, TAU); detail(HUE.pink.light, HUE.pink.base);
+    if (!flat) { ctx.beginPath(); ell(-4, 7, 1.6, 2.2); ell(4, 7, 1.6, 2.2); paint(HUE.pink.shadow); }
+    face(f, look, blink, mo, happy);
+  } else if (k === 1) {                                                // DUCK: head tuft, wings, two-part bill
+    ctx.strokeStyle = flat ? TOK.ink : c.shadow; ctx.lineWidth = 2.5; ctx.beginPath();
+    ctx.moveTo(-1, -20); ctx.quadraticCurveTo(-5, -28, 1, -30); ctx.moveTo(2, -20); ctx.quadraticCurveTo(5, -27, 10, -26); ctx.stroke();
+    ctx.beginPath(); ell(-19, 6, 6, 10, 0.5); if (!wave) ell(19, 6, 6, 10, -0.5); paint(c.base, c.shadow);
+    ctx.beginPath(); ctx.arc(0, 0, 21, 0, TAU); finishBody(c, 21);
+    shine(-10, -12);
+    face(f, look, blink, mo, happy);
+    const o = mo * 4;
+    if (o > 0.3 && !flat) { ctx.beginPath(); ctx.ellipse(0, 6 + o * 0.5, 6, 0.8 + o * 0.6, 0, 0, TAU); paint(TOK.ink); }
+    ctx.beginPath(); ctx.ellipse(0, 7.5 + o, 7.5, 3, 0, 0, TAU); detail(HUE.orange.base, HUE.orange.shadow);
+    ctx.beginPath(); ctx.ellipse(0, 4, 10, 4, 0, 0, TAU); detail(HUE.orange.base, HUE.orange.shadow);
+    if (!flat) { ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.ellipse(-4, 2.6, 3, 1.2, -0.2, 0, TAU); ctx.fill(); }
+  } else if (k === 2) {                                                // SHEEP: scalloped wool, dark face and ears, bangs
+    ctx.beginPath(); ell(-16, -3, 7, 3.5, 0.45); ell(16, -3, 7, 3.5, -0.45); paint(TOK.inkSoft, TOK.ink, 1.5);
+    ctx.beginPath();
+    for (let i = 0; i <= 48; i++) { const a = i / 48 * TAU, r = 20 + 2.2 * Math.cos(a * 12); ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+    ctx.closePath(); finishBody(c, 23);
+    ctx.beginPath(); ctx.ellipse(0, 3, 11, 12.5, 0, 0, TAU); detail(TOK.inkSoft, TOK.ink);
+    if (!flat) {
+      ctx.beginPath(); ctx.ellipse(0, 9.5, 5.5, 4, 0, 0, TAU); paint('#A49EBA');
+      ctx.beginPath(); circ(-5.5, -9, 4.2); circ(0, -10.5, 4.6); circ(5.5, -9, 4.2); paint(HUE.cream.light);
+    }
+    shine(-12, -11);
+    face(f, look, blink, mo, happy);
+  } else if (k === 3) {                                                // PIG: folded ears, curly tail, round snout
+    ctx.beginPath(); ctx.moveTo(-6, -18); ctx.lineTo(-17, -27); ctx.lineTo(-19, -11); ctx.closePath();
+    ctx.moveTo(6, -18); ctx.lineTo(17, -27); ctx.lineTo(19, -11); ctx.closePath(); paint(c.base, c.shadow);
+    ctx.strokeStyle = flat ? TOK.ink : c.shadow; ctx.lineWidth = 2; ctx.beginPath();
+    ctx.moveTo(19, 9); ctx.quadraticCurveTo(28, 4, 26, 11); ctx.quadraticCurveTo(24, 16, 29, 15); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, 21, 0, TAU); finishBody(c, 21);
+    if (!flat) { ctx.beginPath(); ctx.moveTo(-8, -17); ctx.lineTo(-15, -22); ctx.lineTo(-14, -13); ctx.closePath();
+      ctx.moveTo(8, -17); ctx.lineTo(15, -22); ctx.lineTo(14, -13); ctx.closePath(); paint(HUE.pink.light); }
+    shine(-10, -11);
+    ctx.beginPath(); ctx.ellipse(0, 5, 8.5, 6.5, 0, 0, TAU); detail(HUE.pink.light, c.shadow);
+    if (!flat) { ctx.beginPath(); ell(-3, 5, 1.5, 2.4); ell(3, 5, 1.5, 2.4); paint(c.shadow); }
+    face(f, look, blink, mo, happy);
+  }
+  else if (k === 4) {                                                // DOG: wagging tail, floppy ears, eye patch, muzzle
+    ctx.save(); ctx.translate(16, 9); ctx.rotate(-0.4 + Math.sin(time * 11) * 0.35 * m);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(10, -1, 12, -11);
+    ctx.strokeStyle = flat ? TOK.ink : c.shadow; ctx.lineWidth = 6.5; ctx.stroke();
+    if (!flat) { ctx.strokeStyle = c.base; ctx.lineWidth = 3.5; ctx.stroke(); }
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(0, 0, 21, 0, TAU); finishBody(c, 21);
+    shine(-10, -13);
+    if (!flat) { ctx.beginPath(); circ(8, -6, 7.5); paint(c.light); }
+    ctx.beginPath(); ell(-18, -3, 6, 12, 0.3); ell(18, -3, 6, 12, -0.3); paint(c.shadow, '#5E3B22');
+    ctx.beginPath(); ctx.ellipse(0, 8, 10, 7, 0, 0, TAU); detail(c.light, c.shadow);
+    ctx.beginPath(); ctx.ellipse(0, 4, 3.8, 2.8, 0, 0, TAU); paint(TOK.ink);
+    if (!flat) { ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.beginPath(); circ(-1.2, 3, 1); ctx.fill(); }
+    face(f, look, blink, mo, happy);
+  } else if (k === 5) {                                                // CAT: pointy ears, striped forehead, whiskers, tail
+    ctx.save(); ctx.translate(-16, 10); ctx.rotate(Math.sin(time * 2.2) * 0.15 * m);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(-14, -2, -11, -20);
+    ctx.strokeStyle = flat ? TOK.ink : c.shadow; ctx.lineWidth = 6.5; ctx.stroke();
+    if (!flat) { ctx.strokeStyle = c.base; ctx.lineWidth = 3.5; ctx.stroke(); }
+    ctx.restore();
+    ctx.beginPath(); ctx.moveTo(-5, -19); ctx.lineTo(-15, -30); ctx.lineTo(-20, -10); ctx.closePath();
+    ctx.moveTo(5, -19); ctx.lineTo(15, -30); ctx.lineTo(20, -10); ctx.closePath(); paint(c.base, c.shadow);
+    ctx.beginPath(); ctx.arc(0, 0, 21, 0, TAU); finishBody(c, 21);
+    if (!flat) {
+      ctx.beginPath(); ctx.moveTo(-9, -20.5); ctx.lineTo(-14.5, -27); ctx.lineTo(-17, -15.5); ctx.closePath();
+      ctx.moveTo(9, -20.5); ctx.lineTo(14.5, -27); ctx.lineTo(17, -15.5); ctx.closePath(); paint(HUE.pink.light);
+      ctx.strokeStyle = c.shadow; ctx.lineWidth = 2; ctx.beginPath();
+      ctx.moveTo(-5, -18); ctx.lineTo(-4, -13); ctx.moveTo(0, -20); ctx.lineTo(0, -14); ctx.moveTo(5, -18); ctx.lineTo(4, -13); ctx.stroke();
+      ctx.beginPath(); circ(-4, 7, 5); circ(4, 7, 5); paint(HUE.cream.light);
+    }
+    shine(-12, -9);
+    ctx.strokeStyle = flat ? '#FFFFFF' : TOK.inkSoft; ctx.lineWidth = 1; ctx.beginPath();
+    for (const s of [-1, 1]) { ctx.moveTo(s * 8, 6); ctx.lineTo(s * 24, 3); ctx.moveTo(s * 8, 9); ctx.lineTo(s * 23, 11); }
+    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-2.5, 3); ctx.lineTo(2.5, 3); ctx.lineTo(0, 5.5); ctx.closePath(); paint(HUE.pink.base);
+    face(f, look, blink, mo, happy);
+  } else if (k === 6) {                                                // FROG: eye bumps, wide body, belly, throat pouch
+    const g = flat ? null : bodyGrad(c, 26);
+    ctx.beginPath(); circ(-10, -14, 9); circ(10, -14, 9); finishBody(c, 26, g);
+    ctx.beginPath(); ctx.ellipse(0, 3, 24, 18, 0, 0, TAU); finishBody(c, 26, g);
+    if (!flat) {
+      ctx.beginPath(); ctx.ellipse(0, 11, 14, 7.5, 0, 0, TAU); paint(c.light);
+      ctx.beginPath(); circ(-17, 1, 2.6); circ(18, 5, 2.2); circ(-11, 6, 1.6); circ(14, -3, 1.6); paint('rgba(30,132,82,0.5)');
+      if (mo > 0.05) { ctx.beginPath(); ctx.ellipse(0, 12 + 3 * mo, 4 + 6 * mo, 3 + 5 * mo, 0, 0, TAU); paint(HUE.green.light, c.shadow, 1.5); }
+    }
+    shine(-14, -3);
+    face(f, look, blink, mo, happy);
+  } else {                                                             // OWL: ear tufts, face discs, chevron belly, beak
+    ctx.beginPath(); ctx.moveTo(-4, -18); ctx.lineTo(-15, -30); ctx.lineTo(-17, -12); ctx.closePath();
+    ctx.moveTo(4, -18); ctx.lineTo(15, -30); ctx.lineTo(17, -12); ctx.closePath(); paint(c.base, c.shadow);
+    ctx.beginPath(); ell(-17, 6, 7, 12, 0.35); if (!wave) ell(17, 6, 7, 12, -0.35); paint(c.shadow, '#4A2880');
+    ctx.beginPath(); ctx.ellipse(0, -1, 20, 22, 0, 0, TAU); finishBody(c, 24);
+    ctx.beginPath(); circ(-7.5, -7, 8.5); circ(7.5, -7, 8.5); detail(c.light);
+    ctx.beginPath(); ctx.ellipse(0, 11, 11, 8, 0, 0, TAU); detail(HUE.cream.base, c.light, 1);
+    if (!flat) {
+      ctx.strokeStyle = c.base; ctx.lineWidth = 1.5; ctx.beginPath();
+      for (const [x, y] of [[-5, 9], [5, 9], [0, 14]]) { ctx.moveTo(x - 2.5, y - 1.5); ctx.lineTo(x, y + 1); ctx.lineTo(x + 2.5, y - 1.5); }
+      ctx.stroke();
+    }
+    shine(-13, 4);
+    face(f, look, blink, mo, happy);
+    const o = mo * 3;                                                  // the beak is the mouth: the lower half drops
+    if (o > 0.3 && !flat) { ctx.beginPath(); ctx.ellipse(0, 1.5 + o * 0.5, 2.4, 0.8 + o * 0.6, 0, 0, TAU); paint(TOK.ink); }
+    ctx.beginPath(); ctx.moveTo(-2.6, 2 + o * 0.5); ctx.lineTo(2.6, 2 + o * 0.5); ctx.lineTo(0, 5 + o); ctx.closePath(); detail(HUE.orange.base, HUE.orange.shadow, 1);
+    ctx.beginPath(); ctx.moveTo(-3.5, -3); ctx.lineTo(3.5, -3); ctx.lineTo(0, 3); ctx.closePath(); detail(HUE.yellow.base, HUE.orange.shadow, 1);
+  }
+  if (wave) drawPaw(k, c);
+}
+
+// ---------- hiding spots with their animals, and the farm parade ----------
+function spotScale(s) {                                   // pop-in (easeOutBack, 0.3 s) and shrink-out at the end of a round
+  if (s.appear < 0) return 0;
+  const a = Math.min(1, s.appear / 0.3), k = reduced ? easeOutCubic(a) : easeOutBack(a);
+  return s.leave < 0 ? k : k * (1 - easeOutCubic(Math.min(1, s.leave / 0.3)));
+}
+function drawSpotAnimal(s, feet) {
+  const f = FACES[s.k], m = reduced ? 0.3 : 1;
+  let rot = 0, hop = 0;
+  const u = s.wig / (TOK.wiggleMs / 1000);                // hint wiggle: 3 cycles of ±6° in 360 ms, decaying
+  if (u < 1) rot += Math.sin(u * 6 * Math.PI) * TOK.wiggleDeg * Math.PI / 180 * (1 - u) * m;
+  if (s.mode === 'WIN' && !reduced) { rot += Math.sin(s.mt * TAU * 1.1) * 0.12; hop = Math.abs(Math.sin(s.mt * Math.PI * 2.2)) * (s.slot < 3 ? 2 : 5); }
+  const br = 1 + Math.sin(s.ph * TAU / (2.4 + (s.k % 5) * 0.2)) * TOK.breathScale * m;   // breathe 2.4-3.2 s
+  const bob = s.mode === 'PEEK' ? Math.sin(s.ph * 1.7) * 0.8 * m : 0;
+  const q = s.q * m;
+  const hx = s.x + 48, hy = s.y + feet + (f.ey - 21) * AS;   // eyes follow the last touch; cheering friends watch the winner
+  let tx = look[0], ty = look[1];
+  if (s.mode === 'CHEER') { const w = spots.find(o => o.mode === 'WIN'); if (w) { tx = w.x + 48; ty = w.y + 30; } }
+  let mo = callEnv(s.k, time - s.call);                   // the mouth opens with its own call...
+  if (s.k === st.target && hintLevel() === 2) mo = Math.max(mo, callEnv(badge.callK, time - badge.callAt));  // ...or the mystery call (auto-help)
+  const done = s.mt > 0.12 + callLen(s.k);
+  ctx.save(); ctx.translate(48, feet - hop + bob); ctx.rotate(rot);
+  ctx.scale(AS * (1 - q), AS * (1 + q) * br); ctx.translate(0, -21);
+  drawAnimal(s.k, mo, [tx - hx, ty - hy], s.blink, s.mode === 'WIN' && done, s.mode === 'OUT' && done);
+  ctx.restore();
+}
+function drawSpot(s) {
+  const k = spotScale(s); if (k <= 0.001) return;
+  const lv = s.k === st.target ? hintLevel() : 0, feet = peekY(s.k) - s.lift;
+  ctx.save(); ctx.translate(s.x + 48, s.y + 78); ctx.scale(k, k); ctx.translate(-48, -78);
+  const g = s.hab === 'POND' ? pondWater() : null;
+  if (s.hab === 'BUSH') drawBushBack(); else if (s.hab === 'POND') drawPondBack(g); else drawBarnBack();
+  const p = 0.5 + 0.5 * Math.sin(time * TAU / TOK.glowPeriod), hy = feet - 21 * AS;
+  if (lv > 0) {                                           // hint: warm glow behind the hidden friend
+    const gg = ctx.createRadialGradient(48, hy, 4, 48, hy, 36);
+    gg.addColorStop(0, `rgba(255,224,102,${((lv === 2 ? 0.8 : 0.6) * (0.65 + 0.35 * p)).toFixed(3)})`); gg.addColorStop(1, 'rgba(255,224,102,0)');
+    ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(48, hy, 36, 0, TAU); ctx.fill();
+  }
+  drawSpotAnimal(s, feet);
+  if (lv > 0) {                                           // ...and a pulsing halo (a shape cue, not colour only)
+    ctx.globalAlpha = 0.45 + 0.4 * p; ctx.strokeStyle = TOK.hintGlow; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(48, hy, 27 + 2 * p, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  if (s.hab === 'BUSH') drawBushFront(s); else if (s.hab === 'POND') drawPondFront(s, g); else drawBarnFront(s);
+  ctx.restore();
+}
+function drawSpots() { for (const s of spots) drawSpot(s); }
+function drawParade() {                                   // found friends hop left to right, each calling on its beat
+  for (const p of paraders) {
+    const x = -30 - p.i * PARADE.gap + st.t * PARADE.speed;
+    if (x < -40 || x > W + 40) continue;
+    shadowEll(x, PARADE.y + 1, 18 - p.hop * 0.8, 3.5);
+    const q = p.q * (reduced ? 0.3 : 1);
+    ctx.save(); ctx.translate(x, PARADE.y - p.hop); ctx.scale(PARADE.s * (1 - q), PARADE.s * (1 + q)); ctx.translate(0, -21);
+    drawAnimal(p.k, callEnv(p.k, time - p.call, true), [1, 0.2], p.blink, false, false);
+    ctx.restore();
+  }
+}
+
+// ---------- effects, helper hand, chrome, replay badge ----------
+function drawFx() {
+  ctx.lineCap = 'round';
+  for (const r of rings) {
+    const k = r.t / r.dur; ctx.globalAlpha = 1 - k; ctx.strokeStyle = r.color; ctx.lineWidth = r.w;
+    ctx.beginPath(); ctx.arc(r.x, r.y, lerp(r.r0, r.r1, easeOutCubic(k)), 0, TAU); ctx.stroke();
+  }
+  for (const p of parts) {
+    ctx.globalAlpha = clamp(p.life / p.max * 1.6, 0, 1);
+    ctx.globalCompositeOperation = p.add ? 'lighter' : 'source-over';
+    ctx.fillStyle = p.color;
+    if (p.shape === 'star') { starPath(p.x, p.y, p.size, p.size * 0.45, p.rot); ctx.fill(); }
+    else if (p.shape === 'rect') { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2); ctx.restore(); }
+    else if (p.shape === 'heart') { heartPath(p.x, p.y, p.size); ctx.fill(); }
+    else if (p.shape === 'leaf') { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); leafPath(p.size); ctx.fill(); ctx.restore(); }
+    else if (p.shape === 'bubble') { ctx.strokeStyle = p.color; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, TAU); ctx.stroke(); }
+    else if (p.shape === 'note') {                        // eighth note: head, stem, flag
+      const s = p.size;
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, s * 0.5, s * 0.36, -0.4, 0, TAU);
+      ctx.moveTo(p.x + s * 0.32, p.y - s * 1.5); ctx.quadraticCurveTo(p.x + s * 1.1, p.y - s * 1.2, p.x + s * 0.9, p.y - s * 0.6);
+      ctx.lineTo(p.x + s * 0.32, p.y - s * 1.05); ctx.closePath(); ctx.fill();
+      ctx.fillRect(p.x + s * 0.32, p.y - s * 1.5, 1.4, s * 1.5);
+    }
+    else { ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (0.5 + 0.5 * p.life / p.max), 0, TAU); ctx.fill(); }
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+function drawHelperHand() {                               // auto-help: a bobbing hand points at the right hiding place
+  if (hintLevel() !== 2) return;
+  const s = spots.find(o => o.k === st.target && o.leave < 0); if (!s) return;
+  const y = s.y + 62 + Math.abs(Math.sin(time * 4)) * -6 * (reduced ? 0.3 : 1);
+  ctx.save(); ctx.translate(s.x + 70, y); ctx.rotate(-0.5);
+  ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = TOK.ink; ctx.lineWidth = 1.5;
+  roundRect(-4, -16, 8, 18, 4); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0, 6, 9, 8, 0, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+function drawChrome() {
+  ctx.fillStyle = TOK.cream; roundRect(6, 6, 44, 44, 14); ctx.fill();               // Home
+  ctx.strokeStyle = '#D9C7A3'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.moveTo(28, 15); ctx.lineTo(41, 27); ctx.lineTo(37, 27); ctx.lineTo(37, 39);
+  ctx.lineTo(19, 39); ctx.lineTo(19, 27); ctx.lineTo(15, 27); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 0.45; ctx.fillStyle = TOK.cream; roundRect(270, 6, 44, 44, 14); ctx.fill();   // Mic (disabled)
+  ctx.fillStyle = TOK.ink; roundRect(287, 14, 10, 18, 5); ctx.fill();
+  ctx.strokeStyle = TOK.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(292, 25, 9, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(292, 34); ctx.lineTo(292, 40); ctx.stroke(); ctx.globalAlpha = 1;
+}
+function drawHorn(e) {                                    // brass speaker-horn; wiggles and swells with the mystery call (e 0..1)
+  const m = reduced ? 0.3 : 1;
+  ctx.save(); ctx.translate(-3, 0); ctx.rotate(Math.sin(time * 18) * 0.12 * e * m); ctx.scale(1 + 0.15 * e, 1 + 0.15 * e);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = HUE.sky.shadow; ctx.lineWidth = 2; ctx.globalAlpha = 0.3 + 0.6 * e; ctx.beginPath();   // sound arcs
+  ctx.moveTo(9 + 9 * Math.cos(-0.6), 9 * Math.sin(-0.6)); ctx.arc(9, 0, 9, -0.6, 0.6);
+  ctx.moveTo(9 + 14 * Math.cos(-0.6), 14 * Math.sin(-0.6)); ctx.arc(9, 0, 14, -0.6, 0.6); ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.beginPath(); ctx.moveTo(-15, -3); ctx.lineTo(-4, -3); ctx.lineTo(7, -12); ctx.lineTo(7, 12); ctx.lineTo(-4, 3); ctx.lineTo(-15, 3); ctx.closePath();
+  ctx.fillStyle = HUE.yellow.base; ctx.fill(); ctx.strokeStyle = HUE.yellow.shadow; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(7, 0, 3.5, 12, 0, 0, TAU); ctx.fillStyle = HUE.yellow.light; ctx.fill(); ctx.stroke();   // bell rim
+  ctx.beginPath(); circ(-16, 0, 3.5); ctx.fillStyle = HUE.yellow.shadow; ctx.fill();                                     // mouthpiece
+  ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.beginPath(); ctx.ellipse(-1, -3.5, 4, 1.2, -0.55, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function drawBadge() {
+  if (st.phase === 'START' || st.phase === 'INTRO') return;
+  const bob = Math.sin(time * 2.2) * 1.5 * (reduced ? 0.3 : 1);
+  const press = 1 + clamp(-badge.sv * 0.012, -0.1, 0.12);
+  const e = badge.callAt > -9 ? callEnv(badge.callK, time - badge.callAt) : 0;
+  ctx.save(); ctx.translate(160, 32 + bob); ctx.scale(press, 2 - press);
+  if (hintLevel() > 0 || (st.spoken && choosing())) {    // "listen again here"
+    ctx.strokeStyle = TOK.hintGlow; ctx.lineWidth = 4; ctx.globalAlpha = 0.4 + 0.4 * Math.sin(time * TAU / TOK.glowPeriod);
+    ctx.beginPath(); ctx.arc(0, 0, 29, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = TOK.cream; ctx.beginPath(); ctx.arc(0, 0, 26, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#D9C7A3'; ctx.lineWidth = 2; ctx.stroke();
+  if (badge.heart > 0) { ctx.fillStyle = HUE.pink.base; heartPath(0, 2, 13); ctx.fill(); ctx.strokeStyle = HUE.pink.shadow; ctx.lineWidth = 1.5; ctx.stroke(); }
+  else if (badge.happy > 0 && badge.happyK >= 0) {        // the friend just found, smiling
+    ctx.save(); ctx.translate(0, 3); ctx.scale(0.6, 0.6); drawAnimal(badge.happyK, 0, [0, 1], 1, true, false); ctx.restore();
+  } else if (muted) {                                      // audio-off mode: the hidden friend's silhouette (doc §6)
+    const w = Math.sin(time * 18) * 0.1 * e * (reduced ? 0.3 : 1), k = 0.6 * (1 + 0.1 * e);
+    ctx.save(); ctx.translate(0, 3); ctx.rotate(w); ctx.scale(k, k);
+    flat = true; drawAnimal(st.target, 0, [0, 1], 1, false, false); flat = false; ctx.restore();
+    ctx.save(); ctx.translate(20, 19);                                                                   // muted-speaker pip
+    ctx.fillStyle = TOK.cream; ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU); ctx.fill(); ctx.strokeStyle = '#D9C7A3'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = TOK.inkSoft; ctx.beginPath();
+    ctx.moveTo(-5, -1.6); ctx.lineTo(-2.8, -1.6); ctx.lineTo(-0.2, -4); ctx.lineTo(-0.2, 4); ctx.lineTo(-2.8, 1.6); ctx.lineTo(-5, 1.6); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = TOK.inkSoft; ctx.lineWidth = 1.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(1.8, -2.6); ctx.lineTo(5, 2.6); ctx.stroke(); ctx.restore();
+  } else drawHorn(e);
+  ctx.restore();
+}
+
+function drawStart() {
+  ctx.fillStyle = 'rgba(30,34,69,0.35)'; ctx.fillRect(0, 0, W, H);
+  const p = 1 + Math.sin(time * 3) * 0.04;
+  ctx.save(); ctx.translate(160, 120); ctx.scale(p, p);
+  ctx.fillStyle = TOK.cream; ctx.beginPath(); ctx.arc(0, 0, 36, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#2DB26E'; ctx.beginPath(); ctx.moveTo(-10, -16); ctx.lineTo(18, 0); ctx.lineTo(-10, 16); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+let fps = 60, frameMs = 0;
+function drawHud() {
+  if (!debug) return;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(150, 203, 170, 37);
+  ctx.fillStyle = parts.length > TOK.deviceMaxParticles ? '#FF9A92' : '#FFFFFF'; ctx.font = '8px monospace';
+  ctx.fillText(`fps ${fps.toFixed(0)} draw ${frameMs.toFixed(1)}ms p ${parts.length}/${maxParticles}`, 154, 213);
+  ctx.fillText(`seed ${seed} ${st.phase} r${st.round} spots ${st.count} miss ${st.misses} found ${st.successes}`, 154, 224);
+  ctx.fillText(`hint ${hintLevel()} idle ${st.idle.toFixed(1)} ${ANIMALS[st.target].name}${muted ? ' MUTE' : ''}${reduced ? ' RM' : ''}`, 154, 235);
+}
+// One full frame of the game scene (the golden harness calls this directly).
+function drawScene() {
+  drawBackground();                                       // static layer (device: restored from the backdrop buffer)
+  drawAmbient();
+  drawSpots();
+  drawParade();
+  drawHelperHand(); drawFx(); drawBadge(); drawChrome();
+}
+
+// Test hook for tools/quality_bar_golden/sketch_check.mjs (not ported): the logical point a helpful player taps next, or null.
+function autoTarget() {
+  if (st.phase !== 'PLAY' && st.phase !== 'HINT' && st.phase !== 'AUTO_HELP') return null;
+  const s = spots.find(o => o.k === st.target && o.leave < 0 && o.appear >= 0);
+  return s ? { x: s.x + 48, y: s.y + 44 } : null;
+}
+
+// ---------- loop ----------
+attract();
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  update(dt); if (ac) musicTick();
+  const t0 = performance.now();
+  drawScene();
+  if (st.phase === 'START') drawStart();
+  frameMs = lerp(frameMs, performance.now() - t0, 0.1); fps = lerp(fps, 1 / Math.max(dt, 1e-3), 0.05);
+  drawHud();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

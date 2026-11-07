@@ -8,6 +8,20 @@
 | Play value | Calm-down toy, caring, cause-and-effect |
 | Capabilities | music, narration, particles, pointer_drag |
 
+**Reference sketch (v2 mockup, awaiting owner review):** [`bubble_aquarium.html`](../reference/bubble_aquarium.html) is the
+runnable browser reference for this design: scene, motion and Web Audio score. Once the owner approves
+it, the device port follows it line by line ([06 §4.5](../docs/06_visual_motion_design.md)).
+Notable differences from the design below:
+- Bedtime toggle is a moon/sun button at {132,0,56,56}, between the shaker {72,0,56,56} and the bubble button {192,0,56,56}; the B key is the parent shortcut.
+- No 3 s celebrate phase: each meal gets a gentle chime plus a 1.6 s happy loop (a wiggle in place under reduced motion; at bedtime the fish just dozes off again).
+- Hint ladder: after 6 s idle the shaker glows and wiggles; at 12 s a soft chime stands in for the "Shake the food!" narration, with a helper hand. No hints at bedtime.
+- Visitors come in turn (TURTLE → SEAHORSE → JELLY) rather than at random, drawn as an overlay in front of the fish, which wander below the visitor's path; tapping a visitor makes it wave and plays a soft bell.
+- Bubbles come from the treasure chest (bubble button or chest tap; the chest also burps 2 every 9-14 s). At 8 bubbles the oldest pops quietly. Bubble radius is 18-22 px, hit radius r + 6.
+- Dragging across the shaker drops 1 pellet per 26 px (6 pellets max). Dragging on the glass or a fish makes the nearest fish follow the finger.
+- At bedtime, food wakes the nearest fish; it eats, then goes back to sleep.
+- Caustics are simplified to soft light rays plus slow light loops on the sand. A quiet "reef wash" (filtered noise) plays under the music.
+- The hint timer and INTRO length count simulation time (50 ms steps), so replays match exactly at any frame rate.
+
 ## 1. Pitch
 A peaceful fish tank. Shake food in, blow bubbles, and watch the fish swim over. Sometimes a special
 visitor drops by. *Feels like:* a living aquarium at bedtime.

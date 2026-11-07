@@ -8,6 +8,19 @@
 | Play value | Emotions, caring routines, cause-and-effect |
 | Capabilities | music, narration, voice_intents, particles |
 
+**Reference sketch (v2 mockup, awaiting owner review):** [`robo_buddy.html`](../reference/robo_buddy.html) is the
+runnable browser reference for this design: scene, motion and Web Audio score. Once the owner approves
+it, the device port follows it line by line ([06 §4.5](../docs/06_visual_motion_design.md)).
+Notable differences from the design below:
+- Narration and voice intents are not sketched (Mic shown disabled). Each mood "line" is an in-key FM/kalimba motif, and the mood badge in the top band stands in for AGAIN (tap: replays the last mood's motif and pose, not counted) and HELP (double tap: food, hello and moon glow one by one with rising pings). YES/NO are the chest buttons only.
+- Food hit box is {8,92,72,68}, which keeps an 8 px gap from the moon. Taps on Bolt outside the head/belly boxes count as the nearer part (y < 134 → head).
+- The dance is 8 key poses stepped on eighth notes and tweened, not a 12 fps flipbook. It is a non-blocking 4-bar overlay (16 beats, 9.6 s) that starts on the next beat at least 0.6 s away and ends with a tada. Reactions during it play but don't count, and the moon ends it. The disco is three soft light pools behind Bolt whose hue drifts 36°/s (one cycle per 10 s), with no flashing. Bolt's LED face and antenna bulb follow the same hue.
+- SLEEPY (moon, or the 20 s doze) does not count toward the dance. Taps inside the 0.8 s wake guard only make him stir. While he sleeps the workshop dims, stars twinkle and he snores softly; after 8 s a soft glow over his head hints "tap to wake".
+- "Want to dance?" appears once 3 reactions are counted and Bolt is free: his two chest lamps pop out as 48 px ✔/✖ buttons (green/red, 8 px apart). Taps within the 300 ms input block are swallowed. YES starts the dance. NO nods and keeps counting, and the question isn't asked again until after the next dance.
+- Hint ladder: at 8 s idle Bolt waves; 1.6 s later he glances at a prop (or the ✔ button), which glows with `glow.hint`; at 20 s he dozes.
+- Additions: an intro roll-in with a wave (1.5 s, skippable); an original 8-bar workshop tune and a quiet hum under the motifs; the hello hand on a springy wall coil; and a chest battery meter. YUMMY fills the meter, each dance dips it one segment (never below 1) and sleep refills it; it has no consequence.
+- LED faces are 8 base faces plus chew/yawn/sing variants. The eyes look left, right and up only, never down onto the mouth. Particles are capped at 48 (§9).
+
 ## 1. Pitch
 Bolt, a round little robot, reacts to tickles, snacks, naps and hellos with big expressive feelings,
 and sometimes breaks into a dance. *Feels like:* a pet robot friend who adores you.

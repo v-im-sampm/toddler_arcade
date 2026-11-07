@@ -1,0 +1,1103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Little Arcade v2 – reference sketch (Robo Buddy)</title>
+<!--
+  REFERENCE SKETCH: the device port must match this file exactly (see docs/06 §4).
+  Same visual language, motion tokens and audio graph as quality_bar.html (Color Pop) and hatch_a_pet.html.
+  Canvas features are limited to what firmware ui/ctx2d supports: paths, arcs, ellipses,
+  bezier/quadratic curves, linear/radial gradients, globalAlpha, 'lighter', transforms.
+  No clip, drawImage, text, shadows or filters in the game scene.
+  Audio nodes: sine oscillators (kalimba = sine + one inharmonic partial; FM blip = one sine modulating
+  one sine), linear-attack/exponential-decay gains, exponential pitch glides, white noise rendered once
+  at 16 kHz through one biquad (shaker ticks, workshop hiss), one sine LFO (workshop hum), an original
+  looping workshop tune (G major pentatonic, 100 bpm) plus a dance groove on its own small voice pool
+  that ducks under the cues, one compressor.
+  All art is procedural and original; no external resources, no network, no storage, no mic.
+  Keys: D = debug HUD, R = reduced motion, P = toggle device/web particle cap. URL ?seed=N.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #1E2245; overflow: hidden;
+    touch-action: none; user-select: none; -webkit-user-select: none; }
+  #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,.45); }
+  #note { position: fixed; left: 8px; bottom: 6px; color: #9DB8FA; font: 12px system-ui, sans-serif; opacity: .7; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" aria-label="Robo Buddy reference sketch"></canvas></div>
+<div id="note">v2 reference sketch · Robo Buddy · 320×240 logical stage · D debug · R reduced motion · P particle cap</div>
+<script>
+'use strict';
+// ---------- tokens (same subset as quality_bar.html) ----------
+const W = 320, H = 240;
+const TOK = {
+  ink: '#3B3550', inkSoft: '#6F6888', paper: '#FFF8EC', cream: '#FFF3D6', hintGlow: '#FFE066', night: '#1E2245',
+  wallTop: '#FFE0A7', wallBot: '#FFB36A', floorTop: '#DDB892', floorBot: '#B07A4F',     // scene_art workshop()
+  squashPress: [1.12, 0.88], wiggleDeg: 6, wiggleMs: 360, glowPeriod: 0.9,
+  idleVisualHint: 6, idleWave: 8, idleDoze: 20, maxInputBlock: 0.3, moodHold: 4, wakeGuard: 0.8,
+  springBouncy: { k: 380, c: 14 }, breathScale: 0.025, bob: 2, tapDebounce: 0.08,
+  deviceMaxParticles: 48, webMaxParticles: 400,        // game doc §9 budget (48) under the shared device cap (96)
+};
+// tokens.json hues as [shadow, base, light]; outlines always use the shadow of their fill.
+const HUE = {
+  teal: ['#127A7D', '#21B3B0', '#8FE3DE'], yellow: ['#C99A0E', '#FFD23F', '#FFEB9C'],
+  orange: ['#C2621B', '#FF8A2A', '#FFC07F'], brown: ['#7A4E2D', '#B07A4F', '#DDB892'],
+  cream: ['#D9C7A3', '#FFF3D6', '#FFFBEF'], pink: ['#B23E86', '#F06BB8', '#FBB6DC'],
+  green: ['#1E8452', '#2DB26E', '#8EE0B4'], red: ['#B8323A', '#EF4B4F', '#FF9A92'],
+  sky: ['#2B79B8', '#4FB0F0', '#A9DBFB'], purple: ['#6236A6', '#8F5BE0', '#C9AEF5'], blue: ['#2448A8', '#3A6FE8', '#9DB8FA'],
+};
+// Moods: antenna bulb, LED tint and badge colour. Every mood also has its own face, pose, badge icon and
+// motif, so colour is never the only cue.
+const MOOD_HUE = { CALM: 'teal', HAPPY: 'yellow', SILLY: 'pink', YUMMY: 'green', SLEEPY: 'purple', HELLO: 'orange' };
+const TARGET_MOOD = { head: 'HAPPY', belly: 'SILLY', food: 'YUMMY', moon: 'SLEEPY', hello: 'HELLO' };
+// Stage geometry (logical px). Bolt's local origin is the floor point between his wheels.
+const BOLT = { x: 160, y: 226, eyeY: 100 };
+const HIT = {
+  bolt: [96, 56, 128, 176], head: [104, 60, 112, 72], belly: [108, 136, 104, 72],
+  food: [8, 92, 72, 68], moon: [8, 168, 72, 64], hello: [240, 96, 72, 72],   // food/moon keep an 8 px gap
+};
+const TARGET_PT = { head: [160, 100], belly: [160, 172], food: [44, 122], moon: [44, 200], hello: [276, 128] };
+const CYCLE = ['head', 'belly', 'food', 'hello', 'moon'];          // autoTarget order (test hook)
+const GLANCE = ['food', 'hello', 'moon'];                          // props Bolt glances at as a hint
+const BTN = { no: [128, 172], yes: [192, 172], r: 24, hit: 28 };    // "want to dance?" chest buttons (48 px, 8 px apart)
+const SPB = 60 / 100;                                              // seconds per beat (100 bpm)
+const MOUTH = [160, 116];                                          // where snacks go (scene px)
+
+// LED face: 13 x 7 dot matrix on Bolt's screen. 'e' = eye dot (follows the last touch, blinks),
+// 'o' = lit dot, 'p' = pink dot (cheeks, tongue). Faces are swapped at runtime (doc §4: 8 faces + variants).
+const LED = { cols: 13, rows: 7, dx: 6.4, dy: 6, x0: -38.4, y0: -144, r: 2.3 };
+const FACE_SRC = {
+  calm:   ['.............', '..ee.....ee..', '..ee.....ee..', '..ee.....ee..', '.............', '.p..o...o..p.', '.....ooo.....'],
+  smile:  ['.............', '..ee.....ee..', '..ee.....ee..', '..ee.....ee..', '.............', '.p.o.....o.p.', '....ooooo....'],
+  happy:  ['.............', '..oo.....oo..', '.o..o...o..o.', '.............', '...o.....o...', '.p..ooooo..p.', '.....ooo.....'],
+  silly:  ['.............', '.o.........o.', '..oo.....oo..', '.o.........o.', '...o.....o...', '.p..ooooo..p.', '......pp.....'],
+  yummy:  ['.............', '..oo.....oo..', '.o..o...o..o.', '.............', '.....ooo.....', '.p..o...o..p.', '.....ooo.....'],
+  chew:   ['.............', '..oo.....oo..', '.o..o...o..o.', '.............', '.............', '.p..ooooo..p.', '.............'],
+  sleepy: ['.............', '.............', '.o..o...o..o.', '..oo.....oo..', '.............', '.p.........p.', '.....ooo.....'],
+  yawn:   ['.............', '.............', '.............', '.oooo...oooo.', '.....ooo.....', '.p..o...o..p.', '.....ooo.....'],
+  hello:  ['.............', '..ee.....oo..', '..ee....o..o.', '..ee.........', '.............', '.p.o.....o.p.', '....ooooo....'],
+  dance:  ['.............', '...o.....o...', '..ooo...ooo..', '...o.....o...', '.............', '.p.o.....o.p.', '....ooooo....'],
+  sing:   ['.............', '...o.....o...', '..ooo...ooo..', '...o.....o...', '.....ooo.....', '.p..o...o..p.', '.....ooo.....'],
+};
+const FACES = {};
+for (const k in FACE_SRC) {
+  const f = { lit: [], eye: [], pink: [], on: new Set() };
+  FACE_SRC[k].forEach((row, r) => [...row].forEach((ch, c) => {
+    if (ch === 'o') f.lit.push([c, r]); else if (ch === 'e') f.eye.push([c, r]); else if (ch === 'p') f.pink.push([c, r]);
+  }));
+  FACES[k] = f;
+}
+
+// ---------- utils ----------
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+const easeOutBack = t => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const seed = parseInt(new URLSearchParams(location.search).get('seed') || '1234', 10);
+const grng = mulberry32(seed);          // gameplay RNG (deterministic per seed)
+const frng = Math.random;               // cosmetic RNG
+const inRect = (x, y, r) => x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3];
+const crossed = (k, dt, at) => k >= at && k - dt < at;              // a timeline mark passed this frame
+
+// ---------- canvas ----------
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let scale = 1;
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  scale = Math.min(innerWidth / W, innerHeight / H) * 0.96;
+  cv.style.width = (W * scale) + 'px'; cv.style.height = (H * scale) + 'px';
+  cv.width = Math.round(W * scale * dpr); cv.height = Math.round(H * scale * dpr);
+  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+let reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let debug = false, maxParticles = TOK.deviceMaxParticles;
+
+// ---------- audio (Web Audio, G major pentatonic, conservative gain) ----------
+let ac = null, master = null, voices = [], noiseBuf = null;
+const PENT = [0, 2, 4, 7, 9];
+function degFreq(deg, oct = 0) {                                   // degree 0 = G4
+  const o = Math.floor(deg / 5), i = ((deg % 5) + 5) % 5;
+  return 392.0 * Math.pow(2, (PENT[i] + 12 * (o + oct)) / 12);
+}
+function initAudio() {
+  if (ac) return;
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  const comp = ac.createDynamicsCompressor();
+  comp.threshold.value = -14; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.15;
+  master = ac.createGain(); master.gain.value = 0;
+  master.connect(comp); comp.connect(ac.destination);
+  master.gain.setTargetAtTime(0.35, ac.currentTime, 0.1);   // ramp in: never a loud start
+  const nr = mulberry32(99);                                // 1 s of white noise, rendered once at 16 kHz
+  noiseBuf = ac.createBuffer(1, 16000, 16000);
+  const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = nr() * 2 - 1;
+}
+function voiceOk(when, len) {                                  // 8 cue voices, counted where they overlap in time
+  const now = ac.currentTime, t = now + when; voices = voices.filter(v => v[1] > now);
+  if (voices.filter(v => v[0] < t + len && v[1] > t).length >= 8) return false;   // voice limit
+  voices.push([t, t + len]); duckMusic(now, when + len); return true;
+}
+function env(g, t, peak, attack, dur) {
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+}
+// Kalimba pluck: sine tine + one inharmonic overtone (x5.4) that dies in 60 ms; overtone dropped above 7.8 kHz.
+function kalimba(freq, when = 0, vel = 1, dur = 0.5) {
+  if (!ac || !voiceOk(when, dur)) return;
+  const t = ac.currentTime + when;
+  const g = ac.createGain(); env(g, t, 0.42 * vel, 0.003, dur);
+  const o1 = ac.createOscillator(); o1.type = 'sine'; o1.frequency.value = freq;
+  o1.connect(g); g.connect(master); o1.start(t); o1.stop(t + dur + 0.05);
+  if (freq * 5.4 < 7800) {
+    const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 5.4;
+    const g2 = ac.createGain(); env(g2, t, 0.14 * vel, 0.002, 0.06);
+    o2.connect(g2); g2.connect(g); o2.start(t); o2.stop(t + 0.1);
+  }
+}
+// FM blip (Bolt's voice): one sine modulating one sine. The index decays so each blip starts bright and
+// ends pure; ratio <= 2 and index <= 1.5 keep the strong sidebands under 7.8 kHz for notes up to B5.
+// f1 = optional exponential glide target (boing / question / boop).
+function fmBlip(freq, when = 0, vel = 1, dur = 0.12, ratio = 1, index = 1.2, f1 = 0) {
+  if (!ac || !voiceOk(when, dur)) return;
+  const t = ac.currentTime + when;
+  const car = ac.createOscillator(); car.type = 'sine'; car.frequency.setValueAtTime(freq, t);
+  const mod = ac.createOscillator(); mod.type = 'sine'; mod.frequency.setValueAtTime(freq * ratio, t);
+  if (f1) {
+    car.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.6);
+    mod.frequency.exponentialRampToValueAtTime(f1 * ratio, t + dur * 0.6);
+  }
+  const mg = ac.createGain(); mg.gain.setValueAtTime(freq * ratio * index, t);
+  mg.gain.exponentialRampToValueAtTime(freq * ratio * index * 0.12, t + dur);
+  mod.connect(mg); mg.connect(car.frequency);
+  const g = ac.createGain(); env(g, t, 0.26 * vel, 0.004, dur);
+  car.connect(g); g.connect(master);
+  car.start(t); mod.start(t); car.stop(t + dur + 0.05); mod.stop(t + dur + 0.05);
+}
+// Pitched sine with an exponential glide (yawn, whirr, snore, cookie pop).
+function glide(f0, f1, glideS, when, peak, dur, attack = 0.003) {
+  if (!ac || !voiceOk(when, dur)) return;
+  const t = ac.currentTime + when;
+  const o = ac.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + glideS);
+  const g = ac.createGain(); env(g, t, peak, attack, dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.04);
+}
+// Shaker tick / hiss: the shared noise buffer through one bandpass biquad (offset from the clock, no RNG).
+function noiseHit(dest, t, peak, dur, freq) {
+  const s = ac.createBufferSource(); s.buffer = noiseBuf;
+  const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = 1.4;
+  const g = ac.createGain(); env(g, t, peak, 0.002, dur);
+  s.connect(f); f.connect(g); g.connect(dest); s.start(t, (t * 7.31) % 0.9); s.stop(t + dur + 0.02);
+}
+// ---------- workshop tune (original; G major pentatonic, 4/4 at 100 bpm, 8 bars = 19.2 s loop) ----------
+// melody: [beat, degree, beats] on the kalimba; bass: one degree per bar at octave -1 on beats 1 and 3;
+// blips: Bolt's soft FM "bip" answering the melody every other bar. While Bolt sleeps only the melody plays, softer.
+const TUNE = { beats: 32, voices: 6,
+  melody: [[0, 2, 1], [1, 3, 1], [2, 4, 1.5], [3.5, 3, 0.5], [4, 2, 2], [6, 0, 1], [7, 1, 1],
+           [8, 1, 1], [9, 2, 0.5], [9.5, 1, 0.5], [10, -1, 2], [12, -2, 1], [13, -1, 1], [14, 1, 2],
+           [16, 2, 1], [17, 3, 1], [18, 5, 1.5], [19.5, 4, 0.5], [20, 3, 2], [22, 2, 1], [23, 4, 1],
+           [24, 3, 1], [25, 1, 1], [26, 2, 1], [27, 1, 1], [28, 0, 3]],
+  bass: [0, -1, 1, -2, 0, -1, -2, 0],
+  blips: [[7.5, 5], [15.5, 3], [23.5, 6], [31.5, 5]] };
+// Events in time order: [beat, kind, freq, peak, dur]; kinds: k kalimba, b bass, f FM bip.
+const SONG = [];
+for (const [b, d, n] of TUNE.melody) SONG.push([b, 'k', degFreq(d), 0.075, Math.min(n * SPB, 0.6) + 0.25]);
+TUNE.bass.forEach((d, i) => { SONG.push([i * 4, 'b', degFreq(d, -1), 0.07, 1.0]); SONG.push([i * 4 + 2, 'b', degFreq(d, -1), 0.05, 0.8]); });
+for (const [b, d] of TUNE.blips) SONG.push([b, 'f', degFreq(d), 0.035, 0.2]);
+SONG.sort((a, b) => a[0] - b[0] || b[3] - a[3]);
+let music = null, musicBus = null, duck = null, duckUntil = 0, musicVoices = [], hum = [];
+function startMusic() {
+  if (!ac) return;
+  if (!musicBus) { musicBus = ac.createGain(); duck = ac.createGain(); musicBus.connect(duck); duck.connect(master); }
+  const now = ac.currentTime;
+  musicBus.gain.cancelScheduledValues(now); musicBus.gain.setValueAtTime(0, now);
+  musicBus.gain.setTargetAtTime(1, now + 0.5, 1.5);                // gentle fade-in, never a loud start
+  music = { t0: now + 0.5, i: 0, loop: 0, g: null }; musicVoices = [];
+  startHum(now);
+}
+function stopMusic() {
+  if (!music) return;
+  musicBus.gain.cancelScheduledValues(ac.currentTime); musicBus.gain.setTargetAtTime(0, ac.currentTime, 0.15);
+  for (const s of hum) s.stop(ac.currentTime + 0.6);
+  hum = []; music = null;
+}
+// Workshop hum under the tune, outside both voice pools: G2 + G3 sines and lowpassed noise,
+// breathing with one slow sine LFO on its gain. Very quiet: felt more than heard.
+function startHum(now) {
+  const g = ac.createGain(); g.gain.value = 0.022; g.connect(musicBus);
+  const lfo = ac.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.25;
+  const lg = ac.createGain(); lg.gain.value = 0.006; lfo.connect(lg); lg.connect(g.gain);
+  const o1 = ac.createOscillator(); o1.type = 'sine'; o1.frequency.value = 98; o1.connect(g);
+  const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = 196;
+  const g2 = ac.createGain(); g2.gain.value = 0.6; o2.connect(g2); g2.connect(g);
+  const n = ac.createBufferSource(); n.buffer = noiseBuf; n.loop = true;
+  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 400; f.Q.value = 0.7;
+  const g3 = ac.createGain(); g3.gain.value = 0.25; n.connect(f); f.connect(g3); g3.connect(g);
+  hum = [lfo, o1, o2, n];
+  for (const s of hum) s.start(now);
+}
+function musicVoiceOk(t, len) {                                    // own pool: never takes cue voices
+  musicVoices = musicVoices.filter(e => e > t);
+  if (musicVoices.length >= TUNE.voices) return false;
+  musicVoices.push(t + len); return true;
+}
+// kinds: k kalimba, b bass (sine + soft 2nd harmonic), f FM bip, w woodblock, s shaker tick (noise), z snore.
+function musicNote(t, kind, freq, peak, dur) {
+  if (!musicVoiceOk(t, dur)) return;
+  if (kind === 's') { noiseHit(musicBus, t, peak, dur, freq); return; }
+  const g = ac.createGain(); g.connect(musicBus);
+  const o = ac.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(freq, t); o.connect(g);
+  const end = t + dur + 0.05; o.start(t); o.stop(end);
+  if (kind === 'k') {
+    env(g, t, peak, 0.003, dur);
+    if (freq * 5.4 < 7800) {
+      const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 5.4;
+      const g2 = ac.createGain(); env(g2, t, peak * 0.33, 0.002, 0.06); o2.connect(g2); g2.connect(g); o2.start(t); o2.stop(t + 0.1);
+    }
+  } else if (kind === 'b') {
+    env(g, t, peak, 0.02, dur);
+    const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 2;
+    const g2 = ac.createGain(); g2.gain.value = 0.5; o2.connect(g2); g2.connect(g); o2.start(t); o2.stop(end);
+  } else if (kind === 'f') {
+    env(g, t, peak, 0.004, dur);
+    const mo = ac.createOscillator(); mo.type = 'sine'; mo.frequency.value = freq;
+    const mg = ac.createGain(); mg.gain.setValueAtTime(freq, t); mg.gain.exponentialRampToValueAtTime(freq * 0.1, t + dur);
+    mo.connect(mg); mg.connect(o.frequency); mo.start(t); mo.stop(end);
+  } else if (kind === 'w') {
+    o.frequency.exponentialRampToValueAtTime(freq * 0.92, t + 0.05); env(g, t, peak, 0.002, dur);
+  } else {                                                         // z: slow breath down a minor third
+    o.frequency.exponentialRampToValueAtTime(freq * 0.84, t + dur * 0.8); env(g, t, peak, dur * 0.35, dur);
+  }
+}
+function musicTick() {                                             // schedule notes 0.4 s ahead
+  if (!music) return;
+  const asleep = st.mood === 'SLEEPY';
+  for (;;) {
+    const e = SONG[music.i], t = music.t0 + (music.loop * TUNE.beats + e[0]) * SPB;
+    if (t > ac.currentTime + 0.4) break;
+    if (!asleep) musicNote(t, e[1], e[2], e[3], e[4]);
+    else if (e[1] === 'k') musicNote(t, 'k', e[2], e[3] * 0.6, e[4]);  // asleep: the melody alone, softer
+    if (++music.i >= SONG.length) { music.i = 0; music.loop++; }
+  }
+  if (music.g) grooveTick();
+}
+// Dance groove: 4 bars of eighths on the music pool, locked to the tune's beat grid. Shaker tick on every
+// eighth (offbeats a touch louder), woodblock on beats 2 and 4, an FM bip on the "and" of 4.
+function grooveTick() {
+  const g = music.g;
+  while (g.e < g.end) {
+    const t = music.t0 + g.e * SPB / 2;
+    if (t > ac.currentTime + 0.4) return;
+    const i = g.e - g.e0, beat = (i >> 1) & 3, off = i & 1;
+    if (t >= ac.currentTime - 0.02) {
+      musicNote(t, 's', 5200, off ? 0.05 : 0.03, 0.045);
+      if (!off && (beat & 1)) musicNote(t, 'w', degFreq(3), 0.1, 0.09);
+      if (off && beat === 3) musicNote(t, 'f', degFreq([5, 6, 4, 5][(i >> 3) & 3]), 0.045, 0.18);
+    }
+    g.e++;
+  }
+  music.g = null;
+}
+function duckMusic(now, len) {                                     // music dips to 0.35 under cues
+  if (!duck) return;
+  duckUntil = Math.max(duckUntil, now + len);
+  duck.gain.cancelScheduledValues(now);
+  duck.gain.setTargetAtTime(0.35, now, 0.03); duck.gain.setTargetAtTime(1, duckUntil, 0.3);
+}
+
+// ---------- cues (scale-locked; taps <= 150 ms, reactions <= 600 ms, stings <= 2 s; no "wrong" sounds) ----------
+const TAP_DEGS = [0, 2, 4, 3, 1];
+function tapNote() { kalimba(degFreq(TAP_DEGS[st.taps % 5], 1), 0, 0.3, 0.15); st.taps++; }
+// One motif per mood (Bolt's "words"): FM bleeps are his voice, the kalimba is the workshop's.
+const MOTIF = {
+  CALM() { kalimba(degFreq(0), 0, 0.4, 0.3); kalimba(degFreq(2), 0.12, 0.4, 0.3); },
+  HAPPY() { [2, 3, 4, 5].forEach((d, i) => fmBlip(degFreq(d), i * 0.09, 0.8, i === 3 ? 0.3 : 0.1)); },        // rising bleeps
+  SILLY() { [5, 3, 5, 3, 6].forEach((d, i) => fmBlip(degFreq(d) * 0.84, i * 0.075, 0.7, 0.09, 2, 0.9, degFreq(d))); }, // giggle
+  YUMMY() {
+    glide(degFreq(2), degFreq(4), 0.08, 0, 0.2, 0.12);                                   // cookie pops off the plate
+    for (let i = 0; i < 3; i++) {                                                       // nom, nom, nom
+      fmBlip(degFreq(i, -1), 0.5 + i * 0.3, 0.6, 0.11, 2, 1.4, degFreq(i, -1) * 0.8);
+      kalimba(degFreq(i + 2), 0.52 + i * 0.3, 0.3, 0.12);
+    }
+    [3, 4, 5, 6].forEach((d, i) => kalimba(degFreq(d), 1.3 + i * 0.08, 0.45, 0.3));     // battery fills up
+  },
+  HELLO() { fmBlip(degFreq(3), 0, 0.8, 0.12); fmBlip(degFreq(2), 0.16, 0.8, 0.2, 1, 1.2, degFreq(0)); fmBlip(degFreq(3), 0.38, 0.6, 0.08); },
+  SLEEPY(soft = 1) {
+    glide(392, 294, 0.5, 0, 0.18 * soft, 0.6, 0.08);                                     // yaaawn
+    [5, 4, 3, 2, 0].forEach((d, i) => kalimba(degFreq(d), 0.3 + i * 0.24, 0.4 * soft, 0.4)); // lullaby fall
+  },
+};
+function wakeSound() { glide(330, 494, 0.5, 0, 0.16, 0.6, 0.1); kalimba(degFreq(5), 0.6, 0.5, 0.4); fmBlip(degFreq(3), 0.75, 0.6, 0.18, 1, 1.0, degFreq(5)); }
+function snore() { if (music) musicNote(ac.currentTime + 0.02, 'z', degFreq(0, -1), 0.05, 1.1); }
+function askSound() { fmBlip(degFreq(0), 0, 0.7, 0.3, 1, 1.0, degFreq(3)); kalimba(degFreq(4), 0.32, 0.4, 0.2); kalimba(degFreq(5), 0.42, 0.4, 0.25); }
+function yesSound() { [0, 3, 5].forEach((d, i) => fmBlip(degFreq(d), i * 0.08, 0.8, 0.12)); }
+function noSound() { kalimba(degFreq(4), 0, 0.35, 0.2); kalimba(degFreq(2), 0.13, 0.35, 0.3); }      // "okay!"
+function danceSting(when) { [0, 2, 3, 4, 5].forEach((d, i) => fmBlip(degFreq(d), when + i * 0.06, 0.7, i === 4 ? 0.25 : 0.08)); }
+function tadaSound() { kalimba(degFreq(5), 0, 0.6, 0.6); kalimba(degFreq(7), 0.02, 0.5, 0.6); fmBlip(degFreq(5), 0.14, 0.5, 0.3, 1, 0.8); }
+function waveSound() { fmBlip(degFreq(3), 0, 0.5, 0.1); fmBlip(degFreq(2), 0.15, 0.5, 0.16, 1, 1.0, degFreq(0)); }
+const whirr = () => glide(220, 330, 0.35, 0, 0.05, 0.4, 0.08);                      // head tilt servo
+const boing = () => glide(degFreq(3), degFreq(5), 0.1, 0, 0.06, 0.18);                // antenna boing
+const clunk = () => fmBlip(degFreq(0, -1), 0, 0.5, 0.12, 2, 1.5);                     // wheels stop
+const stirSound = () => kalimba(degFreq(-1), 0, 0.15, 0.2);
+const helpPing = i => kalimba(degFreq([0, 2, 4][i], 1), 0, 0.45, 0.3);
+// ---------- particles, rings ----------
+let parts = [], rings = [];
+function emit(x, y, n, o) {
+  n = Math.max(1, Math.round(n * (reduced ? 0.5 : 1)));
+  for (let i = 0; i < n; i++) {
+    if (parts.length >= maxParticles) parts.shift();            // evict oldest, never exceed cap
+    const a = frng() * Math.PI * 2, sp = lerp(o.speed[0], o.speed[1], frng()), life = lerp(o.life[0], o.life[1], frng());
+    parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - (o.up || 0), g: o.gravity, life, max: life,
+      shape: o.shape, color: o.colors[(frng() * o.colors.length) | 0], size: o.size * lerp(0.7, 1.3, frng()),
+      rot: frng() * 6.28, vr: (frng() - 0.5) * 8, add: !!o.additive });
+  }
+}
+const SPARKLE = { speed: [40, 110], life: [0.35, 0.7], gravity: 60, shape: 'star', size: 5, colors: ['#FFEB9C', '#FFFBEF'], additive: true };
+const NOTES = { speed: [30, 70], life: [0.8, 1.2], gravity: -50, shape: 'note', size: 6, up: 20, colors: ['#FFD23F', '#FFFBEF', '#8FE3DE'] };
+const GEARS = { speed: [50, 120], life: [0.6, 1.0], gravity: 160, shape: 'gear', size: 5, up: 70, colors: ['#8FE3DE', '#FBB6DC', '#FFF3D6', '#A9DBFB'] };
+const CRUMBS = { speed: [30, 80], life: [0.4, 0.7], gravity: 300, shape: 'circle', size: 2.6, up: 30, colors: ['#DDB892', '#B07A4F', '#FFD23F'] };
+const CONFETTI = { speed: [60, 170], life: [0.9, 1.5], gravity: 140, shape: 'rect', size: 6, up: 60,
+  colors: ['#FFD23F', '#F06BB8', '#21B3B0', '#4FB0F0', '#FF8A2A', '#2DB26E'] };
+const ring = (x, y, r0, r1, dur, color, w) => rings.push({ x, y, r0, r1, t: 0, dur, color, w });
+function emitZ(x, y) {                                           // one sleepy "z" drifting up and right
+  if (parts.length >= maxParticles) parts.shift();
+  parts.push({ x, y, vx: 9, vy: -12, g: -4, life: 2.4, max: 2.4, shape: 'z', color: HUE.purple[2], size: 7, rot: -0.15, vr: 0.25, add: false });
+}
+const mm = () => reduced ? 0.3 : 1;                              // motion multiplier (reduced motion)
+
+// ---------- entities ----------
+// Springs are {q, qv}: squash sx = 1+q, sy = 1-q (pivot on the floor between the wheels); lean = body tilt (rad);
+// an = antenna wobble. arms = [left, right] angles (0 hangs down, PI points straight up), eased to the pose.
+const bolt = { x: BOLT.x, sq: { q: 0, qv: 0 }, ln: { q: 0, qv: 0 }, an: { q: 0, qv: 0 }, arms: [0.25, 0.25],
+  tilt: 0, headDy: 0, spin: 0, spinT: 0, roll: 0, hop: 0, breath: 0, blink: 3, look: [0, 40], eye: [0, 0],
+  act: null, fidT: 6, fid: null, face: 'calm', tint: '#8FE3DE' };
+const food = { sq: { q: 0, qv: 0 }, snack: -1, regrow: 1 };       // snack = time since the cookie left the plate
+const hand = { sq: { q: 0, qv: 0 }, wave: 0 };                     // hello hand on its wall spring
+const prompt = { show: false, t: 0, idle: 0, out: 0, n: 0 };       // "want to dance?" chest buttons
+const dance = { on: false, start: 0, t: -1, k: 0, light: 0 };
+const badge = { sv: 0, lastTap: -9, help: -1 };                    // help = time since HELP (double tap), -1 off
+function stDefaults() {
+  return { mood: 'CALM', moodT: 0, lastMood: 'CALM', reacts: 0, total: 0, asked: false, idle: 0, hint: 0, glance: '',
+    taps: 0, charge: 2, chargeShow: 2, beat0: 0, sleepT: -1, zzz: 0, snoreT: 0, sleepCharge: 0, dim: 0, lastTap: {}, landed: false };
+}
+const st = { phase: 'START', t: 0, ...stDefaults() };
+let time = 0;
+const ACT_DUR = { happy: 1.0, silly: 1.2, yummy: 1.7, hello: 1.2, yawn: 1.1, wake: 1.3, nod: 0.7, shimmy: 0.7, wave: 1.4, tada: 1.4 };
+const MOOD_ACT = { CALM: 'nod', HAPPY: 'happy', SILLY: 'silly', YUMMY: 'yummy', HELLO: 'hello', SLEEPY: 'yawn' };
+function act(kind, dur) { bolt.act = { kind, t: 0, dur: dur || ACT_DUR[kind] }; }
+function setMood(m) { st.mood = m; st.moodT = 0; if (m !== 'CALM') st.lastMood = m; badge.sv = -6; }
+function resetActors() {
+  Object.assign(bolt, { x: BOLT.x, arms: [0.25, 0.25], tilt: 0, headDy: 0, spin: 0, spinT: 0, roll: 0, hop: 0,
+    look: [0, 40], eye: [0, 0], act: null, fidT: 6, fid: null });
+  for (const s of [bolt.sq, bolt.ln, bolt.an, food.sq, hand.sq]) { s.q = 0; s.qv = 0; }
+  food.snack = -1; food.regrow = 1; hand.wave = 0;
+  Object.assign(prompt, { show: false, t: 0, idle: 0, out: 0, n: 0 });
+  Object.assign(dance, { on: false, start: 0, t: -1, k: 0, light: 0 });
+  badge.help = -1; badge.lastTap = -9;
+}
+function startGame() {
+  initAudio(); startMusic();
+  st.phase = 'INTRO'; st.t = 0; st.landed = false; st.beat0 = time + 0.5;   // logic beat grid = music.t0
+  bolt.x = 345; glide(165, 247, 0.8, 0, 0.05, 0.9, 0.15);           // wheels whirr in
+}
+
+// ---------- input ----------
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W, y = (e.clientY - r.top) / r.height * H;
+  bolt.look = [x - bolt.x, y - BOLT.eyeY];
+  if (st.phase === 'START') { startGame(); return; }
+  if (ac && ac.state === 'suspended') ac.resume();
+  if (inRect(x, y, [0, 0, 56, 56])) { home(); return; }
+  if (inRect(x, y, [264, 0, 56, 56])) { ring(292, 28, 6, 24, 0.4, '#FFFFFF', 2); return; } // mic: disabled in sketch
+  if (st.phase === 'INTRO') { st.t = 99; return; }               // intro skippable
+  st.idle = 0; prompt.idle = 0;
+  if (st.sleepT >= 0) {                                           // asleep: any tap wakes him, after the guard
+    ring(x, y, 3, 22, 0.5, '#FFFFFF', 2); emit(x, y, 4, SPARKLE);
+    if (st.sleepT >= TOK.wakeGuard) wake(); else { bolt.sq.qv = -1.2 * mm(); stirSound(); }
+    return;
+  }
+  if (inRect(x, y, [132, 4, 56, 56])) { badgeTap(); return; }    // badge: AGAIN (tap) / HELP (double tap)
+  if (prompt.show) {                                              // chest buttons (swallowed during the 300 ms input block)
+    const yes = Math.hypot(x - BTN.yes[0], y - BTN.yes[1]) < BTN.hit, no = Math.hypot(x - BTN.no[0], y - BTN.no[1]) < BTN.hit;
+    if (yes || no) {
+      if (prompt.t <= TOK.maxInputBlock) { ring(x, y, 3, 22, 0.5, '#FFFFFF', 2); return; }
+      if (yes) chooseYes(); else chooseNo();
+      return;
+    }
+  }
+  const k = targetAt(x, y);
+  if (k) { if (time - (st.lastTap[k] ?? -9) >= TOK.tapDebounce) { st.lastTap[k] = time; react(k, x, y); } return; }
+  ring(x, y, 3, 22, 0.5, '#FFFFFF', 2); emit(x, y, 4, SPARKLE); tapNote();
+});
+addEventListener('keydown', e => {
+  if (e.key === 'd' || e.key === 'D') debug = !debug;
+  if (e.key === 'r' || e.key === 'R') reduced = !reduced;
+  if (e.key === 'p' || e.key === 'P') maxParticles = maxParticles === TOK.deviceMaxParticles ? TOK.webMaxParticles : TOK.deviceMaxParticles;
+});
+function home() {
+  stopMusic();
+  parts = []; rings = [];
+  Object.assign(st, { phase: 'START', t: 0 }, stDefaults());
+  resetActors();
+}
+function targetAt(x, y) {
+  if (inRect(x, y, HIT.head)) return 'head';
+  if (inRect(x, y, HIT.belly)) return 'belly';
+  if (inRect(x, y, HIT.bolt)) return y < 134 ? 'head' : 'belly';  // rest of Bolt: the nearer part
+  for (const k of ['food', 'moon', 'hello']) if (inRect(x, y, HIT[k])) return k;
+  return null;
+}
+
+// ---------- game actions ----------
+function react(k, x, y) {
+  st.total++; st.hint = 0; st.glance = '';
+  if (k === 'moon') { sleep(false); return; }
+  const mood = TARGET_MOOD[k], c = HUE[MOOD_HUE[mood]];
+  setMood(mood); MOTIF[mood]();
+  ring(x, y, 6, 34, 0.45, c[2], 3);
+  if (k === 'head') {
+    act('happy'); bolt.sq.qv = -3 * mm(); bolt.spinT = 1.1; bolt.an.qv = 7 * mm();
+    emit(bolt.x, 72, 6, NOTES); emit(bolt.x, 84, 8, SPARKLE);
+  } else if (k === 'belly') {
+    act('silly'); bolt.sq.qv = -2.5 * mm(); emit(bolt.x, 170, 10, GEARS);
+  } else if (k === 'food') {
+    act('yummy'); food.sq.qv = -3 * mm(); food.snack = 0; food.regrow = 0;
+  } else {
+    act('hello'); hand.wave = 1.2; hand.sq.qv = -4 * mm(); emit(TARGET_PT.hello[0], 112, 5, SPARKLE);
+  }
+  if (!dance.on) { st.reacts++; if (st.reacts >= 5) startDance(); }  // dance moves don't count
+}
+function sleep(doze) {                                           // moon tap or 20 s idle: SLEEPY until touched
+  if (dance.on) endDance(false);
+  hidePrompt();
+  setMood('SLEEPY'); st.sleepT = 0; st.idle = 0; st.zzz = 1.3; st.snoreT = 2.2; st.sleepCharge = 0; st.hint = 0; st.glance = '';
+  act('yawn'); MOTIF.SLEEPY(doze ? 0.6 : 1);
+  if (!doze) { ring(TARGET_PT.moon[0], TARGET_PT.moon[1], 8, 40, 0.6, HUE.purple[2], 3);
+    emit(TARGET_PT.moon[0], TARGET_PT.moon[1] - 4, 8, { ...SPARKLE, colors: ['#C9AEF5', '#FFFBEF'] }); }
+}
+function wake() {                                                // stretch-yawn, then CALM
+  st.sleepT = -1; setMood('CALM'); st.hint = 0; act('wake'); wakeSound();
+  emit(bolt.x, 84, 10, SPARKLE); bolt.an.qv = 6 * mm();
+}
+function showPrompt() {
+  st.asked = true; Object.assign(prompt, { show: true, t: 0, idle: 0 }); prompt.n++;
+  act('shimmy'); askSound(); bolt.look = [0, 80];
+}
+function hidePrompt() { if (prompt.show) { prompt.show = false; prompt.out = 0.25; } }
+const POP = { speed: [50, 130], life: [0.3, 0.6], gravity: 120, shape: 'circle', size: 4 };
+function chooseYes() {
+  emit(BTN.yes[0], BTN.yes[1], 10, { ...POP, colors: [HUE.green[1], HUE.green[2]] });
+  ring(BTN.yes[0], BTN.yes[1], 22, 48, 0.45, HUE.green[2], 3);
+  hidePrompt(); yesSound(); startDance();
+}
+function chooseNo() {                                            // "okay": nod, keep counting to the 5th reaction
+  emit(BTN.no[0], BTN.no[1], 10, { ...POP, colors: [HUE.red[1], HUE.red[2]] });
+  ring(BTN.no[0], BTN.no[1], 22, 48, 0.45, HUE.red[2], 3);
+  hidePrompt(); noSound(); act('nod');
+}
+function startDance() {                                          // 4 bars from the next beat >= 0.6 s away
+  hidePrompt();
+  const k = Math.ceil((time + 0.6 - st.beat0) / SPB);
+  Object.assign(dance, { on: true, k, start: st.beat0 + k * SPB });
+  dance.t = time - dance.start;
+  st.reacts = 0; st.asked = false; st.hint = 0; st.glance = '';
+  if (music) { music.g = { e0: 2 * k, e: 2 * k, end: 2 * k + 32 }; danceSting(Math.max(0, music.t0 + k * SPB - ac.currentTime)); }
+}
+function endDance(done) {
+  dance.on = false; if (music) music.g = null;
+  if (!done) return;
+  emit(bolt.x, 96, 36, CONFETTI); emit(bolt.x, 90, 12, SPARKLE); ring(bolt.x, 120, 30, 110, 0.7, HUE.yellow[2], 3);
+  tadaSound(); act('tada'); bolt.sq.qv = -3 * mm(); st.charge = Math.max(1, st.charge - 1);
+}
+function badgeTap() {
+  const dbl = time - badge.lastTap < 1;
+  badge.lastTap = time; badge.sv = -12;
+  ring(160, 32, 24, 52, 0.45, HUE[MOOD_HUE[st.mood]][2], 3);
+  if (dbl) {                                                      // HELP: props glow one by one, with pings
+    badge.help = 0; st.glance = ''; helpPing(0);
+    const p = TARGET_PT[GLANCE[0]]; ring(p[0], p[1], 20, 44, 0.5, TOK.hintGlow, 3); return;
+  }
+  bolt.look = [0, -120];                                         // AGAIN: replay the last mood (not counted)
+  MOTIF[st.lastMood](st.lastMood === 'SLEEPY' ? 0.6 : 1); act(MOOD_ACT[st.lastMood], 1.2);
+}
+// ---------- update ----------
+function spring(o, target, dt, c = TOK.springBouncy.c) {             // 2 substeps (stable at 60 Hz)
+  for (let i = 0; i < 2; i++) {
+    const h = dt / 2, a = -TOK.springBouncy.k * (o.q - target) - c * o.qv;
+    o.qv += a * h; o.q += o.qv * h;
+  }
+}
+// Dance key poses, stepped on eighth notes and tweened in 120 ms: [left arm, right arm, lean, squash, hop px, head tilt].
+const POSES = [
+  [2.6, 2.6, 0, -0.04, 6, 0], [0.9, 0.9, 0, 0.06, 0, 0], [2.6, 0.4, -0.05, 0, 0, -0.06], [0.4, 2.6, 0.05, 0, 0, 0.06],
+  [1.6, 1.6, 0, -0.03, 6, 0], [0.5, 0.5, 0, 0.08, 0, 0], [2.2, 1.0, -0.06, 0, 0, -0.07], [1.0, 2.2, 0.06, 0, 0, 0.07]];
+function dancePose() {
+  const e = dance.t / (SPB / 2), i = Math.floor(e), f = e - i, k = clamp(f * SPB / 2 / 0.12, 0, 1);
+  const a = POSES[(i + 7) % 8], b = POSES[i % 8], w = reduced ? easeOutCubic(k) : easeOutBack(k);
+  const p = a.map((v, j) => lerp(v, b[j], w));
+  p[4] *= reduced ? 0 : Math.sin(f * Math.PI);                     // hop within the eighth
+  return p;
+}
+const MOOD_FACE = { CALM: 'calm', HAPPY: 'happy', SILLY: 'silly', YUMMY: 'yummy', HELLO: 'smile', SLEEPY: 'sleepy' };
+function faceFor() {
+  const A = bolt.act;
+  if (A) {
+    const t = A.t;
+    switch (A.kind) {
+      case 'happy': case 'tada': return 'happy';
+      case 'silly': return 'silly';
+      case 'yummy': return t > 0.45 && t < 1.25 && ((t - 0.45) / 0.15 | 0) % 2 ? 'chew' : 'yummy';
+      case 'hello': return 'hello';
+      case 'yawn': return t < 0.75 ? 'yawn' : 'sleepy';
+      case 'wake': return t < 0.7 ? 'yawn' : 'smile';
+      default: return 'smile';                                      // nod, shimmy, wave
+    }
+  }
+  if (st.sleepT >= 0) return 'sleepy';
+  if (dance.on && dance.t >= 0) return (dance.t / SPB | 0) % 2 ? 'sing' : 'dance';
+  return MOOD_FACE[st.mood];
+}
+function update(dt) {
+  time += dt; st.t += dt;
+  const m = mm(), asleep = st.sleepT >= 0;
+  if (st.phase === 'INTRO') {                                       // Bolt rolls in, stops with a squash, waves
+    const k = clamp(st.t / 0.9, 0, 1);
+    bolt.x = lerp(345, BOLT.x, easeOutCubic(k));
+    if (k >= 1 && !st.landed) { st.landed = true; bolt.sq.qv = -3 * m; bolt.ln.qv = -1.8 * m; clunk(); }
+    if (st.t >= 0.95 && !bolt.act) { act('hello'); MOTIF.HELLO(); bolt.look = [0, 60]; }
+    if (st.t >= 1.5) { bolt.x = BOLT.x; st.phase = 'PLAY'; st.t = 0; badge.sv = -6; }
+  } else if (st.phase === 'PLAY') {
+    st.moodT += dt;
+    if (st.mood !== 'CALM' && st.mood !== 'SLEEPY' && st.moodT > TOK.moodHold) { st.mood = 'CALM'; st.moodT = 0; }
+    if (asleep) {
+      st.sleepT += dt; st.idle += dt;
+      if ((st.sleepCharge += dt) >= 4) { st.sleepCharge = 0; st.charge = Math.min(4, st.charge + 1); }  // recharges
+      if (st.sleepT > 1.1 && (st.zzz -= dt) <= 0) { st.zzz = 1.4; emitZ(bolt.x + 54, 80); }
+      if ((st.snoreT -= dt) <= 0) { st.snoreT = 2.8; snore(); }
+    } else if (dance.on) {
+      dance.t = time - dance.start;
+      if (dance.t >= 16 * SPB) endDance(true);
+    } else {                                                        // hint ladder (doc §7)
+      st.idle += dt;
+      if (st.idle > TOK.idleWave && st.hint < 1) { st.hint = 1; act('wave'); waveSound(); badge.sv = -8; bolt.look = [0, 60]; }
+      if (st.idle > TOK.idleWave + 1.6 && st.hint < 2) { st.hint = 2; st.glance = prompt.show ? 'yes' : GLANCE[st.total % 3]; }
+      if (st.idle > TOK.idleDoze) sleep(true);
+      else if (st.reacts >= 3 && !st.asked && !bolt.act) showPrompt();
+    }
+    if (prompt.show) { prompt.t += dt; prompt.idle += dt; }
+    if (badge.help >= 0) {
+      badge.help += dt;
+      for (let i = 1; i < 3; i++) if (crossed(badge.help, dt, i * 0.7)) { helpPing(i); const p = TARGET_PT[GLANCE[i]]; ring(p[0], p[1], 20, 44, 0.5, TOK.hintGlow, 3); }
+      if (badge.help > 2.3) badge.help = -1;
+    }
+  }
+
+  // ---- Bolt pose targets: idle < sleep < dance < reaction (the dance keeps the body; reactions keep the face) ----
+  const A = bolt.act;
+  if (A && (A.t += dt) >= A.dur) bolt.act = null;
+  const B = bolt.act, at = B ? B.t : 0, dancing = dance.on && dance.t >= 0;
+  bolt.breath += dt * TAU / ((asleep ? 3.6 : 2.8) * (1 + 0.025 * Math.sin(time * 0.37)));
+  const br = Math.sin(bolt.breath);
+  let armL = 0.25 + br * 0.04, armR = armL, lean = 0, sq = 0, tilt = 0, headDy = 0, hop = 0;
+  if (asleep) { armL = armR = 0.08; sq = 0.03; tilt = 0.06; headDy = 4 + br * 1.2; lean = 0.015; }
+  if (dance.on && !asleep) {
+    if (!dancing) { armL = armR = 0.6; sq = 0.05; }                 // get ready...
+    else { const p = dancePose(); [armL, armR, lean, sq, hop, tilt] = p; lean *= m; sq *= m; }
+  }
+  if (B && !dancing) {
+    const s = Math.sin, w = s(at * TAU * 2.5) * 0.35 * m;
+    switch (B.kind) {
+      case 'happy': case 'tada':
+        armL = armR = 2.6 + s(at * TAU * 3) * 0.15 * m; hop = reduced ? 0 : 10 * s(Math.PI * clamp(at / 0.45, 0, 1)); break;
+      case 'silly':
+        lean = s(at * TAU * 4) * 0.12 * (1 - at / B.dur) * m; armL = 1.2 + s(at * TAU * 5) * 0.5 * m; armR = 2.4 - armL; break;
+      case 'yummy':
+        armL = -0.5 + s(at * TAU * 2) * 0.15 * m; armR = at < 0.5 ? 2.1 : 1.5; headDy = at > 0.45 && at < 1.25 ? 1.5 + s((at - 0.45) / 0.3 * TAU) * 1.5 : 0; break;
+      case 'hello': case 'wave':
+        armR = 2.7 + w; armL = 0.3; tilt = 0.06; break;
+      case 'yawn': {
+        const u = easeInOut(clamp(at / 0.55, 0, 1)), d = easeInOut(clamp((at - 0.7) / 0.4, 0, 1));
+        armL = armR = lerp(lerp(0.3, 2.8, u), 0.08, d); sq = lerp(-0.05 * u, 0.03, d); tilt = 0.06 * d; headDy = 4 * d; break;
+      }
+      case 'wake': {
+        const u = easeInOut(clamp(at / 0.4, 0, 1)), d = easeInOut(clamp((at - 0.85) / 0.4, 0, 1));
+        armL = armR = lerp(lerp(0.1, 2.9, u), 0.25, d); sq = lerp(-0.07 * u, 0, d); tilt = s(at * TAU) * 0.05 * (1 - d) * m; break;
+      }
+      case 'nod': armL = armR = 0.4; headDy = Math.abs(s(at / B.dur * TAU * 2)) * 3 * m; break;
+      case 'shimmy': armL = armR = 0.8; lean = s(at * TAU * 3) * 0.05 * m; break;
+    }
+  }
+  // idle fidgets (cosmetic, frng timing): antenna boing, head-tilt whirr, arm swing
+  if (st.phase === 'PLAY' && !asleep && !dance.on && !bolt.act && !prompt.show) {
+    if ((bolt.fidT -= dt) <= 0) {
+      bolt.fidT = 5 + frng() * 4; bolt.fid = { kind: (frng() * 3) | 0, t: 0, side: frng() < 0.5 ? 0 : 1 };
+      if (bolt.fid.kind === 0) { bolt.an.qv = 6 * m; boing(); } else if (bolt.fid.kind === 1) whirr();
+    }
+  }
+  if (bolt.fid) {
+    const F = bolt.fid, u = Math.sin(Math.PI * clamp((F.t += dt) / 0.9, 0, 1));
+    if (F.kind === 1) tilt += (F.side ? 0.08 : -0.08) * u * m;
+    if (F.kind === 2) { if (F.side) armR += 0.6 * u * m; else armL += 0.6 * u * m; }
+    if (F.t >= 0.9) bolt.fid = null;
+  }
+  const ease = 1 - Math.exp(-dt * 16);
+  bolt.arms[0] += (armL - bolt.arms[0]) * ease; bolt.arms[1] += (armR - bolt.arms[1]) * ease;
+  bolt.tilt += (tilt - bolt.tilt) * ease; bolt.headDy += (headDy - bolt.headDy) * ease; bolt.hop += (hop - bolt.hop) * Math.min(1, dt * 30);
+  if (st.phase === 'INTRO') lean = -0.14 * (1 - clamp(st.t / 0.9, 0, 1)) * m;    // leans into the roll
+  spring(bolt.sq, sq, dt); spring(bolt.ln, lean, dt, 24); spring(bolt.an, -bolt.ln.q * 1.5, dt);   // lean: firmer damping
+  if (st.phase === 'PLAY') bolt.x = dancing && !reduced ? BOLT.x + Math.sin(dance.t * TAU / 4.8) * 10 : bolt.x + (BOLT.x - bolt.x) * Math.min(1, dt * 4);
+  bolt.roll = (bolt.x - BOLT.x) / 10;                               // wheels (r 10) roll with the body
+  if (bolt.spinT > 0) { bolt.spinT -= dt; bolt.spin += dt * TAU * (reduced ? 0.5 : 0.9); }   // <= 1 rev/s
+  if (!asleep) { bolt.blink -= dt; if (bolt.blink < -0.12) bolt.blink = 2 + frng() * 4; }
+  const g = st.glance ? (st.glance === 'yes' ? BTN.yes : TARGET_PT[st.glance]) : null;
+  const look = g ? [g[0] - bolt.x, g[1] - BOLT.eyeY] : dancing ? [0, 20] : st.idle > 3 && !st.hint ? [0, 30] : bolt.look;
+  bolt.eye[0] += (look[0] - bolt.eye[0]) * Math.min(1, dt * 10); bolt.eye[1] += (look[1] - bolt.eye[1]) * Math.min(1, dt * 10);
+  bolt.face = faceFor();
+  bolt.tint = dancing ? null : HUE[MOOD_HUE[st.mood]][2];          // null = disco hue (drawn from time)
+
+  // ---- props, battery, lights ----
+  if (food.snack >= 0) {
+    const s0 = food.snack; food.snack += dt;
+    for (const t of [0.5, 0.8, 1.1]) if (crossed(food.snack, dt, t)) { emit(bolt.x, 122, 5, CRUMBS); bolt.sq.qv = -1.5 * m; }
+    if (s0 < 1.25 && food.snack >= 1.25) { st.charge = 4; ring(bolt.x, 166, 14, 40, 0.5, HUE.green[2], 3); }
+    if (food.snack >= 1.7) food.snack = -1;
+  }
+  if (food.snack < 0 || food.snack > 1.3) food.regrow = Math.min(1, food.regrow + dt / 0.35);
+  spring(food.sq, 0, dt); spring(hand.sq, 0, dt); hand.wave = Math.max(0, hand.wave - dt);
+  st.chargeShow += clamp(st.charge - st.chargeShow, -dt * 2.5, dt * 2.5);
+  prompt.out = Math.max(0, prompt.out - dt);
+  dance.light += clamp((dancing ? 1 : 0) - dance.light, -dt / 0.8, dt / 0.8);
+  st.dim += clamp((asleep ? 1 : 0) - st.dim, -dt, dt);
+  badge.sv *= Math.pow(0.86, dt * 60);
+
+  for (const p of parts) { p.life -= dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; }
+  parts = parts.filter(p => p.life > 0);
+  for (const r of rings) r.t += dt; rings = rings.filter(r => r.t < r.dur);
+}
+// ---------- drawing helpers ----------
+const TAU = Math.PI * 2;
+function starPath(cx, cy, ro, ri, rot) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) { const r = i % 2 ? ri : ro, a = rot + i * Math.PI / 5; ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); }
+  ctx.closePath();
+}
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function gearPath(cx, cy, ro, ri, teeth, rot) {
+  ctx.beginPath();
+  const s = Math.PI / teeth;
+  for (let j = 0; j < teeth; j++) {
+    const a = rot + j * 2 * s;
+    for (const [r, o] of [[ri, -0.62], [ro, -0.34], [ro, 0.34], [ri, 0.62]]) ctx.lineTo(cx + Math.cos(a + o * s) * r, cy + Math.sin(a + o * s) * r);
+  }
+  ctx.closePath();
+}
+function crescentPath(R) {                                     // "C" moon opening to the right, centred on 0,0
+  ctx.beginPath(); ctx.moveTo(R * 0.35, -R);
+  ctx.bezierCurveTo(-R * 1.25, -R * 0.95, -R * 1.25, R * 0.95, R * 0.35, R);
+  ctx.bezierCurveTo(-R * 0.45, R * 0.6, -R * 0.45, -R * 0.6, R * 0.35, -R); ctx.closePath();
+}
+function boltIcon(s) {                                         // lightning bolt (charge), centred on 0,0
+  ctx.beginPath(); ctx.moveTo(-0.15 * s, -s); ctx.lineTo(0.55 * s, -s); ctx.lineTo(0.15 * s, -0.2 * s); ctx.lineTo(0.6 * s, -0.2 * s);
+  ctx.lineTo(-0.35 * s, s); ctx.lineTo(-0.05 * s, 0.1 * s); ctx.lineTo(-0.5 * s, 0.1 * s); ctx.closePath();
+}
+function shade(x, y, r, hue) {                                 // light -> base -> shadow radial (top-left light)
+  const c = HUE[hue] || hue, g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r * 1.15);
+  g.addColorStop(0, c[2]); g.addColorStop(0.55, c[1]); g.addColorStop(1, c[0]); return g;
+}
+function drawGlow(x, y, rx, ry) {                              // hint glow (0.9 s period, never a flash)
+  ctx.strokeStyle = TOK.hintGlow; ctx.lineWidth = 4; ctx.globalAlpha = 0.4 + 0.4 * Math.sin(time * TAU / TOK.glowPeriod);
+  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
+}
+const glowing = k => st.phase === 'PLAY' && (st.glance === k || (badge.help >= 0 && badge.help < 2.1 && GLANCE[(badge.help / 0.7) | 0] === k));
+
+// ---------- background (static: the port paints this once into a cached layer) ----------
+function drawBackground() {
+  let g = ctx.createLinearGradient(0, 0, 0, 205);                   // warm workshop wall
+  g.addColorStop(0, TOK.wallTop); g.addColorStop(1, TOK.wallBot);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, 205);
+  ctx.fillStyle = 'rgba(255,235,156,0.35)'; ctx.beginPath(); ctx.ellipse(160, 40, 150, 70, 0, 0, TAU); ctx.fill();  // lamp light
+  ctx.fillStyle = 'rgba(176,122,79,0.16)'; roundRect(8, 62, 304, 112, 10); ctx.fill();              // pegboard
+  ctx.strokeStyle = 'rgba(122,78,45,0.35)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = 'rgba(122,78,45,0.3)';                            // peg holes: rows of small circles, 3 rows per path
+  for (let r0 = 0; r0 < 9; r0 += 3) {
+    ctx.beginPath();
+    for (let r = r0; r < r0 + 3; r++) for (let c = 0; c < 24; c++) { const x = 22 + c * 12, y = 72 + r * 12; ctx.moveTo(x + 1.6, y); ctx.arc(x, y, 1.6, 0, TAU); }
+    ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(122,78,45,0.42)'; ctx.fillStyle = 'rgba(122,78,45,0.42)'; ctx.lineCap = 'round';
+  ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(30, 82); ctx.lineTo(62, 72); ctx.stroke();      // wrench
+  ctx.lineWidth = 4.5; ctx.beginPath(); ctx.arc(24, 84, 6.5, 0.75 * Math.PI, 2.25 * Math.PI); ctx.stroke();
+  roundRect(74, 66, 9, 14, 3.5); ctx.fill();                        // screwdriver
+  ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(78.5, 80); ctx.lineTo(78.5, 92); ctx.stroke();
+  ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(300, 74); ctx.lineTo(300, 104); ctx.stroke();  // hammer
+  roundRect(289, 64, 22, 9, 3); ctx.fill();
+  ctx.lineCap = 'butt';
+  ctx.fillStyle = 'rgba(194,98,27,0.16)'; ctx.fillRect(0, 180, W, 25);                             // wainscot strip
+  ctx.fillStyle = 'rgba(122,78,45,0.3)'; ctx.fillRect(0, 179, W, 2);
+  ctx.beginPath(); for (let i = 0; i < 7; i++) { ctx.moveTo(24 + i * 45 + 2, 192); ctx.arc(24 + i * 45, 192, 2, 0, TAU); } ctx.fill();  // rivets
+  g = ctx.createLinearGradient(0, 205, 0, H);                       // wooden floor
+  g.addColorStop(0, TOK.floorTop); g.addColorStop(1, TOK.floorBot);
+  ctx.fillStyle = g; ctx.fillRect(0, 205, W, H - 205);
+  ctx.fillStyle = 'rgba(122,78,45,0.4)'; ctx.fillRect(0, 204, W, 2);
+  ctx.strokeStyle = 'rgba(122,78,45,0.25)'; ctx.lineWidth = 1.5;
+  for (const y of [217, 231]) { ctx.beginPath(); ctx.moveTo(0, y); for (let x = 0; x < W; x += 80) ctx.quadraticCurveTo(x + 40, y + (x % 160 ? 1.5 : -1.5), x + 80, y); ctx.stroke(); }
+}
+function drawGears() {                                              // brass gears on the pegboard, slowly meshing
+  const r = time * 0.5 * (reduced ? 0.4 : 1);
+  ctx.fillStyle = '#E3B341'; ctx.strokeStyle = HUE.yellow[0]; ctx.lineWidth = 1.5;
+  gearPath(250, 82, 14, 10.5, 10, r); ctx.fill(); ctx.stroke();
+  gearPath(272, 66, 9, 6.6, 7, -r * 14 / 9 + 0.2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = TOK.wallTop; ctx.beginPath(); ctx.arc(250, 82, 3.6, 0, TAU); ctx.moveTo(274.6, 66); ctx.arc(272, 66, 2.6, 0, TAU); ctx.fill();
+}
+function drawDisco() {                                              // dance lights: soft pools, hue drifts 36 deg/s, no flashing
+  if (dance.light <= 0.01) return;
+  ctx.globalCompositeOperation = 'lighter';
+  const h0 = time * 36;
+  for (let i = 0; i < 3; i++) {
+    const x = [64, 160, 256][i] + Math.sin(time * 0.7 + i * 2) * 12 * (reduced ? 0 : 1), y = [104, 84, 104][i];
+    const h = ((h0 + i * 120) % 360).toFixed(0);
+    for (const [r, a] of [[46, 0.045], [32, 0.045], [18, 0.04]]) {
+      ctx.fillStyle = `hsla(${h},90%,70%,${(a * dance.light).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    }
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+function drawNight() {                                              // asleep: the workshop dims and stars come out
+  if (st.dim <= 0.01) return;
+  ctx.fillStyle = `rgba(30,34,69,${(0.3 * st.dim).toFixed(3)})`; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#FFFBEF';
+  [[96, 76], [232, 112], [118, 158], [214, 70], [300, 160]].forEach(([x, y], i) => {
+    ctx.globalAlpha = st.dim * (0.45 + 0.3 * Math.sin(time * 1.3 + i * 1.7));
+    starPath(x, y, 3.2, 1.3, 0.3); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+// ---------- props ----------
+function drawCookie(x, y, s, rot) {                                 // battery cookie: golden biscuit with a green bolt
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(s, s);
+  ctx.fillStyle = shade(0, 0, 13, [HUE.brown[1], '#E7A55A', HUE.orange[2]]); ctx.beginPath(); ctx.arc(0, 0, 13, 0, TAU); ctx.fill();
+  ctx.strokeStyle = HUE.brown[0]; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = HUE.green[1]; boltIcon(7.5); ctx.fill(); ctx.strokeStyle = HUE.green[0]; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.ellipse(-5, -6, 3.2, 1.8, -0.6, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function drawFood() {                                               // snack shelf: plate, battery cookie, oil can
+  if (glowing('food')) drawGlow(44, 124, 38, 34);
+  ctx.fillStyle = HUE.brown[1]; roundRect(8, 146, 72, 7, 3); ctx.fill(); ctx.strokeStyle = HUE.brown[0]; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = HUE.brown[0]; ctx.beginPath();
+  for (const x of [16, 64]) { ctx.moveTo(x, 153); ctx.lineTo(x + 8, 153); ctx.lineTo(x, 162); ctx.closePath(); } ctx.fill();
+  ctx.fillStyle = shade(66, 132, 10, 'sky'); roundRect(58, 124, 16, 22, 5); ctx.fill();          // oil can
+  ctx.strokeStyle = HUE.sky[0]; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.lineCap = 'round'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(71, 127); ctx.lineTo(79, 116); ctx.stroke(); ctx.lineCap = 'butt';
+  ctx.fillStyle = HUE.cream[1]; ctx.beginPath(); ctx.ellipse(66, 124, 5, 2, 0, 0, TAU); ctx.fill();
+  const q = food.sq.q;
+  ctx.save(); ctx.translate(34, 146); ctx.scale(1 + q, 1 - q);
+  ctx.fillStyle = HUE.cream[1]; ctx.beginPath(); ctx.ellipse(0, -2, 22, 5, 0, 0, TAU); ctx.fill();     // plate
+  ctx.strokeStyle = HUE.cream[0]; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.restore();
+  const s = food.regrow >= 1 ? 1 : (reduced ? easeOutCubic(food.regrow) : easeOutBack(food.regrow));
+  if (s > 0.02) drawCookie(34, 132 - q * 10 + Math.sin(time * 1.6) * 0.8 * mm(), s * (1 - q * 0.5), 0);
+}
+function drawSnack() {                                              // cookie flight to Bolt's face, shrinking per munch
+  const t = food.snack;
+  if (t < 0 || t >= 1.15) return;
+  if (t < 0.45) {
+    const k = easeOutCubic(t / 0.45);
+    drawCookie(lerp(34, bolt.x, k), lerp(132, 120, k) - Math.sin(k * Math.PI) * 34, 1, k * 3);
+  } else drawCookie(bolt.x, 120 - bolt.hop, t < 0.5 ? 1 : t < 0.8 ? 0.72 : t < 1.1 ? 0.48 : 0.25, 0);
+}
+function drawMoon() {                                               // crescent night-light resting on a pillow
+  const cx = 44, cy = 194;
+  if (glowing('moon')) drawGlow(cx, 200, 38, 32);
+  const a = 0.35 + 0.35 * st.dim + 0.08 * Math.sin(time * TAU / 4);
+  const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, 36);
+  g.addColorStop(0, `rgba(201,174,245,${a.toFixed(3)})`); g.addColorStop(1, 'rgba(201,174,245,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, 36, 0, TAU); ctx.fill();
+  ctx.fillStyle = HUE.purple[1]; ctx.beginPath(); ctx.ellipse(cx, 220, 27, 8, 0, 0, TAU); ctx.fill();   // pillow
+  ctx.strokeStyle = HUE.purple[0]; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = 'rgba(201,174,245,0.8)'; ctx.beginPath(); ctx.ellipse(cx - 6, 217, 14, 3, 0, 0, TAU); ctx.fill();
+  ctx.save(); ctx.translate(cx + 4, cy + Math.sin(time * TAU / 4) * 1.2 * mm()); ctx.rotate(-0.25);
+  ctx.fillStyle = shade(-8, 0, 20, 'yellow'); crescentPath(20); ctx.fill();
+  ctx.strokeStyle = HUE.yellow[0]; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = HUE.yellow[0]; ctx.lineWidth = 1.8; ctx.lineCap = 'round';                        // sleepy closed eye
+  ctx.beginPath(); ctx.arc(-11, -3, 3.4, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke(); ctx.lineCap = 'butt';
+  ctx.fillStyle = 'rgba(240,107,184,0.45)'; ctx.beginPath(); ctx.arc(-11, 5, 2.6, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.ellipse(-12, -12, 2.4, 1.4, -0.9, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function drawHello() {                                              // foam hello-hand on a springy wall arm (pivot = cuff)
+  const cx = 276, cy = 150, k = hand.wave / 1.2, q = hand.sq.q, dx = q * 18;
+  if (glowing('hello')) drawGlow(276, 128, 36, 36);
+  ctx.fillStyle = HUE.sky[1]; roundRect(306, 138, 12, 24, 4); ctx.fill(); ctx.strokeStyle = HUE.sky[0]; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.strokeStyle = HUE.sky[0]; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.beginPath();          // coil spring (helix, side view)
+  for (let i = 0; i <= 40; i++) { const t = i / 40, a = t * TAU * 4; ctx.lineTo(lerp(306, 288 + dx, t) + Math.cos(a) * 2.8 - 2.8, cy + Math.sin(a) * 6); }
+  ctx.stroke(); ctx.lineJoin = 'miter';
+  const ang = Math.sin(time * TAU / 3.2) * 0.06 * mm() + Math.sin((1 - k) * 1.2 * TAU * 2.5) * 0.4 * k * mm();
+  ctx.save(); ctx.translate(cx + dx, cy); ctx.rotate(ang); ctx.scale(1 + q, 1 - q);
+  ctx.fillStyle = shade(0, -24, 22, 'orange'); ctx.strokeStyle = HUE.orange[0]; ctx.lineWidth = 1.8;
+  for (const [x, h] of [[-11, 15], [-4, 18], [3, 18], [10, 15]]) { roundRect(x - 3.4, -28 - h, 6.8, h + 4, 3.4); ctx.fill(); ctx.stroke(); }
+  roundRect(-14, -31, 28, 23, 9); ctx.fill(); ctx.stroke();         // palm
+  ctx.save(); ctx.translate(-13, -20); ctx.rotate(-0.7); roundRect(-3.4, -12, 6.8, 13, 3.4); ctx.fill(); ctx.stroke(); ctx.restore();  // thumb
+  ctx.fillStyle = HUE.cream[1]; roundRect(-12, -10, 24, 10, 3); ctx.fill(); ctx.strokeStyle = HUE.cream[0]; ctx.stroke();   // cuff
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.ellipse(-6, -25, 3, 1.8, -0.5, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+// ---------- Bolt (local frame: origin on the floor between the wheels; squash pivots there) ----------
+const discoHue = () => (time * 36) % 360;
+function dotsPath(pts, r) {                                         // many LED dots in one path (<= 91 subpaths)
+  ctx.beginPath();
+  for (const [c, rw] of pts) { const x = LED.x0 + c * LED.dx, y = LED.y0 + rw * LED.dy; ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, TAU); }
+}
+function drawLED() {
+  const f = FACES[bolt.face], blink = bolt.blink < 0 && f.eye.length > 0;
+  const ex = clamp(Math.round(bolt.eye[0] / 45), -1, 1), ey = clamp(Math.round(bolt.eye[1] / 45), -1, 0);   // eyes never drop onto the mouth
+  const lit = f.lit.slice();
+  if (f.eye.length) {
+    let maxR = 0; for (const p of f.eye) maxR = Math.max(maxR, p[1]);
+    for (const [c, r] of f.eye) if (!blink || r === maxR) lit.push([c + ex, r + ey]);   // blink = one closed row
+  }
+  ctx.fillStyle = 'rgba(143,227,222,0.13)'; ctx.beginPath();        // unlit matrix
+  for (let r = 0; r < LED.rows; r++) for (let c = 0; c < LED.cols; c++) {
+    const x = LED.x0 + c * LED.dx, y = LED.y0 + r * LED.dy; ctx.moveTo(x + 1.4, y); ctx.arc(x, y, 1.4, 0, TAU);
+  }
+  ctx.fill();
+  const tint = bolt.tint || `hsl(${discoHue().toFixed(0)},85%,76%)`;
+  ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.28;  // soft LED bloom
+  ctx.fillStyle = tint; dotsPath(lit, 4.2); ctx.fill();
+  ctx.fillStyle = HUE.pink[1]; dotsPath(f.pink, 4.2); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  ctx.fillStyle = tint; dotsPath(lit, LED.r); ctx.fill();
+  ctx.fillStyle = HUE.pink[2]; dotsPath(f.pink, LED.r); ctx.fill();
+}
+function drawArm(side, a) {                                         // side -1 left / +1 right; a: 0 hangs, PI points up
+  const sx = side * 47, sy = -72, L = 27, dx = side * Math.sin(a), dy = Math.cos(a);
+  const hx = sx + dx * L, hy = sy + dy * L, mx = sx + dx * L * 0.5 - side * dy * 4, my = sy + dy * L * 0.5 + Math.abs(dx) * 3;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = HUE.sky[0]; ctx.lineWidth = 7.5; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.quadraticCurveTo(mx, my, hx, hy); ctx.stroke();
+  ctx.strokeStyle = HUE.sky[2]; ctx.lineWidth = 2.5; ctx.stroke();  // hose highlight
+  ctx.lineCap = 'butt';
+  ctx.fillStyle = HUE.yellow[1]; ctx.beginPath(); ctx.arc(hx, hy, 7.5, 0, TAU); ctx.fill();            // mitten
+  ctx.strokeStyle = HUE.yellow[0]; ctx.lineWidth = 1.8; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.arc(hx - 2.4, hy - 2.6, 2.2, 0, TAU); ctx.fill();
+}
+function drawBolt() {
+  const x = bolt.x, q = bolt.sq.q, rm = reduced ? 0.5 : 1;
+  const br = Math.sin(bolt.breath) * TOK.breathScale * rm, headY = bolt.headDy - TOK.bob * Math.sin(bolt.breath - 0.6) * rm;
+  ctx.fillStyle = 'rgba(59,53,80,0.15)';                            // soft ink shadow
+  ctx.beginPath(); ctx.ellipse(x, BOLT.y + 1, Math.max(30, 50 * (1 + q) - bolt.hop * 0.8), 6, 0, 0, TAU); ctx.fill();
+  ctx.save(); ctx.translate(x, BOLT.y - bolt.hop); ctx.rotate(bolt.ln.q); ctx.scale(1 + q, 1 - q);
+  for (const s of [-1, 1]) {                                        // wheels: rolling hubs
+    ctx.save(); ctx.translate(s * 30, -10); ctx.rotate(bolt.roll);
+    ctx.fillStyle = '#5A5478'; ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.fill(); ctx.strokeStyle = TOK.ink; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = HUE.cream[1]; ctx.beginPath(); ctx.arc(0, 0, 4.6, 0, TAU); ctx.fill();
+    ctx.strokeStyle = HUE.cream[0]; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(-4.6, 0); ctx.lineTo(4.6, 0); ctx.moveTo(0, -4.6); ctx.lineTo(0, 4.6); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.translate(0, -20); ctx.scale(1 - br * 0.5, 1 + br); ctx.translate(0, 20);   // breathe (body and head)
+  ctx.fillStyle = shade(0, -53, 50, 'sky'); roundRect(-46, -86, 92, 66, 18); ctx.fill();                 // body
+  ctx.strokeStyle = HUE.sky[0]; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.beginPath(); ctx.ellipse(-30, -79, 9, 2.4, -0.2, 0, TAU); ctx.fill();
+  ctx.fillStyle = HUE.cream[1]; roundRect(-30, -77, 60, 42, 10); ctx.fill();                            // chest panel
+  ctx.strokeStyle = HUE.cream[0]; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = HUE.sky[0]; ctx.lineWidth = 2; roundRect(-18, -71, 32, 15, 4); ctx.stroke();       // battery meter
+  ctx.fillStyle = HUE.sky[0]; roundRect(14, -67, 4, 7, 1.5); ctx.fill();
+  for (let i = 0; i < 4; i++) {
+    const f = clamp(st.chargeShow - i, 0, 1);
+    ctx.fillStyle = 'rgba(59,53,80,0.12)'; ctx.fillRect(-15.5 + i * 7.25, -68.5, 5.5, 10);
+    if (f > 0) { ctx.globalAlpha = f; ctx.fillStyle = HUE.green[1]; ctx.fillRect(-15.5 + i * 7.25, -68.5, 5.5, 10); ctx.globalAlpha = 1; }
+  }
+  for (const [s, hue] of [[-1, 'red'], [1, 'green']]) {             // the two lamps that pop out as yes/no buttons
+    ctx.fillStyle = HUE[hue][1]; ctx.beginPath(); ctx.arc(s * 13, -45, 4.5, 0, TAU); ctx.fill();
+    ctx.strokeStyle = HUE[hue][0]; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(122,78,45,0.25)'; for (const y of [-49, -44, -39]) ctx.fillRect(-5, y, 10, 1.6);  // speaker grille
+  drawArm(-1, bolt.arms[0]); drawArm(1, bolt.arms[1]);
+  ctx.fillStyle = HUE.sky[0]; roundRect(-9, -98, 18, 16, 4); ctx.fill();                                // neck
+  ctx.fillStyle = HUE.sky[2]; ctx.fillRect(-7, -93, 14, 2); ctx.fillRect(-7, -88, 14, 2);
+  ctx.save(); ctx.translate(0, -90 + headY); ctx.rotate(bolt.tilt); ctx.translate(0, 90);              // head pivots on the neck
+  const aa = 0.45 + bolt.an.q, bx = 26 + Math.sin(aa) * 15, by = -157 - Math.cos(aa) * 15;            // antenna
+  ctx.strokeStyle = HUE.sky[0]; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(26, -156); ctx.quadraticCurveTo(26 + Math.sin(aa) * 4, by + 6, bx, by + 4); ctx.stroke(); ctx.lineCap = 'butt';
+  ctx.fillStyle = HUE.orange[1]; ctx.beginPath(); ctx.ellipse(bx, by + 6, 9 * Math.abs(Math.cos(bolt.spin)) + 1, 1.8, 0, 0, TAU); ctx.fill();  // spinner
+  const hue = MOOD_HUE[st.mood], dh = discoHue().toFixed(0);
+  const bg = ctx.createRadialGradient(bx - 2, by - 2.5, 0.5, bx, by, 7);
+  if (bolt.tint) { bg.addColorStop(0, '#FFFFFF'); bg.addColorStop(0.35, HUE[hue][2]); bg.addColorStop(1, HUE[hue][1]); }
+  else { bg.addColorStop(0, '#FFFFFF'); bg.addColorStop(0.35, `hsl(${dh},90%,80%)`); bg.addColorStop(1, `hsl(${dh},80%,58%)`); }
+  ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.25 + (st.sleepT >= 0 ? 0.1 * Math.sin(bolt.breath) : 0);
+  ctx.fillStyle = bolt.tint ? HUE[hue][1] : `hsl(${dh},80%,60%)`; ctx.beginPath(); ctx.arc(bx, by, 11, 0, TAU); ctx.fill();   // bulb glow
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(bx, by, 6, 0, TAU); ctx.fill();
+  ctx.strokeStyle = bolt.tint ? HUE[hue][0] : `hsl(${dh},70%,40%)`; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = shade(0, -126, 58, 'sky'); roundRect(-58, -158, 116, 64, 20); ctx.fill();            // TV head
+  ctx.strokeStyle = HUE.sky[0]; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = HUE.orange[1]; ctx.strokeStyle = HUE.orange[0]; ctx.lineWidth = 1.5;                 // dial ears
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(s * 61, -126, 6.5, 0, TAU); ctx.fill(); ctx.stroke(); }
+  ctx.fillStyle = '#26295A'; roundRect(-47, -150, 94, 48, 12); ctx.fill();                              // screen
+  ctx.strokeStyle = HUE.sky[0]; ctx.lineWidth = 2.5; ctx.stroke();
+  drawLED();
+  ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath();                                            // glass sheen
+  ctx.moveTo(-41, -146); ctx.lineTo(-18, -146); ctx.lineTo(-34, -106); ctx.lineTo(-43, -106); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.ellipse(-36, -154, 11, 2.4, -0.06, 0, TAU); ctx.fill();
+  ctx.restore();
+  ctx.restore();
+  if (st.phase === 'PLAY' && st.sleepT >= 0 && st.idle > TOK.idleWave) drawGlow(x, 100, 70, 42);       // "wake me" hint
+}
+function drawButtons() {                                            // "want to dance?" yes (check) / no (cross)
+  const vis = prompt.show ? (reduced ? easeOutCubic : easeOutBack)(clamp(prompt.t / 0.3, 0, 1)) : prompt.out / 0.25;
+  if (vis <= 0.01) return;
+  const glow = prompt.show && prompt.idle > TOK.idleVisualHint;
+  for (const [k, p, hue] of [['no', BTN.no, 'red'], ['yes', BTN.yes, 'green']]) {
+    ctx.save(); ctx.translate(p[0], p[1] + Math.sin(time * 3 + (k === 'yes' ? 0 : 1.5)) * 1.5 * mm()); ctx.scale(vis, vis);
+    if (glow) drawGlow(0, 0, 30, 30);
+    ctx.fillStyle = shade(0, 0, BTN.r, hue); ctx.beginPath(); ctx.arc(0, 0, BTN.r, 0, TAU); ctx.fill();
+    ctx.strokeStyle = HUE[hue][0]; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.strokeStyle = HUE.cream[2]; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath();
+    if (k === 'yes') { ctx.moveTo(-9, 1); ctx.lineTo(-3, 8); ctx.lineTo(10, -7); }
+    else { ctx.moveTo(-7, -7); ctx.lineTo(7, 7); ctx.moveTo(7, -7); ctx.lineTo(-7, 7); }
+    ctx.stroke(); ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.ellipse(-8, -12, 5, 2.4, -0.5, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+}
+function drawFx() {
+  for (const r of rings) {
+    const k = r.t / r.dur; ctx.globalAlpha = 1 - k; ctx.strokeStyle = r.color; ctx.lineWidth = r.w;
+    ctx.beginPath(); ctx.arc(r.x, r.y, lerp(r.r0, r.r1, easeOutCubic(k)), 0, TAU); ctx.stroke();
+  }
+  for (const p of parts) {
+    ctx.globalAlpha = clamp(p.life / p.max * 1.6, 0, 1);
+    ctx.globalCompositeOperation = p.add ? 'lighter' : 'source-over';
+    ctx.fillStyle = p.color;
+    if (p.shape === 'star') { starPath(p.x, p.y, p.size, p.size * 0.45, p.rot); ctx.fill(); }
+    else if (p.shape === 'rect') { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2); ctx.restore(); }
+    else if (p.shape === 'gear') { gearPath(p.x, p.y, p.size, p.size * 0.68, 6, p.rot); ctx.fill(); }
+    else if (p.shape === 'note') {                                  // eighth note: head, stem and flag in one path
+      const s = p.size;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.sin(p.rot) * 0.3); ctx.beginPath();
+      ctx.ellipse(0, 0, s * 0.62, s * 0.46, -0.35, 0, TAU);
+      ctx.moveTo(s * 0.36, 0); ctx.lineTo(s * 0.36, -s * 1.8); ctx.lineTo(s * 0.6, -s * 1.8); ctx.lineTo(s * 0.6, 0); ctx.closePath();
+      ctx.moveTo(s * 0.6, -s * 1.8); ctx.quadraticCurveTo(s * 1.45, -s * 1.3, s * 1.1, -s * 0.75);
+      ctx.quadraticCurveTo(s * 1.05, -s * 1.15, s * 0.6, -s * 1.25); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    } else if (p.shape === 'z') {                                   // sleepy "z": light under-stroke, purple core
+      const s = p.size * (1 + 0.5 * (1 - p.life / p.max));
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(-s / 2, -s / 2); ctx.lineTo(s / 2, -s / 2); ctx.lineTo(-s / 2, s / 2); ctx.lineTo(s / 2, s / 2);
+      ctx.strokeStyle = HUE.cream[2]; ctx.lineWidth = 4.4; ctx.stroke(); ctx.strokeStyle = HUE.purple[1]; ctx.lineWidth = 2.2; ctx.stroke();
+      ctx.lineCap = 'butt'; ctx.lineJoin = 'miter'; ctx.restore();
+    }
+    else { ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (0.5 + 0.5 * p.life / p.max), 0, TAU); ctx.fill(); }
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+function drawChrome() {
+  ctx.fillStyle = TOK.cream; roundRect(6, 6, 44, 44, 14); ctx.fill();               // Home
+  ctx.strokeStyle = '#D9C7A3'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.moveTo(28, 15); ctx.lineTo(41, 27); ctx.lineTo(37, 27); ctx.lineTo(37, 39);
+  ctx.lineTo(19, 39); ctx.lineTo(19, 27); ctx.lineTo(15, 27); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 0.45; ctx.fillStyle = TOK.cream; roundRect(270, 6, 44, 44, 14); ctx.fill();   // Mic (disabled)
+  ctx.fillStyle = TOK.ink; roundRect(287, 14, 10, 18, 5); ctx.fill();
+  ctx.strokeStyle = TOK.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(292, 25, 9, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(292, 34); ctx.lineTo(292, 40); ctx.stroke(); ctx.globalAlpha = 1;
+}
+// Mood badge (top band): a mini Bolt screen in the mood colour with that mood's eyes (shape + colour).
+// Tap = AGAIN (replay the last mood), double tap = HELP (the props glow one by one).
+function drawBadge() {
+  if (st.phase === 'START' || st.phase === 'INTRO') return;
+  const bob = Math.sin(time * 2.2) * 1.5 * (reduced ? 0.3 : 1);
+  const press = 1 + clamp(-badge.sv * 0.012, -0.1, 0.12);
+  ctx.save(); ctx.translate(160, 32 + bob); ctx.scale(press, 2 - press);
+  if (st.hint >= 1 && st.sleepT < 0 && !dance.on) {
+    ctx.strokeStyle = TOK.hintGlow; ctx.lineWidth = 4; ctx.globalAlpha = 0.4 + 0.4 * Math.sin(time * TAU / TOK.glowPeriod);
+    ctx.beginPath(); ctx.arc(0, 0, 29, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = TOK.cream; ctx.beginPath(); ctx.arc(0, 0, 26, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#D9C7A3'; ctx.lineWidth = 2; ctx.stroke();
+  const c = HUE[MOOD_HUE[st.mood]];
+  ctx.strokeStyle = c[0]; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(6, -10); ctx.lineTo(9, -17); ctx.stroke();                              // antenna
+  ctx.fillStyle = c[1]; ctx.beginPath(); ctx.arc(9.5, -18, 3, 0, TAU); ctx.fill();
+  roundRect(-16, -11, 32, 24, 8); ctx.fill(); ctx.lineWidth = 1.5; ctx.stroke();                     // mini TV head
+  ctx.fillStyle = '#26295A'; roundRect(-12, -7, 24, 16, 5); ctx.fill();
+  const m = st.mood, arcAt = (x, y, r, a0, a1) => { ctx.moveTo(x + r * Math.cos(a0), y + r * Math.sin(a0)); ctx.arc(x, y, r, a0, a1); };
+  ctx.strokeStyle = c[2]; ctx.fillStyle = c[2]; ctx.lineWidth = 1.8;
+  if (m === 'CALM' || m === 'HELLO') {                              // dot eyes (HELLO winks with the right one)
+    ctx.beginPath(); arcAt(-5, -1, 1.9, 0, TAU); if (m === 'CALM') arcAt(5, -1, 1.9, 0, TAU); ctx.fill();
+  }
+  ctx.beginPath();
+  if (m === 'HAPPY' || m === 'YUMMY') { arcAt(-5, 1.5, 3, 1.15 * Math.PI, 1.85 * Math.PI); arcAt(5, 1.5, 3, 1.15 * Math.PI, 1.85 * Math.PI); }
+  else if (m === 'SILLY') { ctx.moveTo(-8, -3); ctx.lineTo(-4, -0.5); ctx.lineTo(-8, 2); ctx.moveTo(8, -3); ctx.lineTo(4, -0.5); ctx.lineTo(8, 2); }
+  else if (m === 'SLEEPY') { arcAt(-5, -1.5, 2.8, 0.15 * Math.PI, 0.85 * Math.PI); arcAt(5, -1.5, 2.8, 0.15 * Math.PI, 0.85 * Math.PI); }
+  else if (m === 'HELLO') arcAt(5, 1, 3, 1.15 * Math.PI, 1.85 * Math.PI);
+  if (m !== 'SLEEPY') arcAt(0, 3, m === 'YUMMY' ? 2.2 : 3, 0.2 * Math.PI, 0.8 * Math.PI);          // smile
+  ctx.stroke(); ctx.lineCap = 'butt';
+  ctx.restore();
+}
+function drawStart() {
+  ctx.fillStyle = 'rgba(30,34,69,0.35)'; ctx.fillRect(0, 0, W, H);
+  const p = 1 + Math.sin(time * 3) * 0.04;
+  ctx.save(); ctx.translate(160, 120); ctx.scale(p, p);
+  ctx.fillStyle = TOK.cream; ctx.beginPath(); ctx.arc(0, 0, 36, 0, 7); ctx.fill();
+  ctx.fillStyle = '#2DB26E'; ctx.beginPath(); ctx.moveTo(-10, -16); ctx.lineTo(18, 0); ctx.lineTo(-10, 16); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+let fps = 60, frameMs = 0;
+function drawHud() {
+  if (!debug) return;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(176, 214, 144, 26);
+  ctx.fillStyle = parts.length > TOK.deviceMaxParticles ? '#FF9A92' : '#FFFFFF'; ctx.font = '8px monospace';
+  ctx.fillText(`fps ${fps.toFixed(0)} draw ${frameMs.toFixed(1)}ms p ${parts.length}/${maxParticles}`, 180, 224);
+  ctx.fillText(`seed ${seed} ${st.phase} ${st.mood} r${st.reacts} hint ${st.hint} ${reduced ? 'RM' : ''}`, 180, 235);
+}
+// One full frame of the game scene (the golden harness calls this directly).
+function drawScene() {
+  drawBackground();
+  drawGears(); drawDisco(); drawNight();
+  drawFood(); drawMoon(); drawHello();
+  drawBolt();
+  drawSnack(); drawButtons(); drawFx(); drawBadge(); drawChrome();
+}
+
+// Test hook for tools/quality_bar_golden/sketch_check.mjs (not ported): the logical point a helpful player taps next, or null.
+function autoTarget() {
+  if (st.phase === 'START') return { x: 160, y: 120 };
+  if (st.phase !== 'PLAY' || dance.on) return null;                 // the dance plays out by itself
+  if (st.sleepT >= 0) return st.sleepT >= TOK.wakeGuard ? { x: TARGET_PT.head[0], y: TARGET_PT.head[1] } : null;
+  if (prompt.show) {
+    if (prompt.t <= TOK.maxInputBlock) return null;
+    const b = prompt.n % 2 ? BTN.yes : BTN.no;                      // alternate yes / no between prompts
+    return { x: b[0], y: b[1] };
+  }
+  if (bolt.act && bolt.act.kind !== 'wave') return null;            // let the reaction finish
+  const p = TARGET_PT[CYCLE[st.total % CYCLE.length]];
+  return { x: p[0], y: p[1] };
+}
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  update(dt); if (ac) musicTick();
+  const t0 = performance.now();
+  drawScene();
+  if (st.phase === 'START') drawStart();
+  frameMs = lerp(frameMs, performance.now() - t0, 0.1); fps = lerp(fps, 1 / Math.max(dt, 1e-3), 0.05);
+  drawHud();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

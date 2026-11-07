@@ -8,6 +8,22 @@
 | Play value | Shape matching, fine motor (drag), building |
 | Capabilities | music, narration, voice_intents, pointer_drag, particles |
 
+**Reference sketch (v2 mockup, awaiting owner review):** [`shape_garage.html`](../reference/shape_garage.html) is the
+runnable browser reference for this design: scene, motion and Web Audio score. Once the owner approves
+it, the device port follows it line by line ([06 §4.5](../docs/06_visual_motion_design.md)).
+Notable differences from the design below:
+- Voice intents (YES/NO/AGAIN/HELP) and the 10 s "Should I help?" offer are not sketched (Mic shown disabled); help is touch-only: glow + hop at 6 s idle, prompt motif + helper-hand demo at 12 s, auto-glide on the 2nd miss.
+- Narration is stood in for by the badge (it shows the next piece's shape; tap it to replay) and a two-note prompt motif pitched by that shape.
+- Adds a 4th shape, a yellow STAR (clunk degree 3, from §10), so a 4-socket vehicle has four distinct shapes.
+- ROLL_IN (0.8 s roll + pieces popping into the tray) is skippable with a tap; COMPLETE is a 1.5 s wake/rev/horn beat before the 1.8 s DRIVE_OFF.
+- Vehicles roll in from the left and leave to the right; the truck's last socket is its cab door, the boat rides a wheeled trailer, the rocket lifts slightly as it leaves.
+- Sleep is closed eyes + rising bubbles (no "Z"); one eye peeks when a piece clicks in and the smile grows as sockets fill.
+- Socket count steps 2 → 3 → 4 per finished vehicle and back one after a round that needed auto-help.
+- Snap radius 28 units (+8 per miss, max 44) with a gentle magnetic pull inside 1.5× that; drag follow is a stiff critically damped spring (no overshoot).
+- Tray order is shuffled so it never mirrors the socket order; tray pieces also breathe slightly between their 5 s wiggles.
+- Wrong socket plays a soft rising boing + the piece's note; vehicle taps snore (asleep) or honk (awake), so taps during COMPLETE/DRIVE_OFF still answer.
+- Wheel spin is capped at 1 rev/s; particle cap 32 (P toggles the web cap for comparison).
+
 ## 1. Pitch
 Drag chunky shape pieces into a toy car or rocket. When it's built, it zooms off!
 *Feels like:* building with real toy blocks.

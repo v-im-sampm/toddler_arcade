@@ -158,9 +158,21 @@ the frame loop. The current firmware particle layer caps a scene at 48 live part
 cap requires device-budget evidence.
 
 **The device must match the browser reference exactly.** When a game has a reference sketch (Color Pop:
-[`quality_bar.html`](../reference/quality_bar.html)), the firmware is a line-by-line port of it,
+[`quality_bar.html`](../reference/quality_bar.html); every other game: `reference/<game_id>.html`, for example
+[`hatch_a_pet.html`](../reference/hatch_a_pet.html)), the firmware is a line-by-line port of it,
 not a reinterpretation. The device and the desktop simulator run the same code and must look and
-sound identical. Workflow (proven on Color Pop):
+sound identical. Before porting, run `node tools/quality_bar_golden/sketch_check.mjs <game_id>` to confirm
+the sketch is portable. It plays a seeded session in headless Edge, writes screenshots and a contact sheet
+for review, and fails if:
+- a canvas call outside the debug HUD leaves the `ui/ctx2d` subset (no clip, drawImage, text, shadows,
+  filters or dashes; at most 4 gradient stops, 16 gradients and 640 fills/strokes per frame);
+- the Web Audio score uses more than one AudioContext, non-sine oscillators, oscillators at 7.8 kHz or
+  more (the device runs at 16 kHz), or nodes the device scores cannot port (convolver, wave shaper,
+  script/worklet DSP, 3D panner, media streams, speech synthesis);
+- the page logs a console error, or more than 96 particles are live under the device cap.
+
+(Color Pop's `quality_bar.html` predates the check: it caches its background with `drawImage`, which its
+port replaced with a painted background cache.) Workflow (proven on Color Pop):
 1. **Port the sketch's canvas drawing** to `ui/ctx2d` (a canvas-2D-compatible software renderer:
    paths, arcs, gradients, alpha, `globalCompositeOperation`, ordered dither to RGB565). Keep the
    painter (`<game>_paint.cpp`) in the same order and with the same constants as the JS `draw()`.

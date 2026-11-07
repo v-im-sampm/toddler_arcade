@@ -8,6 +8,20 @@
 | Play value | Emotions vocabulary, creativity, laughter |
 | Capabilities | music, narration, voice_intents, particles |
 
+**Reference sketch (v2 mockup, awaiting owner review):** [`silly_faces.html`](../reference/silly_faces.html) is the
+runnable browser reference for this design: scene, motion and Web Audio score. Once the owner approves
+it, the device port follows it line by line ([06 §4.5](../docs/06_visual_motion_design.md)).
+Notable differences from the design below:
+- A feeling is a matching eye and mouth style (eyes e + mouth e); every other combo gets a silly wobble and sound.
+- Narration lines are musical motifs and a kazoo-like FM "voice" (no speech synthesis); Mic stays disabled, so the "Want a new monster?" voice suggestion is omitted (New covers it).
+- The pond bed is an original looping tune (G major pentatonic, 110 BPM) plus occasional cosmetic bubble bloops.
+- Mix always gives a silly (non-feeling) face that differs from the current one; New keeps the face and the stickers.
+- Show asks for uncollected feelings round-robin.
+- SAD: droop and one tear, hug at 1.1 s, the mouth turns into a grin at 1.7 s (eyes stay soft), act ends at 2.4 s. A control tap after 300 ms fast-forwards an act; for SAD it always jumps to the hug first.
+- Hints: at 8 s the parts to change glow and wiggle (in free play Show glows too); at 12 s the ask replays and the helper hand appears; 2 misses in Show also bring the hand. Idle counts from the last touch, acts included.
+- Sticker slots are 40 px (optional targets, below the 48 px minimum, as laid out in this doc).
+- After the all-4 celebration the stickers reset (RAM only) and the face becomes a random silly face.
+
 ## 1. Pitch
 A friendly pond monster looks up from the water. Tap its eyes and mouth to make silly and feeling
 faces, and collect a sticker for each feeling. *Feels like:* making faces in a mirror.

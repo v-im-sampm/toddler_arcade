@@ -1,0 +1,936 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Little Arcade v2 – reference sketch (Rainbow Piano)</title>
+<!--
+  REFERENCE SKETCH: the device port must match this file exactly (see docs/06 §4).
+  Same visual language, motion tokens and audio graph as quality_bar.html (Color Pop) and hatch_a_pet.html.
+  Canvas features are limited to what firmware ui/ctx2d supports: paths, arcs, ellipses,
+  bezier/quadratic curves, linear/radial gradients, globalAlpha, 'lighter', transforms.
+  No clip, drawImage, text, shadows or filters in the game scene.
+  Audio nodes: sine oscillators (additive partials, all below 7.8 kHz), linear-attack/exponential-decay
+  gains, exponential pitch glides, one seeded 16 kHz white-noise buffer through one biquad per noise
+  voice, a sine vibrato LFO on the flute, one compressor. The child is the music: there is no music bed.
+  An optional original backing groove (96 bpm, metronome toggle, off by default) runs on its own small
+  voice pool with a look-ahead scheduler and ducks under the cues.
+  All art is procedural and original; no external resources, no network, no storage, no mic.
+  Keys: D = debug HUD, R = reduced motion, P = toggle device/web particle cap. URL ?seed=N.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #1E2245; overflow: hidden;
+    touch-action: none; user-select: none; -webkit-user-select: none; }
+  #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,.45); }
+  #note { position: fixed; left: 8px; bottom: 6px; color: #9DB8FA; font: 12px system-ui, sans-serif; opacity: .7; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" aria-label="Rainbow Piano reference sketch"></canvas></div>
+<div id="note">v2 reference sketch · Rainbow Piano · 320×240 logical stage · D debug · R reduced motion · P particle cap</div>
+<script>
+'use strict';
+// ---------- tokens (same subset as quality_bar.html) ----------
+const W = 320, H = 240;
+const TOK = {
+  ink: '#3B3550', paper: '#FFF8EC', cream: '#FFF3D6', creamLight: '#FFFBEF', creamLine: '#D9C7A3', hintGlow: '#FFE066',
+  skyTop: '#F6DBFF', skyBot: '#ACDDFC', teal: '#21B3B0', tealLight: '#8FE3DE',
+  squashPress: [1.12, 0.88], wiggleDeg: 6, wiggleMs: 360, glowPeriod: 0.9,
+  idleVisualHint: 6, idleSpokenHint: 12, maxInputBlock: 0.3, autoHelpMisses: 2,
+  springBouncy: { k: 380, c: 14 }, breathScale: 0.025, bob: 2, tapDebounce: 0.08,
+  deviceMaxParticles: 48, webMaxParticles: 400,                    // doc §9: particles ≤ 48 on the device
+  keyGlow: 0.3, noteRise: 1.2, maxNotes: 10, noteVoices: 5,         // doc §4/§5: glow 300 ms, ≤ 10 note creatures, 5 voices
+  glissGap: 0.06, followBounce: 5, sweep: 1.2, rainbow: 2,          // doc §3.1/§7: ≥ 60 ms per key, 5 s bounce, sweep, RAINBOW
+};
+// Rainbow bands, outer to inner (tokens.json hue triples). The keys wear the first five.
+const BANDS = [
+  { base: '#F06BB8', shadow: '#B23E86', light: '#FBB6DC' },   // pink
+  { base: '#FF8A2A', shadow: '#C2621B', light: '#FFC07F' },   // orange
+  { base: '#FFD23F', shadow: '#C99A0E', light: '#FFEB9C' },   // yellow
+  { base: '#2DB26E', shadow: '#1E8452', light: '#8EE0B4' },   // green
+  { base: '#3A6FE8', shadow: '#2448A8', light: '#9DB8FA' },   // blue
+  { base: '#8F5BE0', shadow: '#6236A6', light: '#C9AEF5' },   // purple
+];
+// Five shape keys (doc §3.3): drawn at {4+64i,120,56,112}; hit columns 64 px wide, y 120..240, no gaps.
+// Notes C4 D4 E4 G4 A4 (C major pentatonic); each instrument picks its octave. Colour + shape per key.
+const KEYS = ['circle', 'square', 'triangle', 'heart', 'star'].map((shape, i) => ({
+  i, shape, x: 4 + 64 * i, cx: 32 + 64 * i, c: BANDS[i], f: 261.63 * Math.pow(2, [0, 2, 4, 7, 9][i] / 12) }));
+const KEY_Y = 120, KEY_FOOT = 232, GLYPH_Y = 170;
+// Instrument picker (doc §3.1/§3.3). Four 48 px icons fill the top band x 64..256 exactly; the fifth
+// (toy piano, the default) sits on the rainbow's left cloud foot, mirrored by the groove toggle.
+const INSTR = [
+  { name: 'BELLS', cx: 88, cy: 28, hit: [64, 0, 48, 56] },
+  { name: 'FLUTE', cx: 136, cy: 28, hit: [112, 0, 48, 56] },
+  { name: 'DRUM', cx: 184, cy: 28, hit: [160, 0, 48, 56] },
+  { name: 'MARIMBA', cx: 232, cy: 28, hit: [208, 0, 48, 56] },
+  { name: 'TOY_PIANO', cx: 32, cy: 86, hit: [4, 58, 56, 58] },
+];
+const BULB = { cx: 160, cy: 84, hit: [132, 58, 56, 58] };          // follow-the-light toggle, box {136,60,48,48}
+const GROOVE_BTN = { cx: 288, cy: 86, hit: [260, 58, 56, 58] };    // backing-groove toggle (metronome)
+const RB = { x: 160, y: 196, r: 148, w: 7 };                       // rainbow arch: centre, outer radius, band width
+// Band i (0 = outer) as [start angle, end angle, radius]: only the part above y 122 (its feet tuck under the cloud feet).
+function bandSpan(i) { const r = RB.r - RB.w * (i + 0.5), a = Math.asin(Math.min(1, 74 / r)); return [Math.PI + a, 2 * Math.PI - a, r]; }
+// Follow-the-light tunes: original 5-note phrases on key indices (C D E G A), each coming to rest on C or G.
+const TUNES = [[0, 2, 4, 3, 0], [3, 4, 3, 2, 0], [1, 2, 4, 3, 0], [4, 3, 1, 2, 0], [0, 1, 3, 4, 3], [2, 4, 3, 1, 0]];
+
+// ---------- utils ----------
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+const easeOutBack = t => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const seed = parseInt(new URLSearchParams(location.search).get('seed') || '1234', 10);
+const grng = mulberry32(seed);          // gameplay RNG (deterministic per seed)
+const frng = Math.random;               // cosmetic RNG
+const inRect = (x, y, r) => x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3];
+
+// ---------- canvas ----------
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let scale = 1;
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  scale = Math.min(innerWidth / W, innerHeight / H) * 0.96;
+  cv.style.width = (W * scale) + 'px'; cv.style.height = (H * scale) + 'px';
+  cv.width = Math.round(W * scale * dpr); cv.height = Math.round(H * scale * dpr);
+  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+let reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let debug = false, maxParticles = TOK.deviceMaxParticles;
+
+// ---------- audio (Web Audio, C major pentatonic, conservative gain) ----------
+let ac = null, master = null, voices = [], noiseBuf = null, noiseOff = 0;
+const PENT = [0, 2, 4, 7, 9];
+function degFreq(deg, oct = 0) {                                   // degree 0 = C5
+  const o = Math.floor(deg / 5), i = ((deg % 5) + 5) % 5;
+  return 523.25 * Math.pow(2, (PENT[i] + 12 * (o + oct)) / 12);
+}
+function initAudio() {
+  if (ac) return;
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  const comp = ac.createDynamicsCompressor();
+  comp.threshold.value = -14; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.15;
+  master = ac.createGain(); master.gain.value = 0;
+  master.connect(comp); comp.connect(ac.destination);
+  master.gain.setTargetAtTime(0.35, ac.currentTime, 0.1);   // ramp in: never a loud start
+  // 0.5 s of seeded white noise at the device rate (drum skin, flute breath, groove tick and shaker).
+  const r = mulberry32(99), b = ac.createBuffer(1, 8000, 16000), d = b.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1;
+  noiseBuf = b;
+}
+function voiceOk(len) {
+  const now = ac.currentTime; voices = voices.filter(e => e > now);
+  if (voices.length >= 8) return false;                        // voice limit
+  voices.push(now + len); duckMusic(now, len); return true;
+}
+function env(g, t, peak, attack, dur) {
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+}
+// Flute: linear swell, a short settle to 60 %, then the exponential release.
+function envHold(g, t, peak, attack, dur) {
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + attack);
+  g.gain.exponentialRampToValueAtTime(peak * 0.6, t + attack + 0.18);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+}
+function marimba(freq, when = 0, vel = 1, dur = 0.55) {
+  if (!ac || !voiceOk(dur)) return;
+  const t = ac.currentTime + when;
+  const g = ac.createGain(); env(g, t, 0.45 * vel, 0.003, dur);
+  const o1 = ac.createOscillator(); o1.type = 'sine'; o1.frequency.value = freq;
+  const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 3.99;
+  const g2 = ac.createGain(); env(g2, t, 0.18 * vel, 0.003, 0.09);
+  o1.connect(g); o2.connect(g2); g2.connect(g); g.connect(master);
+  o1.start(t); o2.start(t); o1.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
+}
+// Pitched sine with an exponential glide (plop and woodblock use this voice).
+function glide(f0, f1, glideS, when, peak, dur) {
+  if (!ac || !voiceOk(dur)) return;
+  const t = ac.currentTime + when;
+  const o = ac.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + glideS);
+  const g = ac.createGain(); env(g, t, peak, 0.003, dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.04);
+}
+const plop = (when = 0, vel = 1, hi = 1) => glide(760 * hi, 230 * hi, 0.07, when, 0.35 * vel, 0.14);
+// Woodblock knock: short body with a slight pitch drop plus a bright inharmonic tick.
+function woodblock(freq, when = 0, vel = 1) {
+  glide(freq, freq * 0.92, 0.05, when, 0.42 * vel, 0.12);
+  glide(freq * 2.76, freq * 2.76, 0.01, when, 0.14 * vel, 0.04);
+}
+// Noise burst through one biquad at absolute time t (key notes, groove bus).
+function noiseAt(t, type, freq, q, peak, dur, dest) {
+  const s = ac.createBufferSource(); s.buffer = noiseBuf;
+  const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+  const g = ac.createGain(); env(g, t, peak, 0.003, dur);
+  s.connect(f); f.connect(g); g.connect(dest);
+  noiseOff = (noiseOff + 0.137) % 0.4;                             // deterministic offset: no two bursts alike
+  s.start(t, noiseOff); s.stop(t + dur + 0.03);
+  return s;
+}
+
+// ---------- instruments: additive sine recipes ----------
+// oct = multiple of the C4 key pitch; p = [ratio, peak, decay s]; partials at 7.8 kHz or above are skipped.
+const RECIPES = [
+  { oct: 4, att: 0.003, p: [[1, 0.24, 1.2], [2.76, 0.09, 0.45], [5.4, 0.035, 0.16]] },                // bells C6..A6
+  { oct: 2, att: 0.04, hold: true, p: [[1, 0.3, 0.75], [2, 0.07, 0.6], [3, 0.025, 0.45]] },          // flute C5..A5
+  { oct: 1, att: 0.003, drum: true, p: [[1, 0.42, 0.36], [1.59, 0.12, 0.12]] },                      // drum: tuned membrane
+  { oct: 1, att: 0.003, p: [[1, 0.45, 0.6], [3.99, 0.18, 0.09]] },                                   // marimba C4..A4
+  { oct: 2, att: 0.003, p: [[1, 0.26, 0.8], [1.004, 0.1, 0.7], [2, 0.08, 0.35], [3, 0.04, 0.2], [4.17, 0.05, 0.07]] }, // toy piano
+];
+// Key notes have their own pool of TOK.noteVoices (one per key). A retrigger or a steal fades the old voice
+// in ~20 ms (no click). Key notes never take cue voices and never duck the groove: the child is the music.
+let noteVoices = [];
+function fadeVoice(v, now) {
+  v.g.gain.cancelScheduledValues(now); v.g.gain.setValueAtTime(1, now); v.g.gain.setTargetAtTime(0, now, 0.006);
+  for (const s of v.src) try { s.stop(now + 0.05); } catch (e) { /* already stopped */ }
+}
+function playNote(k, vel = 1) {
+  if (!ac) return;
+  const t = ac.currentTime;
+  for (const v of noteVoices) if (v.k === k && v.end > t) fadeVoice(v, t);       // retrigger: short fade
+  noteVoices = noteVoices.filter(v => v.k !== k && v.end > t);
+  if (noteVoices.length >= TOK.noteVoices) fadeVoice(noteVoices.shift(), t);       // steal the oldest
+  const R = RECIPES[st.inst], f = KEYS[k].f * R.oct;
+  const out = ac.createGain(); out.gain.value = 1; out.connect(master);
+  const v = { k, g: out, src: [], end: 0 };
+  let len = 0;
+  for (const [ratio, peak, dec] of R.p) {
+    const fr = f * ratio;
+    if (fr >= 7800) continue;                                      // the device runs at 16 kHz
+    const o = ac.createOscillator(); o.type = 'sine';
+    if (R.drum && ratio === 1) { o.frequency.setValueAtTime(fr * 1.6, t); o.frequency.exponentialRampToValueAtTime(fr, t + 0.05); }
+    else o.frequency.value = fr;
+    const g = ac.createGain();
+    if (R.hold) envHold(g, t, peak * vel, R.att, dec); else env(g, t, peak * vel, R.att, dec);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + dec + 0.05);
+    v.src.push(o); len = Math.max(len, dec);
+  }
+  if (R.hold) {                                                    // flute: delayed vibrato (sine LFO on detune) + breath
+    const lfo = ac.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 5.5;
+    const depth = ac.createGain(); depth.gain.setValueAtTime(0, t); depth.gain.linearRampToValueAtTime(12, t + 0.3);
+    lfo.connect(depth); for (const o of v.src) depth.connect(o.detune);
+    lfo.start(t); lfo.stop(t + len + 0.05); v.src.push(lfo);
+    v.src.push(noiseAt(t, 'bandpass', 2200, 1.5, 0.05 * vel, 0.08, out));
+  }
+  if (R.drum) v.src.push(noiseAt(t, 'lowpass', 1800, 0.7, 0.2 * vel, 0.05, out));   // drum skin
+  v.end = t + len + 0.05; noteVoices.push(v);
+}
+
+// ---------- backing groove (optional, original; 4/4 at 96 bpm, 4 bars = 10 s loop) ----------
+// Soft tuned boom on beats 1 and 3, skin tick on 2 and 4, shaker off-beats, one sine bass per bar (C C A G).
+// Events in time order: [beat, kind (0 boom, 1 tick, 2 shaker, 3 bass), freq, peak, dur].
+const GROOVE = { spb: 60 / 96, beats: 16, voices: 6, bass: [130.81, 130.81, 110, 98] };
+const SONG = [];
+for (let b = 0; b < GROOVE.beats; b++) {
+  SONG.push(b % 2 ? [b, 1, 2400, 0.05, 0.05] : [b, 0, 130.81, 0.16, 0.22]);
+  SONG.push([b + 0.5, 2, 6000, 0.022, 0.04]);
+}
+GROOVE.bass.forEach((f, i) => { SONG.push([i * 4, 3, f, 0.09, 0.9]); SONG.push([i * 4 + 2.5, 3, f, 0.05, 0.3]); });
+SONG.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+let music = null, musicBus = null, duck = null, duckUntil = 0, musicVoices = [];
+function startMusic() {
+  if (!ac) return;
+  if (!musicBus) { musicBus = ac.createGain(); duck = ac.createGain(); musicBus.connect(duck); duck.connect(master); }
+  const now = ac.currentTime;
+  musicBus.gain.cancelScheduledValues(now); musicBus.gain.setValueAtTime(0, now);
+  musicBus.gain.setTargetAtTime(1, now + 0.1, 0.4);                // gentle fade-in, never a loud start
+  music = { t0: now + 0.1, i: 0, loop: 0 }; musicVoices = [];
+}
+function stopMusic() {
+  if (!music) return;
+  musicBus.gain.cancelScheduledValues(ac.currentTime); musicBus.gain.setTargetAtTime(0, ac.currentTime, 0.15);
+  music = null;
+}
+function musicVoiceOk(t, len) {                                    // own pool: never takes cue voices
+  musicVoices = musicVoices.filter(e => e > t);
+  if (musicVoices.length >= GROOVE.voices) return false;
+  musicVoices.push(t + len); return true;
+}
+function musicNote(t, kind, freq, peak, dur) {
+  if (!musicVoiceOk(t, dur)) return;
+  if (kind === 1 || kind === 2) { noiseAt(t, 'bandpass', freq, kind === 1 ? 1.2 : 0.9, peak, dur, musicBus); return; }
+  const g = ac.createGain(); env(g, t, peak, kind === 3 ? 0.02 : 0.003, dur); g.connect(musicBus);
+  const o = ac.createOscillator(); o.type = 'sine';
+  if (kind === 0) { o.frequency.setValueAtTime(freq * 1.8, t); o.frequency.exponentialRampToValueAtTime(freq, t + 0.06); }
+  else o.frequency.value = freq;
+  o.connect(g); o.start(t); o.stop(t + dur + 0.05);
+  if (kind === 3) {                                                // bass: an octave partial for small speakers
+    const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 2;
+    const g2 = ac.createGain(); g2.gain.value = 0.4; o2.connect(g2); g2.connect(g); o2.start(t); o2.stop(t + dur + 0.05);
+  }
+}
+function musicTick() {                                             // schedule notes 0.4 s ahead
+  if (!music) return;
+  for (;;) {
+    const e = SONG[music.i], t = music.t0 + (music.loop * GROOVE.beats + e[0]) * GROOVE.spb;
+    if (t > ac.currentTime + 0.4) return;
+    if (t > ac.currentTime - 0.1) musicNote(t, e[1], e[2], e[3], e[4]);   // events missed by a stalled tab are skipped
+    if (++music.i >= SONG.length) { music.i = 0; music.loop++; }
+  }
+}
+function duckMusic(now, len) {                                     // music dips to 0.35 under cues
+  if (!duck) return;
+  duckUntil = Math.max(duckUntil, now + len);
+  duck.gain.cancelScheduledValues(now);
+  duck.gain.setTargetAtTime(0.35, now, 0.03); duck.gain.setTargetAtTime(1, duckUntil, 0.3);
+}
+// ---------- cues (in key; the "spoken" lines are motif stand-ins until the voice pack exists) ----------
+const motif = (degs, vel, when = 0) => degs.forEach((d, i) => marimba(degFreq(d), when + [0, 0.13, 0.26, 0.42][i], vel, 0.35));
+const sayPlay = () => motif([3, 4, 5, 7], 0.5);                    // "Play the rainbow!"  G5 A5 C6 E6
+const sayFollow = () => motif([2, 1, 2, 4], 0.5);                  // "Follow the light!"  E5 D5 E5 A5
+const grooveOnSound = () => { woodblock(degFreq(0), 0, 0.55); woodblock(degFreq(3), 0.14, 0.65); };
+const grooveOffSound = () => woodblock(degFreq(3), 0, 0.4);
+const bulbOffSound = () => { plop(0, 0.6, 1.2); marimba(degFreq(0), 0.08, 0.35, 0.3); };
+const emptySound = x => marimba(degFreq(clamp(Math.floor(x / 64), 0, 4), 1), 0, 0.3, 0.25);
+const shimmer = when => [5, 7, 8].forEach((d, i) => marimba(degFreq(d), when + i * 0.07, 0.35, 0.5));
+
+// ---------- particles, rings ----------
+let parts = [], rings = [];
+function emit(x, y, n, o) {
+  n = Math.max(1, Math.round(n * (reduced ? 0.5 : 1)));
+  for (let i = 0; i < n; i++) {
+    if (parts.length >= maxParticles) parts.shift();            // evict oldest, never exceed cap
+    const a = frng() * Math.PI * 2, sp = lerp(o.speed[0], o.speed[1], frng()), life = lerp(o.life[0], o.life[1], frng());
+    parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - (o.up || 0), g: o.gravity, life, max: life,
+      shape: o.shape, color: o.colors[(frng() * o.colors.length) | 0], size: o.size * lerp(0.7, 1.3, frng()),
+      rot: frng() * 6.28, vr: (frng() - 0.5) * 8, add: !!o.additive });
+  }
+}
+const SPARKLE = { speed: [40, 110], life: [0.35, 0.7], gravity: 60, shape: 'star', size: 5, colors: ['#FFEB9C', '#FFFBEF'], additive: true };
+const CONFETTI = { speed: [50, 140], life: [0.8, 1.2], gravity: 170, shape: 'rect', size: 5, up: 50, colors: BANDS.map(b => b.base) };
+const ring = (x, y, r0, r1, dur, color, w) => rings.push({ x, y, r0, r1, t: 0, dur, color, w });
+
+// ---------- entities ----------
+// keys: q/qv = squash spring (sx = 1+q, sy = 1-q, pivot at the key foot); glow = press glow (1 → 0 over TOK.keyGlow);
+// hop = glyph bounce time left; sing = open-mouth time left; look = where the face looks.
+const keys = KEYS.map(() => ({ q: 0, qv: 0, glow: 0, hop: 0, sing: 0, lastTap: -9, look: [0, -1], blink: 2 + frng() * 4 }));
+const icons = INSTR.map(() => ({ q: 0, qv: 0, lastTap: -9 }));
+const bulb = { q: 0, qv: 0, on: 0, lastTap: -9, look: [0, 1], blink: 3 };
+const metro = { q: 0, qv: 0, lastTap: -9 };
+const sweep = { t: -1, acc: 0, burst: false };                 // rainbow sweep clock (s) and sparkle accumulator
+const drag = { down: false, key: -1, q: [], last: -9 };        // glissando: key under the finger, queued key entries
+let notes = [];                                                // note creatures { k, x0, dx, t, life, ph }
+let seq = [];                                                  // timed key lights { at, k, vel, creature, preview }
+const st = { phase: 'START', t: 0, introT: 9, idle: 0, hint: 0, spoken: false, taps: 0, notes: 0, inst: 4, groove: false,
+  grooveT: 0, tune: null, step: 0, misses: 0, bag: [], lastTune: -1, litT: 9, pvK: -1, pvUntil: 0, beamX: 160, beamA: 0, waveT: 0 };
+let time = 0, driftT = 0;
+const target = () => st.tune === null ? 0 : TUNES[st.tune][Math.min(st.step, 4)];   // the key the light points at
+
+function nextTune() {                                          // shuffle bag: every tune before a repeat, never twice in a row
+  if (!st.bag.length) {
+    st.bag = TUNES.map((_, i) => i);
+    for (let i = st.bag.length - 1; i > 0; i--) { const j = (grng() * (i + 1)) | 0; [st.bag[i], st.bag[j]] = [st.bag[j], st.bag[i]]; }
+    if (st.bag[st.bag.length - 1] === st.lastTune) [st.bag[0], st.bag[st.bag.length - 1]] = [st.bag[st.bag.length - 1], st.bag[0]];
+  }
+  return st.bag.pop();
+}
+function startGame() {
+  initAudio(); st.phase = 'INTRO'; st.t = 0; st.introT = 0; seq = [];
+  for (let i = 0; i < 5; i++) seq.push({ at: time + 0.45 + 0.1 * i, k: i, vel: 0.5, creature: true, preview: false });  // each key sings as it lands
+}
+function endIntro(prompt) {
+  st.phase = 'FREE'; st.t = 0; st.idle = 0; st.hint = 0; st.spoken = false;
+  if (prompt) sayPlay(); else seq = [];                         // a touch skips the intro (and its prompt)
+}
+// Light a key: squash, glow, glyph hop, open mouth, its note and optionally a note creature.
+function lightKey(k, vel, creature) {
+  const K = keys[k];
+  K.qv = (reduced ? 1.8 : 3.4) * (0.6 + 0.4 * vel); K.glow = 1; K.hop = 0.3; K.sing = 0.4;
+  playNote(k, vel); st.notes++;
+  if (creature) spawnNote(k);
+}
+function pressKey(k) {
+  const K = keys[k];
+  if (time - K.lastTap < TOK.tapDebounce) return false;
+  K.lastTap = time; drag.last = time; st.idle = 0; st.spoken = false;
+  if (st.phase !== 'FOLLOW') st.hint = 0;
+  lightKey(k, 1, true);
+  ring(KEYS[k].cx, GLYPH_Y, 8, 30, 0.4, '#FFFFFF', 2);
+  if (st.phase === 'FOLLOW') {
+    seq = []; st.pvUntil = 0;                                   // a touch interrupts the preview
+    if (k === target()) {                                       // success: the next rainbow band lights up
+      st.step++; st.misses = 0; st.hint = 0; st.litT = 0;
+      ring(KEYS[k].cx, GLYPH_Y, 14, 40, 0.5, TOK.hintGlow, 3); emit(KEYS[k].cx, 136, 5, SPARKLE);
+      if (st.step >= 5) startRainbow();
+    } else if (++st.misses >= TOK.autoHelpMisses) st.hint = 2; // wrong keys just play; the light keeps glowing
+  }
+  return true;
+}
+function notePos(n) {
+  const m = reduced ? 0.3 : 1, u = easeOutCubic(Math.min(1, n.t / TOK.noteRise));
+  return [n.x0 + n.dx * u + Math.sin(n.ph + n.t * 6) * 3 * m, Math.max(64, 114 - 42 * n.t)];
+}
+function spawnNote(k) {
+  if (notes.length >= TOK.maxNotes) popNote(notes.shift());    // the oldest pops early
+  const cx = KEYS[k].cx;
+  let life = TOK.noteRise;
+  if (st.groove) { const b = (st.grooveT - 0.1) / GROOVE.spb; life = (Math.ceil(b + 0.9 / GROOVE.spb) - b) * GROOVE.spb; } // pop on a beat
+  notes.push({ k, x0: cx + (160 - cx) * 0.12, dx: k === 2 ? (st.notes % 2 ? 34 : -34) : (160 - cx) * 0.3, t: 0, life, ph: frng() * 6.28 });
+}
+function popNote(n) {
+  const [x, y] = notePos(n), c = BANDS[n.k];
+  emit(x, y, 4, { ...SPARKLE, colors: [c.light, '#FFFBEF'] }); ring(x, y, 4, 14, 0.3, c.light, 2);
+}
+function tapNote(i) {
+  const n = notes[i]; notes.splice(i, 1); popNote(n);
+  marimba(degFreq(n.k, 1), 0, 0.35, 0.3); st.idle = 0;
+}
+function pickInstrument(i) {
+  const o = icons[i], I = INSTR[i];
+  if (time - o.lastTap < TOK.tapDebounce) return;
+  o.lastTap = time; o.qv = 3.2; st.idle = 0; st.spoken = false;
+  if (st.phase === 'FREE') st.hint = 0;
+  st.inst = i;
+  ring(I.cx, I.cy, 18, 34, 0.45, TOK.teal, 3); emit(I.cx, I.cy, 5, SPARKLE);
+  if (st.phase !== 'RAINBOW') {                                 // demo arpeggio on the new timbre
+    seq = []; st.pvUntil = 0;
+    for (let k = 0; k < 5; k++) seq.push({ at: time + 0.04 + 0.085 * k, k, vel: 0.55, creature: false, preview: false });
+  }
+}
+function tapBulb() {
+  if (time - bulb.lastTap < TOK.tapDebounce) return;
+  bulb.lastTap = time; bulb.qv = 3.2; st.idle = 0; st.spoken = false; st.hint = 0;
+  if (st.phase === 'FREE') enterFollow();
+  else if (st.phase === 'FOLLOW') leaveFollow();
+  else { ring(BULB.cx, BULB.cy, 16, 34, 0.4, '#FFFFFF', 2); marimba(degFreq(5), 0, 0.4, 0.3); }   // RAINBOW: a happy blink
+}
+function enterFollow() {
+  if (st.tune === null) { st.tune = nextTune(); st.lastTune = st.tune; st.step = 0; }
+  st.phase = 'FOLLOW'; st.t = 0; st.misses = 0; st.litT = 9;
+  sayFollow();                                                  // then the light previews the whole tune
+  seq = TUNES[st.tune].map((k, i) => ({ at: time + 0.62 + 0.3 * i, k, vel: 0.45, creature: false, preview: true }));
+  ring(BULB.cx, BULB.cy, 16, 40, 0.5, TOK.hintGlow, 3); emit(BULB.cx, BULB.cy - 6, 8, SPARKLE);
+}
+function leaveFollow() {                                       // keeps tune + step: tapping the bulb again = AGAIN
+  st.phase = 'FREE'; st.t = 0; seq = []; st.pvUntil = 0; bulbOffSound();
+  ring(BULB.cx, BULB.cy, 16, 30, 0.4, '#FFFFFF', 2);
+}
+function startRainbow() {
+  st.phase = 'RAINBOW'; st.t = 0; sweep.t = 0; sweep.acc = 0; sweep.burst = false; seq = [];
+  TUNES[st.tune].forEach((k, i) => seq.push({ at: time + 0.25 + 0.26 * i, k, vel: 0.8, creature: true, preview: false }));
+  shimmer(1.35);
+}
+function tapGroove() {
+  if (time - metro.lastTap < TOK.tapDebounce) return;
+  metro.lastTap = time; metro.qv = 3.2; st.idle = 0; st.spoken = false;
+  if (st.phase === 'FREE') st.hint = 0;
+  st.groove = !st.groove;
+  if (st.groove) { st.grooveT = 0; startMusic(); grooveOnSound(); ring(GROOVE_BTN.cx, GROOVE_BTN.cy, 18, 34, 0.45, TOK.teal, 3); }
+  else { stopMusic(); grooveOffSound(); ring(GROOVE_BTN.cx, GROOVE_BTN.cy, 16, 28, 0.4, '#FFFFFF', 2); }
+}
+
+// ---------- input ----------
+const keyAt = (x, y) => x >= 0 && x < W && y >= KEY_Y && y < H ? Math.floor(x / 64) : -1;   // 64 px columns, no gaps
+function toStage(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H]; }
+function lookAt(x, y) {
+  for (let i = 0; i < 5; i++) keys[i].look = [x - KEYS[i].cx, y - GLYPH_Y];
+  bulb.look = [x - BULB.cx, y - BULB.cy];
+}
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const [x, y] = toStage(e);
+  lookAt(x, y);
+  if (st.phase === 'START') { startGame(); return; }
+  if (ac && ac.state === 'suspended') ac.resume();
+  if (inRect(x, y, [0, 0, 56, 56])) { home(); return; }
+  if (inRect(x, y, [264, 0, 56, 56])) { ring(292, 28, 6, 24, 0.4, '#FFFFFF', 2); return; } // mic: disabled in sketch
+  if (st.phase === 'INTRO') endIntro(false);                    // intro skippable; the touch still plays
+  st.taps++;
+  const k = keyAt(x, y);
+  drag.down = true; drag.key = k; drag.q = [];
+  try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
+  if (k >= 0) { pressKey(k); return; }
+  for (let i = 0; i < INSTR.length; i++) if (inRect(x, y, INSTR[i].hit)) { pickInstrument(i); return; }
+  if (inRect(x, y, BULB.hit)) { tapBulb(); return; }
+  if (inRect(x, y, GROOVE_BTN.hit)) { tapGroove(); return; }
+  for (let i = notes.length - 1; i >= 0; i--) { const [nx, ny] = notePos(notes[i]); if (Math.hypot(x - nx, y - ny) < 24) { tapNote(i); return; } }
+  ring(x, y, 3, 22, 0.5, '#FFFFFF', 2); emit(x, y, 4, SPARKLE); emptySound(x); st.idle = 0;
+});
+// Glissando: each key entry queues one note; update() plays the queue at ≥ TOK.glissGap per key.
+cv.addEventListener('pointermove', e => {
+  if (!drag.down) return;
+  const [x, y] = toStage(e), cur = drag.key;
+  lookAt(x, y);
+  if (cur >= 0 && x > cur * 64 - 3 && x < cur * 64 + 67 && y >= KEY_Y - 3) return;      // 3 px hysteresis: no chatter
+  const k = keyAt(x, y);
+  if (k === cur) return;
+  drag.key = k;
+  if (k < 0) return;
+  if (cur >= 0) for (let j = cur + Math.sign(k - cur); j !== k; j += Math.sign(k - cur)) drag.q.push(j); // fast slide: fill skipped keys
+  drag.q.push(k);
+  while (drag.q.length > 5) drag.q.shift();
+});
+function endDrag() { drag.down = false; drag.key = -1; }
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => cv.addEventListener(t, endDrag));
+addEventListener('keydown', e => {
+  if (e.key === 'd' || e.key === 'D') debug = !debug;
+  if (e.key === 'r' || e.key === 'R') reduced = !reduced;
+  if (e.key === 'p' || e.key === 'P') maxParticles = maxParticles === TOK.deviceMaxParticles ? TOK.webMaxParticles : TOK.deviceMaxParticles;
+});
+function home() {
+  stopMusic();
+  parts = []; rings = []; notes = []; seq = []; drag.down = false; drag.key = -1; drag.q = [];
+  Object.assign(st, { phase: 'START', t: 0, introT: 9, idle: 0, hint: 0, spoken: false, taps: 0, notes: 0, inst: 4, groove: false,
+    grooveT: 0, tune: null, step: 0, misses: 0, bag: [], lastTune: -1, litT: 9, pvK: -1, pvUntil: 0, beamA: 0, waveT: 0 });
+  sweep.t = -1; bulb.on = 0;
+  for (const K of keys) { K.q = 0; K.qv = 0; K.glow = 0; K.hop = 0; K.sing = 0; }
+}
+
+// ---------- update ----------
+function spring(o, target, dt) {                                    // 2 substeps (stable at 60 Hz)
+  for (let i = 0; i < 2; i++) {
+    const h = dt / 2, a = -TOK.springBouncy.k * (o.q - target) - TOK.springBouncy.c * o.qv;
+    o.qv += a * h; o.q += o.qv * h;
+  }
+}
+function update(dt) {
+  time += dt; st.t += dt; st.introT += dt; st.litT += dt;
+  if (!reduced) driftT += dt;                                       // reduced motion: clouds hold still
+  if (st.phase === 'INTRO' && st.t >= 1.2) endIntro(true);
+  // timed key lights: intro, follow preview, demo arpeggio, tune playback (seq is in time order)
+  while (seq.length && seq[0].at <= time) {
+    const s = seq.shift();
+    lightKey(s.k, s.vel, s.creature);
+    if (s.preview) { st.pvK = s.k; st.pvUntil = time + 0.32; }
+  }
+  // glissando queue: one note per key entry, at least TOK.glissGap apart
+  while (drag.q.length && time - drag.last >= TOK.glissGap) if (pressKey(drag.q.shift())) break;
+
+  // help ladder: visual hint, then a spoken hint (motif stand-in) once per idle spell
+  if (st.phase === 'FREE' || st.phase === 'FOLLOW') {
+    st.idle += dt;
+    if (st.idle > (st.phase === 'FOLLOW' ? TOK.followBounce : TOK.idleVisualHint) && st.hint < 1) { st.hint = 1; st.waveT = 0; }
+    if (st.idle > TOK.idleSpokenHint && !st.spoken) {
+      st.spoken = true; st.hint = 2; bulb.qv = 3;
+      if (st.phase === 'FOLLOW') { sayFollow(); seq.push({ at: time + 0.65, k: target(), vel: 0.4, creature: false, preview: true }); }
+      else { sayPlay(); st.waveT = 0; }
+    }
+    if (st.phase === 'FREE' && st.hint >= 1) {                      // FREE: a silent glow wave runs across the keys every 3 s
+      const w0 = st.waveT; st.waveT += dt;
+      for (let i = 0; i < 5; i++) {
+        const at = 0.1 + 0.08 * i;
+        if (w0 < at && st.waveT >= at) { keys[i].glow = Math.max(keys[i].glow, 0.7); if (!reduced) keys[i].hop = 0.3; }
+      }
+      if (st.waveT >= 3) st.waveT -= 3;
+    }
+  }
+  if (st.phase === 'RAINBOW') {
+    sweep.t += dt;
+    const k = clamp(sweep.t / TOK.sweep, 0, 1);
+    if (k < 1) {                                                    // sparkles ride the sweep head
+      sweep.acc += dt;
+      const gap = reduced ? 0.1 : 0.05, a = Math.PI * (1 + easeInOut(k)), r = RB.r - 3 * RB.w;
+      const hx = RB.x + Math.cos(a) * r, hy = RB.y + Math.sin(a) * r;
+      while (sweep.acc >= gap) { sweep.acc -= gap; if (hy < 118) emit(hx, hy, 1, { ...SPARKLE, colors: [BANDS[(frng() * 6) | 0].light, '#FFFBEF'] }); }
+    } else if (!sweep.burst) { sweep.burst = true; emit(160, 64, 16, CONFETTI); }
+    if (st.t >= TOK.rainbow) {
+      st.phase = 'FREE'; st.t = 0; st.tune = null; st.step = 0; sweep.t = -1; st.idle = 0; st.hint = 0; st.spoken = false;
+    }
+  }
+
+  for (const K of keys) {
+    spring(K, 0, dt);
+    K.glow = Math.max(0, K.glow - dt / TOK.keyGlow); K.hop = Math.max(0, K.hop - dt); K.sing = Math.max(0, K.sing - dt);
+    K.blink -= dt; if (K.blink < -0.12) K.blink = 2 + frng() * 4;
+  }
+  for (const o of icons) spring(o, 0, dt);
+  spring(bulb, 0, dt); spring(metro, 0, dt);
+  bulb.on = clamp(bulb.on + (st.phase === 'FOLLOW' || st.phase === 'RAINBOW' ? dt : -dt) / 0.25, 0, 1);
+  bulb.blink -= dt; if (bulb.blink < -0.12) bulb.blink = 2.5 + frng() * 3.5;
+  if (st.groove) st.grooveT += dt;
+  // the light beam follows the preview note, then rests on the target key
+  const bx = time < st.pvUntil ? KEYS[st.pvK].cx : KEYS[target()].cx;
+  st.beamX = lerp(st.beamX, bx, 1 - Math.exp(-dt * 14));
+  st.beamA = clamp(st.beamA + (st.phase === 'FOLLOW' ? dt : -dt) / 0.3, 0, 1);
+
+  for (const n of notes) n.t += dt;
+  for (const n of notes) if (n.t >= n.life) popNote(n);
+  notes = notes.filter(n => n.t < n.life);
+  for (const p of parts) { p.life -= dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; }
+  parts = parts.filter(p => p.life > 0);
+  for (const r of rings) r.t += dt; rings = rings.filter(r => r.t < r.dur);
+}
+
+// ---------- drawing helpers ----------
+function starPath(cx, cy, ro, ri, rot) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) { const r = i % 2 ? ri : ro, a = rot + i * Math.PI / 5; ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); }
+  ctx.closePath();
+}
+function heartPath(cx, cy, s) {
+  ctx.beginPath(); ctx.moveTo(cx, cy + s * 0.55);
+  ctx.bezierCurveTo(cx - s * 1.1, cy - s * 0.1, cx - s * 0.5, cy - s * 0.95, cx, cy - s * 0.35);
+  ctx.bezierCurveTo(cx + s * 0.5, cy - s * 0.95, cx + s * 1.1, cy - s * 0.1, cx, cy + s * 0.55);
+}
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function triPath(cx, cy, s) {                                       // rounded triangle, apex up
+  const p = [[cx, cy - s * 1.05], [cx + s * 1.1, cy + s * 0.8], [cx - s * 1.1, cy + s * 0.8]];
+  ctx.beginPath(); ctx.moveTo((p[2][0] + p[0][0]) / 2, (p[2][1] + p[0][1]) / 2);
+  for (let i = 0; i < 3; i++) ctx.arcTo(p[i][0], p[i][1], p[(i + 1) % 3][0], p[(i + 1) % 3][1], s * 0.28);
+  ctx.closePath();
+}
+function shapePath(shape, cx, cy, s) {                              // the five key shapes, about 2s across
+  if (shape === 'circle') { ctx.beginPath(); ctx.arc(cx, cy, s, 0, 7); }
+  else if (shape === 'square') roundRect(cx - s * 0.88, cy - s * 0.88, s * 1.76, s * 1.76, s * 0.3);
+  else if (shape === 'triangle') triPath(cx, cy, s);
+  else if (shape === 'heart') heartPath(cx, cy + s * 0.05, s * 1.7);
+  else starPath(cx, cy, s * 1.15, s * 0.62, -Math.PI / 2);
+}
+function shine(x, y) {
+  ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.ellipse(x, y, 7, 4, -0.6, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 8, y - 5, 1.6, 0, 7); ctx.fill();
+}
+// scene_art::cloud port: a faint ink shadow and three white puffs (a = opacity 0..1).
+function cloud(x, y, s, a) {
+  ctx.globalAlpha = a / 7; ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.ellipse(x, y + 3 * s, 14 * s, 6 * s, 0, 0, 7); ctx.fill();
+  ctx.globalAlpha = a; ctx.fillStyle = '#FFFFFF'; ctx.beginPath();
+  ctx.arc(x - 8 * s, y, 8 * s, 0, 7); ctx.arc(x + s, y - 4 * s, 11 * s, 0, 7); ctx.arc(x + 12 * s, y, 8 * s, 0, 7); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+// ---------- background (static: the device paints this layer once and caches it) ----------
+function drawBackground() {
+  let g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, TOK.skyTop); g.addColorStop(1, TOK.skyBot);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  g = ctx.createRadialGradient(160, 150, 20, 160, 150, 190);       // warm light under the arch
+  g.addColorStop(0, 'rgba(255,243,214,0.8)'); g.addColorStop(1, 'rgba(255,243,214,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.lineCap = 'butt';                                            // the resting rainbow: pastel bands, white rims
+  for (let i = 0; i < 6; i++) {
+    const [a0, a1, r] = bandSpan(i);
+    ctx.strokeStyle = BANDS[i].light; ctx.lineWidth = RB.w + 0.5; ctx.beginPath(); ctx.arc(RB.x, RB.y, r, a0, a1); ctx.stroke();
+  }
+  ctx.globalAlpha = 0.8; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5;
+  for (const r of [RB.r + 0.5, RB.r - 6 * RB.w - 0.5]) {
+    const a = Math.asin(Math.min(1, 74 / r)); ctx.beginPath(); ctx.arc(RB.x, RB.y, r, Math.PI + a, 2 * Math.PI - a); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  cloud(56, 114, 1.4, 0.95); cloud(264, 114, 1.4, 0.95);         // the bridge's cloud feet
+  ctx.globalAlpha = 0.5; ctx.fillStyle = TOK.tealLight;            // bridge haze (scene_art::bridge)
+  ctx.beginPath(); ctx.ellipse(160, 226, 160, 23, 0, 0, 7); ctx.fill();
+  ctx.globalAlpha = 0.9; ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); // cloud bank the keys stand in
+  for (let i = 0; i < 16; i++) { const x = -6 + i * 22, y = 239 - (i % 2) * 4; ctx.moveTo(x + 12, y); ctx.arc(x, y, 12, 0, 7); }
+  ctx.fill(); ctx.globalAlpha = 1;
+}
+function drawDrift() {                                              // two small clouds drifting across the sky
+  for (const [ox, y, sp, s] of [[30, 66, 4, 0.55], [200, 104, 2.6, 0.45]]) cloud(((ox + driftT * sp) % (W + 60)) - 30, y, s, 0.85);
+}
+// Lit rainbow: one band per correct follow note, then the success sweep from left to right.
+function drawRainbowLight() {
+  const lit = st.phase === 'FOLLOW' || st.phase === 'RAINBOW' ? Math.min(st.step, 6) : 0;
+  const fade = st.phase === 'RAINBOW' ? clamp((TOK.rainbow - st.t) / 0.4, 0, 1) : 1;
+  ctx.lineCap = 'butt'; ctx.globalAlpha = fade;
+  for (let i = 0; i < lit; i++) {
+    const [a0, a1, r] = bandSpan(i), pop = i === lit - 1 && st.phase === 'FOLLOW' ? easeOutBack(clamp(st.litT / 0.3, 0, 1)) : 1;
+    ctx.strokeStyle = BANDS[i].base; ctx.lineWidth = RB.w * pop + 0.5; ctx.beginPath(); ctx.arc(RB.x, RB.y, r, a0, a1); ctx.stroke();
+  }
+  if (st.phase === 'RAINBOW' && sweep.t >= 0) {
+    const head = Math.PI * (1 + easeInOut(clamp(sweep.t / TOK.sweep, 0, 1)));
+    for (let i = 0; i < 6; i++) {
+      const [a0, a1, r] = bandSpan(i), e = Math.min(a1, head);
+      if (e <= a0) continue;
+      ctx.strokeStyle = BANDS[i].base; ctx.lineWidth = RB.w + 0.5; ctx.beginPath(); ctx.arc(RB.x, RB.y, r, a0, e); ctx.stroke();
+    }
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;                // bright rims follow the head
+    for (const r of [RB.r + 1, RB.r - 6 * RB.w - 1]) {
+      const a = Math.PI + Math.asin(Math.min(1, 74 / r)); if (head <= a) continue;
+      ctx.beginPath(); ctx.arc(RB.x, RB.y, r, a, Math.min(head, 3 * Math.PI - a)); ctx.stroke();
+    }
+    if (sweep.t < TOK.sweep) {                                     // soft glow at the head
+      const r = RB.r - 3 * RB.w, hx = RB.x + Math.cos(head) * r, hy = RB.y + Math.sin(head) * r;
+      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,251,239,0.45)';
+      ctx.beginPath(); ctx.arc(hx, hy, 14, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(hx, hy, 7, 0, 7); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+// Follow the light: a soft cone from the bulb to the key it wants next (or the preview note).
+function drawBeam() {
+  if (st.beamA <= 0.01) return;
+  const x = st.beamX, g = ctx.createLinearGradient(0, BULB.cy + 12, 0, KEY_Y + 4);
+  g.addColorStop(0, 'rgba(255,224,102,0.6)'); g.addColorStop(1, 'rgba(255,224,102,0.12)');
+  ctx.globalAlpha = st.beamA * (0.8 + 0.2 * Math.sin(time * 2 * Math.PI / TOK.glowPeriod)); ctx.fillStyle = g;
+  ctx.beginPath(); ctx.moveTo(BULB.cx - 7, BULB.cy + 12); ctx.lineTo(BULB.cx + 7, BULB.cy + 12);
+  ctx.lineTo(x + 26, KEY_Y + 4); ctx.lineTo(x - 26, KEY_Y + 4); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+// ---------- keys ----------
+function keyRise(i) {                                               // INTRO: the keys rise into place, staggered
+  const k = clamp((st.introT - 0.1 * i) / 0.45, 0, 1);
+  return (1 - (reduced ? easeOutCubic(k) : easeOutBack(k))) * 150;
+}
+// Glyph face: ink dot eyes that follow the last touch, blink, cheeks; sings (open mouth) with its note.
+function glyphFace(K, shape) {
+  const ey = shape === 'triangle' ? 3 : shape === 'heart' ? -1 : 0, sp = 5.5, er = 2.4;
+  const ln = Math.hypot(K.look[0], K.look[1]) || 1, lx = K.look[0] / ln * 1.3, ly = K.look[1] / ln * 1.3;
+  ctx.lineCap = 'round'; ctx.strokeStyle = TOK.ink; ctx.fillStyle = TOK.ink;
+  if (st.phase === 'RAINBOW') {                                     // happy closed eyes
+    ctx.lineWidth = 1.8; ctx.beginPath();
+    for (const s of [-1, 1]) { const a = 1.15 * Math.PI; ctx.moveTo(s * sp + Math.cos(a) * er, ey + 1 + Math.sin(a) * er); ctx.arc(s * sp, ey + 1, er, a, 1.85 * Math.PI); }
+    ctx.stroke();
+  } else if (K.blink < 0) {
+    ctx.lineWidth = 1.6; ctx.beginPath();
+    for (const s of [-1, 1]) { ctx.moveTo(s * sp - er, ey); ctx.lineTo(s * sp + er, ey); }
+    ctx.stroke();
+  } else {
+    ctx.beginPath(); for (const s of [-1, 1]) { ctx.moveTo(s * sp + lx + er, ey + ly); ctx.arc(s * sp + lx, ey + ly, er, 0, 7); } ctx.fill();
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath();
+    for (const s of [-1, 1]) { ctx.moveTo(s * sp + lx - 0.2, ey + ly - 0.9); ctx.arc(s * sp + lx - 0.9, ey + ly - 0.9, 0.7, 0, 7); }
+    ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(240,107,184,0.5)'; ctx.beginPath();
+  ctx.moveTo(-sp - 2.6 + 5.2, ey + 4.5); ctx.arc(-sp - 2.6, ey + 4.5, 2.6, 0, 7); ctx.moveTo(sp + 2.6 + 2.6, ey + 4.5); ctx.arc(sp + 2.6, ey + 4.5, 2.6, 0, 7);
+  ctx.fill();
+  ctx.fillStyle = TOK.ink; ctx.strokeStyle = TOK.ink; ctx.lineWidth = 1.6;
+  if (K.sing > 0) { ctx.beginPath(); ctx.ellipse(0, ey + 6, 2.2, 2.8 * clamp(K.sing / 0.12, 0.4, 1), 0, 0, 7); ctx.fill(); }
+  else { ctx.beginPath(); ctx.arc(0, ey + 3.5, 3, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke(); }
+}
+function drawKey(i) {
+  const K = keys[i], D = KEYS[i], c = D.c, rise = keyRise(i), isTarget = st.phase === 'FOLLOW' && i === target();
+  let lift = 0;                                                     // follow hint: the target key bounces (not in reduced motion)
+  if (isTarget && st.idle > TOK.followBounce && !reduced) { const u = ((st.idle - TOK.followBounce) % 1.6) / 0.4; if (u < 1) lift = -8 * Math.sin(Math.PI * u); }
+  const p = 3.5 * K.glow;                                           // pressed: the face sinks onto its side
+  ctx.globalAlpha = 0.16 * (1 - rise / 150); ctx.fillStyle = TOK.ink;
+  ctx.beginPath(); ctx.ellipse(D.cx, KEY_FOOT + 2, 27 + lift * 0.4, 4, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.save(); ctx.translate(D.cx, KEY_FOOT + rise + lift); ctx.scale(1 + K.q, 1 - K.q); ctx.translate(-D.cx, -KEY_FOOT);
+  if (isTarget) {                                                   // glow.hint around the key the light wants
+    ctx.globalAlpha = 0.55 + 0.45 * Math.sin(time * 2 * Math.PI / TOK.glowPeriod); ctx.strokeStyle = TOK.hintGlow; ctx.lineWidth = 4;
+    roundRect(D.x - 4, KEY_Y - 4, 64, 116, 17); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  roundRect(D.x, KEY_Y + 6, 56, 106, 14); ctx.fillStyle = c.shadow; ctx.fill();   // key side
+  const sh = reduced ? 0 : Math.sin(time * 0.7 + i * 1.3) * 7;                    // slow colour shimmer
+  const g = ctx.createRadialGradient(D.x + 18 + sh, KEY_Y + 18 + p, 4, D.x + 28, KEY_Y + 52 + p, 70);
+  g.addColorStop(0, c.light); g.addColorStop(0.55, c.base); g.addColorStop(1, c.shadow);
+  roundRect(D.x, KEY_Y + p, 56, 104, 14); ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = c.shadow; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+  if (K.glow > 0) {                                                 // press glow, 300 ms
+    ctx.globalAlpha = 0.35 * K.glow; ctx.fillStyle = '#FFFFFF'; ctx.fill();
+    ctx.globalAlpha = K.glow; ctx.strokeStyle = c.light; ctx.lineWidth = 3;
+    roundRect(D.x - 3, KEY_Y - 3 + p, 62, 110, 16); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  shine(D.x + 14, KEY_Y + 14 + p);
+  const hop = reduced ? 0 : Math.sin(Math.PI * clamp(K.hop / 0.3, 0, 1)) * 7;      // the shape hops with its note
+  const br = 1 + Math.sin(time * 2 * Math.PI / 2.8 + i * 1.1) * TOK.breathScale * (reduced ? 0.4 : 1);
+  ctx.save(); ctx.translate(D.cx, GLYPH_Y + p - hop); ctx.scale(br, br);
+  shapePath(D.shape, 0, 0, 17); ctx.fillStyle = TOK.cream; ctx.fill();
+  ctx.strokeStyle = c.shadow; ctx.lineWidth = 2; ctx.stroke();
+  glyphFace(K, D.shape);
+  ctx.restore();
+  ctx.restore();
+}
+
+// ---------- note creatures, icons, bulb, metronome ----------
+function mix(a, b, t) {                                             // hex colour blend → rgb()
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16), c = s => Math.round(lerp((pa >> s) & 255, (pb >> s) & 255, t));
+  return `rgb(${c(16)},${c(8)},${c(0)})`;
+}
+function drawNotes() {                                              // a little quaver wearing its key's shape and colour
+  for (const n of notes) {
+    const [x, y] = notePos(n), c = BANDS[n.k], end = clamp((n.t - n.life + 0.12) / 0.12, 0, 1);
+    const sc = easeOutBack(clamp(n.t / 0.18, 0, 1)) * (1 + 0.2 * end);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(Math.sin(n.ph + n.t * 5) * 0.18 * (reduced ? 0.3 : 1)); ctx.scale(sc, sc);
+    ctx.strokeStyle = c.shadow; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(5.5, -1); ctx.lineTo(5.5, -16); ctx.quadraticCurveTo(7, -10, 11.5, -8); ctx.stroke();
+    shapePath(KEYS[n.k].shape, 0, 0, 6.5); ctx.fillStyle = c.base; ctx.fill(); ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.moveTo(-0.6, -0.8); ctx.arc(-2.4, -0.8, 1.8, 0, 7); ctx.moveTo(4.2, -0.8); ctx.arc(2.4, -0.8, 1.8, 0, 7); ctx.fill();
+    ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.moveTo(-1.4, -1.1); ctx.arc(-2.4, -1.1, 1, 0, 7); ctx.moveTo(3.4, -1.1); ctx.arc(2.4, -1.1, 1, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+}
+function drawInstrument(i) {                                        // icon glyphs, about 30 px
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 1.5;
+  if (i === 0) {                                                    // golden hand bell
+    ctx.fillStyle = '#8A5A2E'; roundRect(-2.5, -17, 5, 9, 2.5); ctx.fill();
+    ctx.fillStyle = BANDS[2].base; ctx.strokeStyle = BANDS[2].shadow;
+    ctx.beginPath(); ctx.moveTo(-12, 8); ctx.bezierCurveTo(-8, 5, -10, -11, 0, -11); ctx.bezierCurveTo(10, -11, 8, 5, 12, 8); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = BANDS[2].shadow; ctx.beginPath(); ctx.arc(0, 10.5, 2.6, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.ellipse(-4, -4, 1.8, 4, 0.3, 0, 7); ctx.fill();
+  } else if (i === 1) {                                             // blue recorder
+    ctx.save(); ctx.rotate(-0.75);
+    ctx.fillStyle = BANDS[4].base; ctx.strokeStyle = BANDS[4].shadow; roundRect(-4, -13, 8, 29, 4); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = BANDS[4].light; roundRect(-3.5, -19, 7, 7, 2.5); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = TOK.creamLight; ctx.beginPath();
+    for (const y of [-5, 1, 7]) { ctx.moveTo(1.6, y); ctx.arc(0, y, 1.6, 0, 7); }
+    ctx.fill(); ctx.restore();
+  } else if (i === 2) {                                             // drum with two sticks
+    ctx.strokeStyle = '#8A5A2E'; ctx.lineWidth = 2.5; ctx.beginPath();
+    ctx.moveTo(-13, -16); ctx.lineTo(-3, -5); ctx.moveTo(13, -16); ctx.lineTo(3, -5); ctx.stroke();
+    ctx.fillStyle = BANDS[1].base; ctx.strokeStyle = BANDS[1].shadow; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(-13, -2); ctx.lineTo(-13, 8); ctx.ellipse(0, 8, 13, 4.5, 0, Math.PI, 0, true); ctx.lineTo(13, -2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = TOK.creamLight; ctx.lineWidth = 1.3; ctx.beginPath();
+    ctx.moveTo(-11, 1); ctx.lineTo(-5.5, 9); ctx.lineTo(0, 1.5); ctx.lineTo(5.5, 9); ctx.lineTo(11, 1); ctx.stroke();
+    ctx.fillStyle = TOK.creamLight; ctx.strokeStyle = BANDS[1].shadow; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(0, -2, 13, 4.5, 0, 0, 7); ctx.fill(); ctx.stroke();
+  } else if (i === 3) {                                             // marimba: five rainbow bars on a frame
+    ctx.strokeStyle = '#8A5A2E'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-15, 11); ctx.lineTo(15, 7); ctx.stroke();
+    for (let k = 0; k < 5; k++) { const h = 22 - 3 * k; ctx.fillStyle = BANDS[k].base; roundRect(-14 + 6 * k, 9 - 0.6 * k - h, 5, h, 2); ctx.fill(); }
+  } else {                                                          // pink toy piano
+    ctx.fillStyle = BANDS[0].base; ctx.strokeStyle = BANDS[0].shadow; roundRect(-14, -10, 28, 20, 4); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = TOK.creamLight; roundRect(-11, -2, 22, 9, 1.5); ctx.fill();
+    ctx.strokeStyle = BANDS[0].shadow; ctx.lineWidth = 1; ctx.beginPath();
+    for (const x of [-5.5, 0, 5.5]) { ctx.moveTo(x, -2); ctx.lineTo(x, 7); } ctx.stroke();
+    ctx.strokeStyle = TOK.ink; ctx.lineWidth = 2.6; ctx.lineCap = 'butt'; ctx.beginPath();
+    for (const x of [-2.75, 2.75]) { ctx.moveTo(x, -2); ctx.lineTo(x, 3); } ctx.stroke();
+    ctx.fillStyle = BANDS[2].base; ctx.beginPath(); ctx.arc(-8, -6, 1.6, 0, 7); ctx.arc(8, -6, 1.6, 0, 7); ctx.fill();
+  }
+}
+function iconDisc(sel) {                                            // cream button; teal ring when selected / on
+  if (sel) { ctx.strokeStyle = TOK.teal; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 23.5, 0, 7); ctx.stroke(); }
+  ctx.fillStyle = TOK.cream; ctx.beginPath(); ctx.arc(0, 0, 21, 0, 7); ctx.fill();
+  ctx.strokeStyle = TOK.creamLine; ctx.lineWidth = 2; ctx.stroke();
+}
+function drawIcons() {
+  for (let i = 0; i < INSTR.length; i++) {
+    const I = INSTR[i], o = icons[i], br = 1 + Math.sin(time * 2 * Math.PI / 3 + i * 1.7) * 0.02 * (reduced ? 0.4 : 1);
+    ctx.save(); ctx.translate(I.cx, I.cy); ctx.scale(br * (1 + o.q), br * (1 - o.q));
+    iconDisc(st.inst === i); drawInstrument(i);
+    ctx.restore();
+  }
+}
+function drawBulb() {                                               // follow-the-light: asleep when off, beaming when on
+  const on = bulb.on, br = 1 + Math.sin(time * 2 * Math.PI / 2.6) * TOK.breathScale * (reduced ? 0.4 : 1);
+  ctx.save(); ctx.translate(BULB.cx, BULB.cy); ctx.scale(br * (1 + bulb.q), br * (1 - bulb.q));
+  if (on > 0.01) {
+    const g = ctx.createRadialGradient(0, -4, 6, 0, -4, 30);
+    g.addColorStop(0, 'rgba(255,224,102,0.75)'); g.addColorStop(1, 'rgba(255,224,102,0)');
+    ctx.globalAlpha = on; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, -4, 30, 0, 7); ctx.fill();
+    const rot = reduced ? 0 : time * 0.6;                           // slow turn, well under 1 rev/s
+    ctx.strokeStyle = TOK.hintGlow; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.beginPath();
+    for (let i = 0; i < 8; i++) { const a = rot + i * Math.PI / 4; ctx.moveTo(Math.cos(a) * 21, -4 + Math.sin(a) * 21); ctx.lineTo(Math.cos(a) * 26, -4 + Math.sin(a) * 26); }
+    ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = '#C9CCD6'; ctx.strokeStyle = '#8E93A3'; ctx.lineWidth = 1.5;   // screw base
+  roundRect(-7, 10, 14, 10, 3); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-6, 13.5); ctx.lineTo(6, 13.5); ctx.moveTo(-6, 16.5); ctx.lineTo(6, 16.5); ctx.stroke();
+  const g = ctx.createRadialGradient(-5, -10, 2, 0, -4, 17);
+  g.addColorStop(0, mix('#FFFFFF', '#FFFBEF', on)); g.addColorStop(0.55, mix('#EEF2F8', '#FFE066', on)); g.addColorStop(1, mix('#B8C2D6', '#F2B705', on));
+  ctx.beginPath(); ctx.moveTo(-6.5, 11); ctx.arc(0, -4, 15, 0.75 * Math.PI, 0.25 * Math.PI); ctx.lineTo(6.5, 11); ctx.closePath();
+  ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = mix('#8E9BB5', '#C99A0E', on); ctx.lineWidth = 2; ctx.stroke();
+  shine(-6, -11);
+  ctx.strokeStyle = TOK.ink; ctx.fillStyle = TOK.ink; ctx.lineCap = 'round'; ctx.lineWidth = 1.8;
+  if (on < 0.5 || bulb.blink < 0) {                                 // asleep (or blinking): closed eyes
+    ctx.beginPath(); for (const s of [-1, 1]) { ctx.moveTo(s * 5 - 2.6, -4); ctx.arc(s * 5, -4.5, 2.6, Math.PI * 0.95, Math.PI * 0.05, true); } ctx.stroke();
+  } else {
+    const lk = [st.beamX - BULB.cx, 90], ln = Math.hypot(lk[0], lk[1]), lx = lk[0] / ln * 1.2, ly = lk[1] / ln * 1.2;
+    ctx.beginPath(); for (const s of [-1, 1]) { ctx.moveTo(s * 5 + lx + 2.4, -4 + ly); ctx.arc(s * 5 + lx, -4 + ly, 2.4, 0, 7); } ctx.fill();
+  }
+  ctx.beginPath(); ctx.arc(0, 0.5, 3, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke();
+  ctx.fillStyle = 'rgba(240,107,184,0.45)'; ctx.beginPath(); ctx.moveTo(-6.5, 1.5); ctx.arc(-9, 1.5, 2.5, 0, 7); ctx.moveTo(11.5, 1.5); ctx.arc(9, 1.5, 2.5, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function drawMetro() {                                              // backing-groove toggle: a little metronome
+  const br = 1 + Math.sin(time * 2 * Math.PI / 3 + 2) * 0.02 * (reduced ? 0.4 : 1);
+  ctx.save(); ctx.translate(GROOVE_BTN.cx, GROOVE_BTN.cy); ctx.scale(br * (1 + metro.q), br * (1 - metro.q));
+  iconDisc(st.groove);
+  const P = BANDS[5];
+  ctx.fillStyle = P.base; ctx.strokeStyle = P.shadow; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(-4, -15); ctx.lineTo(4, -15); ctx.lineTo(11, 13); ctx.lineTo(-11, 13); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.light; ctx.beginPath(); ctx.moveTo(-2.5, -10); ctx.lineTo(2.5, -10); ctx.lineTo(7, 8); ctx.lineTo(-7, 8); ctx.closePath(); ctx.fill();
+  const beat = (st.grooveT - 0.1) / GROOVE.spb, ang = st.groove && beat > 0 ? 0.45 * Math.cos(Math.PI * beat) : 0;  // ticks at the ends
+  ctx.save(); ctx.translate(0, 9); ctx.rotate(ang);
+  ctx.strokeStyle = TOK.ink; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -20); ctx.stroke();
+  ctx.fillStyle = BANDS[2].base; ctx.strokeStyle = BANDS[2].shadow; ctx.lineWidth = 1; roundRect(-3.5, -15, 7, 5, 1.5); ctx.fill(); ctx.stroke();
+  ctx.restore();
+  ctx.restore();
+}
+function drawFx() {
+  for (const r of rings) {
+    const k = r.t / r.dur; ctx.globalAlpha = 1 - k; ctx.strokeStyle = r.color; ctx.lineWidth = r.w;
+    ctx.beginPath(); ctx.arc(r.x, r.y, lerp(r.r0, r.r1, easeOutCubic(k)), 0, 7); ctx.stroke();
+  }
+  for (const p of parts) {
+    ctx.globalAlpha = clamp(p.life / p.max * 1.6, 0, 1);
+    ctx.globalCompositeOperation = p.add ? 'lighter' : 'source-over';
+    ctx.fillStyle = p.color;
+    if (p.shape === 'star') { starPath(p.x, p.y, p.size, p.size * 0.45, p.rot); ctx.fill(); }
+    else if (p.shape === 'rect') { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2); ctx.restore(); }
+    else if (p.shape === 'heart') { heartPath(p.x, p.y, p.size); ctx.fill(); }
+    else { ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (0.5 + 0.5 * p.life / p.max), 0, 7); ctx.fill(); }
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+function drawHelperHand() {                                         // after 2 misses or 12 s: a hand taps the lit key
+  if (st.phase !== 'FOLLOW' || st.hint < 2) return;
+  const y = 200 + Math.abs(Math.sin(time * 4)) * -6;
+  ctx.save(); ctx.translate(KEYS[target()].cx + 14, y); ctx.rotate(-0.5);
+  ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = TOK.ink; ctx.lineWidth = 1.5;
+  roundRect(-4, -16, 8, 18, 4); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0, 6, 9, 8, 0, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+function drawChrome() {
+  ctx.fillStyle = TOK.cream; roundRect(6, 6, 44, 44, 14); ctx.fill();               // Home
+  ctx.strokeStyle = '#D9C7A3'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.moveTo(28, 15); ctx.lineTo(41, 27); ctx.lineTo(37, 27); ctx.lineTo(37, 39);
+  ctx.lineTo(19, 39); ctx.lineTo(19, 27); ctx.lineTo(15, 27); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 0.45; ctx.fillStyle = TOK.cream; roundRect(270, 6, 44, 44, 14); ctx.fill();   // Mic (disabled)
+  ctx.fillStyle = TOK.ink; roundRect(287, 14, 10, 18, 5); ctx.fill();
+  ctx.strokeStyle = TOK.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(292, 25, 9, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(292, 34); ctx.lineTo(292, 40); ctx.stroke(); ctx.globalAlpha = 1;
+}
+function drawStart() {
+  ctx.fillStyle = 'rgba(30,34,69,0.35)'; ctx.fillRect(0, 0, W, H);
+  const p = 1 + Math.sin(time * 3) * 0.04;
+  ctx.save(); ctx.translate(160, 120); ctx.scale(p, p);
+  ctx.fillStyle = TOK.cream; ctx.beginPath(); ctx.arc(0, 0, 36, 0, 7); ctx.fill();
+  ctx.fillStyle = '#2DB26E'; ctx.beginPath(); ctx.moveTo(-10, -16); ctx.lineTo(18, 0); ctx.lineTo(-10, 16); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+let fps = 60, frameMs = 0;
+function drawHud() {
+  if (!debug) return;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(112, 214, 208, 26);
+  ctx.fillStyle = parts.length > TOK.deviceMaxParticles ? '#FF9A92' : '#FFFFFF'; ctx.font = '8px monospace';
+  ctx.fillText(`fps ${fps.toFixed(0)} draw ${frameMs.toFixed(1)}ms p ${parts.length}/${maxParticles} notes ${notes.length}`, 116, 224);
+  ctx.fillText(`seed ${seed} ${st.phase} n${st.notes} ${INSTR[st.inst].name} ${st.step}/5 ${st.groove ? 'GRV ' : ''}hint ${st.hint} ${reduced ? 'RM' : ''}`, 116, 235);
+}
+// One full frame of the game scene (the golden harness calls this directly).
+function drawScene() {
+  drawBackground();
+  drawRainbowLight();
+  drawDrift();
+  drawBeam();
+  for (let i = 0; i < 5; i++) drawKey(i);
+  drawNotes();
+  drawIcons(); drawBulb(); drawMetro();
+  drawHelperHand(); drawFx(); drawChrome();
+}
+
+// Test hook for tools/quality_bar_golden/sketch_check.mjs (not ported): the logical point a helpful player taps next, or null.
+function autoTarget() {
+  if (st.phase === 'START') return { x: 160, y: 120 };
+  if (st.phase === 'RAINBOW') return null;
+  if (st.phase === 'FOLLOW') return { x: KEYS[target()].cx, y: 180 };
+  if (st.phase === 'INTRO') return { x: KEYS[0].cx, y: 180 };
+  const n = st.taps % 12;                                           // FREE: play a little tune, now and then try the bulb or a new instrument
+  if (n === 11) return { x: BULB.cx, y: BULB.cy };
+  if (n === 5) { const I = INSTR[(st.inst + 1) % INSTR.length]; return { x: I.cx, y: I.cy }; }
+  return { x: KEYS[[0, 2, 4, 3, 1, 2, 3, 4][st.taps % 8]].cx, y: 180 };
+}
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  update(dt); if (ac) musicTick();
+  const t0 = performance.now();
+  drawScene();
+  if (st.phase === 'START') drawStart();
+  frameMs = lerp(frameMs, performance.now() - t0, 0.1); fps = lerp(fps, 1 / Math.max(dt, 1e-3), 0.05);
+  drawHud();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

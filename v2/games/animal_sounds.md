@@ -8,6 +8,20 @@
 | Play value | Listening, animal names and sounds |
 | Capabilities | music, narration, voice_intents, particles |
 
+**Reference sketch (v2 mockup, awaiting owner review):** [`animal_sounds.html`](../reference/animal_sounds.html) is the
+runnable browser reference for this design: scene, motion and Web Audio score. Once the owner approves
+it, the device port follows it line by line ([06 §4.5](../docs/06_visual_motion_design.md)).
+Notable differences from the design below:
+- Animal calls are original synthesized voices (sine partials, glides, LFO, filtered noise), not CC0 recordings, so there is no provenance record.
+- No narrator: "Who says that?", "It's the <animal>!", the parade line and "Listen…" are stood in for by the call replay, the badge portrait of the found animal and the badge bounce.
+- AGAIN/HELP voice intents are absent (mic disabled in the sketch); tapping the horn badge is the replay.
+- Audio-off mode is simulated with the M key (master mute); the badge then shows the hidden animal's silhouette.
+- Each animal has a fixed hiding place (barn half door: cow, pig, dog; pond: duck, frog; bush: sheep, cat, owl) rather than barn doors only.
+- Spot count ramps 2 → 3 → 4 on unaided finds and steps back one after two auto-helped rounds in a row; 2-spot rounds never pair similar-sounding animals.
+- A pick hushes any call in progress, so only one animal calls at a time; auto-help also replays the mystery call with the hidden animal's mouth synced.
+- Taps during the celebration and parade are acknowledged (ring, sparkle, note) but do not skip them.
+- The parade shows the last four animals found, hopping across in about 2 s.
+
 ## 1. Pitch
 Hear an animal call, then find who made it. The animal pops out of its barn door and does a happy
 dance. *Feels like:* peekaboo with farm friends.

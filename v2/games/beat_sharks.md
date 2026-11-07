@@ -8,6 +8,21 @@
 | Play value | Rhythm, patterns, music making, voice play |
 | Capabilities | music, narration, voice_intents, microphone_sampler, particles |
 
+**Reference sketch (v2 mockup, awaiting owner review):** [`beat_sharks.html`](../reference/beat_sharks.html) is the
+runnable browser reference for this design: scene, motion and Web Audio score. Once the owner approves
+it, the device port follows it line by line ([06 §4.5](../docs/06_visual_motion_design.md)).
+Notable differences from the design below:
+- Timing: a browser has no audio-thread sequencer, so a deterministic model step clock is the master and each step is scheduled into Web Audio 0.12 s ahead (re-anchored on > 30 ms drift, late steps dropped) instead of ≥ 2 steps ahead on the audio thread; on the device the audio task owns the clock and the visuals follow it.
+- Rec is simulated (no microphone in sketches): three silent countdown dots, a listening animation (≤ 1.5 s, or a second Rec tap ends it), then the take "captures" the next of three original synthesized voices (bah, boop, dee; seeded order) for the voice row, with the NEW_SOUND reward.
+- During a take the speaker stays silent (countdown and listening): grid taps still toggle sharks, without a preview.
+- If the voice row is empty when a take lands, two medium singing sharks are added on steps 1 and 4 so the new voice is heard at once.
+- Clear is a 1 s hold on Play: a bubble fills around the button, then pops with a gentle whoosh; the press itself still toggles play/pause immediately.
+- Resuming play finishes the interrupted step instead of restarting from step 1.
+- Finn surfaces only for the intro (bobbing to the beat) and during takes, so the 18-cell grid stays readable.
+- Tempo icon: turtle / walking crab / rabbit plus 1-3 level bars, so tempo is never shown by the animal alone.
+- Lane icons are small cream badges overlaid at the left edge of each lane (note, clapping hands, drum).
+- No narration or voice intents (no speech in sketches, Mic disabled): the 12 s hint is the HELP ghost pattern (ghost fins plus helper hand) with a neutral two-note chime.
+
 ## 1. Pitch
 Three rows of friendly sharks jump out of the lagoon in time with a beat the child builds by
 tapping. *Feels like:* conducting a splashy shark band.

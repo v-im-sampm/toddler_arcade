@@ -1,0 +1,1222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Little Arcade v2 – reference sketch (Sound Jar)</title>
+<!--
+  REFERENCE SKETCH: the device port must match this file exactly (see docs/06 §4).
+  Same visual language, motion tokens and audio graph as quality_bar.html (Color Pop).
+  Canvas features are limited to what firmware ui/ctx2d supports: paths, arcs, ellipses,
+  bezier/quadratic curves, linear/radial gradients, globalAlpha, 'lighter', transforms.
+  No clip, drawImage, text, shadows or filters in the game scene.
+  Audio nodes: sine oscillators, linear-attack/exponential-decay gains, exponential pitch
+  glides, one compressor. The child is the music: there is no music bed, only a sparse,
+  deterministic cave-drip ambience on its own small voice pool that ducks under cues and
+  under the jar's voice and stops on Home.
+  Sampler DSP (game-intrinsic, games/sound_jar.md §2): 16 kHz AudioBuffer playback with a
+  rate change per pad and a detune bend, a reversed copy (Backwards), one 250 ms delay with
+  0.45 feedback (Echo), a 55 Hz sine ring modulator (Robot), a 6 Hz sine vibrato LFO of
+  ±1.5 semitones (Wobble), and one noise buffer through one biquad for the bin whoosh.
+  NO MICROPHONE in this sketch: a "recording" replays one of four original built-in takes
+  synthesised at load (sines with formant-like partials and envelopes) in a seeded rotation;
+  every 4th take is a whisper that is too quiet and gets the friendly retry. Before any
+  recording the jar holds a built-in frog sound, so the pads always play.
+  All art is procedural and original; no external resources, no network, no storage.
+  Keys: D = debug HUD, R = reduced motion, P = toggle device/web particle cap. URL ?seed=N.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #1E2245; overflow: hidden;
+    touch-action: none; user-select: none; -webkit-user-select: none; }
+  #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,.45); }
+  #note { position: fixed; left: 8px; bottom: 6px; color: #9DB8FA; font: 12px system-ui, sans-serif; opacity: .7; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" aria-label="Sound Jar reference sketch"></canvas></div>
+<div id="note">v2 reference sketch · Sound Jar · 320×240 logical stage · no microphone (built-in takes) · D debug · R reduced motion · P particle cap</div>
+<script>
+'use strict';
+// ---------- tokens (same subset as quality_bar.html) ----------
+const W = 320, H = 240;
+const TOK = {
+  ink: '#3B3550', inkSoft: '#6F6888', paper: '#FFF8EC', cream: '#FFF3D6', creamLine: '#D9C7A3', hintGlow: '#FFE066',
+  caveTop: '#383B78', caveBot: '#20234F', crystalA: '#5A5D9A', crystalB: '#444783', caveFloor: '#171A3D',
+  rock: '#2B2E66', rockTop: '#3A3D80', rockRim: '#5A5D9A', rockDark: '#1D2049',
+  squashPress: [1.12, 0.88], wiggleDeg: 6, wiggleMs: 360, glowPeriod: 0.9,
+  idleVisualHint: 6, idleSpokenHint: 12, maxInputBlock: 0.3,
+  springBouncy: { k: 380, c: 14 }, breathScale: 0.025, bob: 2, tapDebounce: 0.08,
+  holdLoop: 0.35, dragDeadZone: 12, pxPerSemitone: 8, maxBend: 5,
+  deviceMaxParticles: 96, webMaxParticles: 400,
+};
+// tokens.json hue triples: [light, base, shadow].
+const HUE = {
+  red: ['#FF9A92', '#EF4B4F', '#B8323A'], yellow: ['#FFEB9C', '#FFD23F', '#C99A0E'],
+  green: ['#8EE0B4', '#2DB26E', '#1E8452'], teal: ['#8FE3DE', '#21B3B0', '#127A7D'],
+  sky: ['#A9DBFB', '#4FB0F0', '#2B79B8'], blue: ['#9DB8FA', '#3A6FE8', '#2448A8'],
+  purple: ['#C9AEF5', '#8F5BE0', '#6236A6'], pink: ['#FBB6DC', '#F06BB8', '#B23E86'],
+  brown: ['#DDB892', '#B07A4F', '#7A4E2D'], cream: ['#FFFBEF', '#FFF3D6', '#D9C7A3'],
+};
+// Pads: biggest = lowest. Pitch, shape, colour and size all differ (colour is never the only cue).
+const PADS = [
+  { st: -12, shape: 'circle', hue: HUE.purple, s: 1.00 },
+  { st: -5, shape: 'square', hue: HUE.blue, s: 0.90 },
+  { st: 0, shape: 'triangle', hue: HUE.teal, s: 0.81 },
+  { st: 7, shape: 'heart', hue: HUE.pink, s: 0.73 },
+  { st: 12, shape: 'star', hue: HUE.yellow, s: 0.66 },
+];
+// Effect toggles in the top band between Home and Mic (hit 48×48 centred on (x, FX_Y)).
+const FX = [
+  { id: 'back', hue: HUE.sky, x: 82 }, { id: 'echo', hue: HUE.teal, x: 134 },
+  { id: 'robot', hue: HUE.blue, x: 186 }, { id: 'wobble', hue: HUE.green, x: 238 },
+];
+const BACK = 0, ECHO = 1, ROBOT = 2, WOBBLE = 3;
+// Stage geometry (logical px). Doc boxes: jar {112,60,96,96}, record {232,96,72,72}, bin {16,96,56,56},
+// pads 64×72 hit boxes on y 168-240.
+const JAR = { x: 160, y: 120, a: 44, b: 36, n: 2.6, hit: [112, 60, 96, 96] };   // body centre + superellipse
+const LID = { x: 160, y: 70, restX: 102, restY: 128, restA: -1.25 };           // closed pose, resting pose
+const REC = { x: 268, y: 128, r: 28, hit: [232, 96, 72, 72] };
+const BIN = { x: 44, y: 128, hit: [16, 96, 56, 56] };
+const LEDGE = 157;                                   // jar, bin and record button stand on the rock ledge
+const PAD_FOOT = 232, PAD_R = 27;                    // pads stand on the cave floor; hit {64i, 168, 64, 72}
+const FX_Y = 30, FX_R = 21;
+const padX = i => 32 + 64 * i, padY = i => PAD_FOOT - PAD_R * PADS[i].s;
+
+// ---------- utils ----------
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const easeOutBack = t => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const seed = parseInt(new URLSearchParams(location.search).get('seed') || '1234', 10);
+const grng = mulberry32(seed);          // gameplay RNG (deterministic per seed)
+const frng = Math.random;               // cosmetic RNG
+const inRect = (x, y, r) => x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3];
+
+// ---------- canvas ----------
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let scale = 1;
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  scale = Math.min(innerWidth / W, innerHeight / H) * 0.96;
+  cv.style.width = (W * scale) + 'px'; cv.style.height = (H * scale) + 'px';
+  cv.width = Math.round(W * scale * dpr); cv.height = Math.round(H * scale * dpr);
+  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+let reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let debug = false, maxParticles = TOK.deviceMaxParticles;
+
+// ---------- built-in takes (no microphone in this sketch) ----------
+// Original voices synthesised once at load into 16 kHz Float32Arrays: harmonics of a gliding f0 shaped by
+// three formant peaks (Lorentzian), linear attack / cosine release, optional AM (the frog's "rrr"),
+// vibrato and a little deterministic breath noise; every partial stays below 7 kHz.
+// raw = the level the "recording" arrives at (drives the mist and the too-quiet test, doc §2: a take is too
+// quiet if its sustained level < 512 or it lasts < 150 ms); pcm = the processed clip the pads play
+// (trimmed, normalised to -6 dBFS = peak 0.5, 5 ms fades). Takes are rooted on D (pads follow the root).
+const SR = 16000, FRAME = 0.02, LOUD = 512 / 32768, ACTIVE = 0.002;
+const VOW = {                                         // [F1, a1, F2, a2, F3, a3]: child-like formants
+  a: [1000, 1, 1650, 0.6, 3100, 0.25], o: [620, 1, 1050, 0.6, 2800, 0.15], u: [430, 1, 1100, 0.45, 2700, 0.15],
+  i: [420, 1, 2900, 0.5, 3700, 0.3], e: [620, 1, 2400, 0.5, 3300, 0.25], r: [380, 1, 950, 0.7, 2100, 0.2],
+};
+// syllables: [start s, length s, f0 from, f0 to (0 = unvoiced breath), vowel from, vowel to, options]
+const TAKES = [
+  { name: 'FROG', hue: HUE.green, mote: 'bubble', peak: 0.5, syl: [            // built-in: "rib-bit"
+    [0.00, 0.20, 150, 132, 'r', 'o', { am: [32, 0.75], att: 0.012, rel: 0.05 }],
+    [0.27, 0.15, 140, 176, 'e', 'i', { am: [28, 0.5], att: 0.008, rel: 0.05, burst: 0.3 }]] },
+  { name: 'BADOO', hue: HUE.pink, mote: 'heart', peak: 0.42, syl: [            // "ba-doo!"
+    [0.00, 0.24, 300, 330, 'a', 'a', { burst: 0.5, att: 0.015, rel: 0.05 }],
+    [0.30, 0.36, 345, 290, 'o', 'u', { burst: 0.3, att: 0.02, rel: 0.12, vib: 25 }]] },
+  { name: 'WHEE', hue: HUE.yellow, mote: 'star', peak: 0.5, syl: [             // "wheee!"
+    [0.00, 0.10, 0, 0, 'u', 'u', { breath: 1, att: 0.03, rel: 0.05 }],
+    [0.06, 0.72, 294, 588, 'u', 'i', { att: 0.06, rel: 0.16, vib: 30, breath: 0.1 }]] },
+  { name: 'GIGGLE', hue: HUE.sky, mote: 'dot', peak: 0.38, syl: [0, 1, 2, 3].map(k =>   // "hee-hee-hee-hee"
+    [k * 0.16, k === 3 ? 0.13 : 0.1, 520 - k * 20, 480 - k * 25, 'i', 'e', { breath: 0.35, att: 0.008, rel: 0.04 }]) },
+  { name: 'WHISPER', hue: HUE.cream, mote: 'dot', peak: 0.011, syl: [          // "psst... hi" (too quiet)
+    [0.00, 0.34, 0, 0, 'i', 'i', { breath: 1, att: 0.05, rel: 0.1 }],
+    [0.44, 0.24, 0, 0, 'i', 'i', { breath: 1, att: 0.04, rel: 0.1 }]] },
+];
+const FROG = 0, WHISPER = 4;
+function formantGain(f, va, vb, u) {
+  let g = 0;
+  for (let j = 0; j < 6; j += 2) {
+    const F = lerp(va[j], vb[j], u), x = (f - F) / (80 + 0.08 * F);
+    g += lerp(va[j + 1], vb[j + 1], u) / (1 + x * x);
+  }
+  return g;
+}
+function renderTake(tk) {
+  const n = Math.ceil((Math.max(...tk.syl.map(s => s[0] + s[1])) + 0.04) * SR);
+  const raw = new Float32Array(n), nz = mulberry32(99), amps = new Float32Array(64);
+  for (const [t0, d, fa, fb, va, vb, o] of tk.syl) {
+    const i0 = Math.round(t0 * SR), len = Math.round(d * SR), A = VOW[va], B = VOW[vb];
+    let ph = 0, l1 = 0, l2 = 0;
+    for (let k = 0; k < len && i0 + k < n; k++) {
+      const u = k / len, tt = k / SR;
+      let e = Math.min(1, tt / o.att) * (tt > d - o.rel ? 0.5 + 0.5 * Math.cos(Math.PI * (tt - d + o.rel) / o.rel) : 1);
+      if (o.am) e *= 1 - o.am[1] * (0.5 + 0.5 * Math.cos(2 * Math.PI * o.am[0] * tt));
+      let v = 0;
+      if (fa > 0) {
+        const vib = o.vib ? Math.pow(2, o.vib * Math.sin(2 * Math.PI * 5.5 * tt) * Math.min(1, tt * 4) / 1200) : 1;
+        const f0 = fa * Math.pow(fb / fa, u) * vib;
+        if ((k & 31) === 0) {                                     // control rate: harmonic amplitudes
+          const K = Math.min(63, Math.floor(7000 / f0));
+          for (let h = 1; h < 64; h++) amps[h] = h <= K ? formantGain(h * f0, A, B, u) / Math.pow(h, 0.35) : 0;
+        }
+        ph += 2 * Math.PI * f0 / SR; if (ph > 2 * Math.PI) ph -= 2 * Math.PI;
+        const c2 = 2 * Math.cos(ph); let s0 = 0, s1 = Math.sin(ph);    // sin(h·ph) by the Chebyshev recurrence
+        for (let h = 1; h < 64 && amps[h] > 0; h++) { v += amps[h] * s1; const s2 = c2 * s1 - s0; s0 = s1; s1 = s2; }
+      }
+      const w = nz() * 2 - 1; l1 += 0.85 * (w - l1); l2 += 0.45 * (l1 - l2);   // hiss band ~1.5-4.8 kHz
+      const burst = o.burst && tt < 0.02 ? o.burst * 6 * (1 - tt / 0.02) : 0;
+      raw[i0 + k] += v * e + (l1 - l2) * ((o.breath || 0) * e + burst) * 2;
+    }
+  }
+  let pk = 0; for (let i = 0; i < n; i++) pk = Math.max(pk, Math.abs(raw[i]));
+  const kr = tk.peak / (pk || 1); for (let i = 0; i < n; i++) raw[i] *= kr;
+  const lev = [], fl = SR * FRAME;                                   // 20 ms RMS level envelope
+  for (let i = 0; i < n; i += fl) {
+    let s = 0, c = 0; for (let j = i; j < Math.min(n, i + fl); j++) { s += raw[j] * raw[j]; c++; }
+    lev.push(Math.sqrt(s / c));
+  }
+  const kp = 0.5 / tk.peak, fade = SR * 0.005, pcm = new Float32Array(n);
+  for (let i = 0; i < n; i++) pcm[i] = raw[i] * kp * Math.min(1, i / fade, (n - 1 - i) / fade);
+  tk.lev = lev; tk.playLev = lev.map(x => x * kp); tk.pcm = pcm; tk.dur = n / SR;
+}
+TAKES.forEach(renderTake);
+
+// ---------- audio (Web Audio, D major pentatonic, conservative gain) ----------
+let ac = null, master = null, voices = [];
+const PENT = [0, 2, 4, 7, 9];
+const ROOT = 293.66;                                  // D4: the takes' root; pad i sounds at ROOT·2^(st/12)
+function degFreq(deg, oct = 0) {
+  const o = Math.floor(deg / 5), i = ((deg % 5) + 5) % 5;
+  return 587.33 * Math.pow(2, (PENT[i] + 12 * (o + oct)) / 12);
+}
+// Sampler bus (game-intrinsic DSP, doc §5):
+//   voice (rate + detune) -> sIn -> dry -------------------------------> sOut -> master
+//                                \-> ring mod (gain driven by a 55 Hz sine) -> wet -/
+//   sOut -> echo send -> delay 250 ms <-> feedback 0.45 -> master        (y = x + 0.45·y(t - 250 ms))
+//   wobble: one 6 Hz sine LFO -> depth (0 or 150 cents) -> every voice's detune
+let sIn = null, sDry = null, sWet = null, sOut = null, echoSend = null, wobDepth = null, noiseBuf = null;
+const BUF = [];                                       // per take: [forward, reversed] 16 kHz AudioBuffers
+function initAudio() {
+  if (ac) return;
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  const comp = ac.createDynamicsCompressor();
+  comp.threshold.value = -14; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.15;
+  master = ac.createGain(); master.gain.value = 0;
+  master.connect(comp); comp.connect(ac.destination);
+  master.gain.setTargetAtTime(0.35, ac.currentTime, 0.1);   // ramp in: never a loud start
+  sIn = ac.createGain(); sDry = ac.createGain(); sWet = ac.createGain(); sOut = ac.createGain();
+  const ringMul = ac.createGain(); ringMul.gain.value = 0;
+  const ringOsc = ac.createOscillator(); ringOsc.type = 'sine'; ringOsc.frequency.value = 55;
+  ringOsc.connect(ringMul.gain); ringOsc.start();
+  sWet.gain.value = 0;
+  sIn.connect(sDry); sDry.connect(sOut); sIn.connect(ringMul); ringMul.connect(sWet); sWet.connect(sOut);
+  sOut.connect(master);
+  echoSend = ac.createGain(); echoSend.gain.value = 0;
+  const delay = ac.createDelay(1); delay.delayTime.value = 0.25;
+  const fb = ac.createGain(); fb.gain.value = 0.45;
+  sOut.connect(echoSend); echoSend.connect(delay); delay.connect(fb); fb.connect(delay); fb.connect(master);
+  const lfo = ac.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 6;
+  wobDepth = ac.createGain(); wobDepth.gain.value = 0; lfo.connect(wobDepth); lfo.start();
+  for (const tk of TAKES) {
+    const n = tk.pcm.length, f = ac.createBuffer(1, n, SR), r = ac.createBuffer(1, n, SR);
+    const fd = f.getChannelData(0), rd = r.getChannelData(0);
+    for (let i = 0; i < n; i++) { fd[i] = tk.pcm[i]; rd[n - 1 - i] = tk.pcm[i]; }
+    BUF.push([f, r]);
+  }
+  noiseBuf = ac.createBuffer(1, SR / 2, SR);
+  const nd = noiseBuf.getChannelData(0), nr = mulberry32(5);
+  for (let i = 0; i < nd.length; i++) nd[i] = nr() * 2 - 1;
+  applyFx();
+}
+function voiceOk(len) {
+  if (st.phase === 'RECORDING') return false;                  // the speaker stays silent while recording
+  const now = ac.currentTime; voices = voices.filter(e => e > now);
+  if (voices.length >= 8) return false;                        // voice limit
+  voices.push(now + len); duckMusic(now, len); return true;
+}
+function env(g, t, peak, attack, dur) {
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+}
+function marimba(freq, when = 0, vel = 1, dur = 0.55) {
+  if (!ac || !voiceOk(dur)) return;
+  const t = ac.currentTime + when;
+  const g = ac.createGain(); env(g, t, 0.45 * vel, 0.003, dur);
+  const o1 = ac.createOscillator(); o1.type = 'sine'; o1.frequency.value = freq;
+  o1.connect(g); g.connect(master); o1.start(t); o1.stop(t + dur + 0.05);
+  if (freq * 3.99 < 7600) {                                    // bright partial only while it stays < 7.8 kHz
+    const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 3.99;
+    const g2 = ac.createGain(); env(g2, t, 0.18 * vel, 0.003, 0.09);
+    o2.connect(g2); g2.connect(g); o2.start(t); o2.stop(t + dur + 0.05);
+  }
+}
+// Pitched sine with an exponential glide (plop, chirp, pop, hum all use this voice).
+function glide(f0, f1, glideS, when, peak, dur, attack = 0.003) {
+  if (!ac || !voiceOk(dur)) return;
+  const t = ac.currentTime + when;
+  const o = ac.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + glideS);
+  const g = ac.createGain(); env(g, t, peak, attack, dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.04);
+}
+const plop = (when = 0, vel = 1, hi = 1) => glide(760 * hi, 230 * hi, 0.07, when, 0.35 * vel, 0.14);
+function woodblock(freq, when = 0, vel = 1) {
+  glide(freq, freq * 0.92, 0.05, when, 0.42 * vel, 0.12);
+  glide(freq * 2.76, freq * 2.76, 0.01, when, 0.14 * vel, 0.04);
+}
+const chirp = (freq, when = 0, vel = 1) => glide(freq, freq * 1.5, 0.08, when, 0.25 * vel, 0.12);
+const tapNote = () => marimba(degFreq(0, 1), 0, 0.3, 0.25);                        // empty-space tap
+const padNote = i => marimba(ROOT * Math.pow(2, PADS[i].st / 12), 0, 0.35, 0.3);   // intro: pads wake up
+const lidPop = () => { glide(degFreq(0, -1), degFreq(0), 0.06, 0, 0.3, 0.13); marimba(degFreq(4), 0.05, 0.3, 0.25); };
+const lidShut = () => { plop(0, 1, 0.9); woodblock(degFreq(0, -1), 0.02, 0.5); };
+const softShut = () => woodblock(degFreq(0, -1), 0, 0.35);
+const tadaSound = () => [0, 2, 4, 5].forEach((d, i) => marimba(degFreq(d), i * 0.09, 0.7, 0.4));   // ≤ 600 ms
+const hmmSound = () => { glide(degFreq(2, -1), degFreq(2, -1), 0.01, 0, 0.2, 0.26, 0.04);          // "hm-hm?":
+  glide(degFreq(2, -1), degFreq(4, -1), 0.12, 0.3, 0.2, 0.34, 0.04); };                            // no failure sound
+const hintSound = () => { glide(degFreq(0, -1), degFreq(0, -1), 0.01, 0, 0.2, 0.3, 0.06);           // the jar hums
+  glide(degFreq(2, -1), degFreq(2, -1), 0.01, 0.34, 0.18, 0.36, 0.06); };
+const fxOnSound = i => { chirp(degFreq(1 + i), 0, 0.7); marimba(degFreq(1 + i, 1), 0.06, 0.4, 0.3); };
+const fxOffSound = () => plop(0, 0.6, 1.3);
+const wakeSound = () => { chirp(degFreq(2), 0, 0.8); chirp(degFreq(4), 0.14, 0.7); };
+function whoosh() {                                   // bin: noise through one band-pass sweeping down
+  if (!ac || !noiseBuf || !voiceOk(0.5)) return;
+  const t = ac.currentTime, src = ac.createBufferSource(), bp = ac.createBiquadFilter(), g = ac.createGain();
+  src.buffer = noiseBuf; bp.type = 'bandpass'; bp.Q.value = 1.4;
+  bp.frequency.setValueAtTime(1800, t); bp.frequency.exponentialRampToValueAtTime(350, t + 0.42);
+  env(g, t, 0.3, 0.08, 0.46);
+  src.connect(bp); bp.connect(g); g.connect(master); src.start(t); src.stop(t + 0.5);
+  glide(degFreq(4), degFreq(0, -1), 0.35, 0.02, 0.08, 0.4);
+}
+
+// ---------- sampler voices (max 4; a JS mirror of each voice drives mouth, pad glow and loops) ----------
+// pad -1 = the jar itself (jar tap, previews) at the clip's own pitch.
+let svoices = [];
+function startVoice(pad, loop) {
+  const take = jar.sound, tk = TAKES[take];
+  const live = svoices.filter(v => !v.rel);
+  if (live.length >= 4) releaseVoice(live[0], 0.02);                      // steal the oldest
+  const v = { pad, take, pos: 0, dur: tk.dur, loop, rate: Math.pow(2, (pad >= 0 ? PADS[pad].st : 0) / 12), bend: 0,
+    rel: false, fade: 1, ended: false, rev: st.fx.includes(BACK), src: null, g: null };
+  svoices.push(v);
+  if (st.fx.includes(ECHO)) for (let n = 1; n <= 3; n++) ring(JAR.x, JAR.y, 30, 62, 0.5, HUE.teal[0], 2, 0.25 * n, 0.8 * Math.pow(0.45, n - 1));
+  if (ac && sIn) {
+    const now = ac.currentTime, src = ac.createBufferSource(), g = ac.createGain();
+    src.buffer = BUF[take][v.rev ? 1 : 0]; src.playbackRate.value = v.rate; src.loop = loop;
+    wobDepth.connect(src.detune);
+    g.gain.setValueAtTime(0.0001, now); g.gain.linearRampToValueAtTime(0.9, now + 0.005);
+    src.connect(g); g.connect(sIn); src.start(now);
+    src.onended = () => { v.ended = true; try { wobDepth.disconnect(src.detune); } catch (e) { /* already gone */ } };
+    v.src = src; v.g = g;
+    duckMusic(now, tk.dur / v.rate + 0.2);
+  }
+  return v;
+}
+function releaseVoice(v, tau = 0.04) {
+  if (v.rel) return;
+  v.rel = true;                                                            // mirror fades with the audio
+  if (v.src && ac) {
+    const now = ac.currentTime, gp = v.g.gain;
+    gp.cancelScheduledValues(now); gp.setValueAtTime(Math.max(0.0001, gp.value), now);
+    gp.setTargetAtTime(0.0001, now, tau);
+    try { v.src.stop(now + tau * 6); } catch (e) { /* already stopped */ }
+  }
+}
+const stopAllVoices = () => svoices.forEach(v => releaseVoice(v, 0.03));
+function bendVoice(v, semis) {
+  v.bend = semis;
+  if (v.src && ac) v.src.detune.setTargetAtTime(semis * 100, ac.currentTime, 0.02);
+}
+function loopVoice(v) { v.loop = true; if (v.src) v.src.loop = true; }
+function applyFx() {
+  if (!ac || !sIn) return;
+  const now = ac.currentTime, on = i => st.fx.includes(i);
+  echoSend.gain.setTargetAtTime(on(ECHO) ? 1 : 0, now, 0.02);
+  sDry.gain.setTargetAtTime(on(ROBOT) ? 0 : 1, now, 0.02);
+  sWet.gain.setTargetAtTime(on(ROBOT) ? 1 : 0, now, 0.02);
+  wobDepth.gain.setTargetAtTime(on(WOBBLE) ? 150 : 0, now, 0.02);
+}
+// Level of a voice at its playhead (processed-clip RMS), for the jar's mouth and the pad glow.
+function voiceLevel(v) {
+  const tk = TAKES[v.take], p = v.rev ? v.dur - v.pos : v.pos, f = Math.floor(p / FRAME);
+  return (f >= 0 && f < tk.playLev.length ? tk.playLev[f] : 0) * v.fade;
+}
+
+// ---------- cave drips: the only ambience (the child is the music, so no melodic bed) ----------
+// [landing time s on the ambience clock st.amb, lane, degree] on a 14 s loop. Visual drops and their "plink"
+// both derive from st.amb (logic time), so a drop always lands on its note. No RNG; silent while recording.
+const AMB = { loop: 14, ahead: 0.12, voices: 6, g: 900 };
+const LANES = [{ x: 91, tip: 55, land: LEDGE }, { x: 232, tip: 55, land: LEDGE }];
+const DRIPS = [[1.8, 0, 2], [4.2, 1, 4], [6.1, 0, 0], [8.7, 1, 3], [10.9, 0, 1], [12.6, 1, 4]];
+let music = null, musicBus = null, duck = null, duckUntil = 0, musicVoices = [];
+function startMusic() {
+  if (!ac) return;
+  if (!musicBus) { musicBus = ac.createGain(); duck = ac.createGain(); musicBus.connect(duck); duck.connect(master); }
+  const now = ac.currentTime;
+  musicBus.gain.cancelScheduledValues(now); musicBus.gain.setValueAtTime(0, now);
+  musicBus.gain.setTargetAtTime(1, now + 0.5, 1.5);                // gentle fade-in, never a loud start
+  music = { i: 0, loop: 0 }; musicVoices = [];
+}
+function stopMusic() {
+  if (!music) return;
+  musicBus.gain.cancelScheduledValues(ac.currentTime); musicBus.gain.setTargetAtTime(0, ac.currentTime, 0.15);
+  music = null;
+}
+function musicVoiceOk(t, len) {                                    // own pool: never takes cue voices
+  musicVoices = musicVoices.filter(e => e > t);
+  if (musicVoices.length >= AMB.voices) return false;
+  musicVoices.push(t + len); return true;
+}
+function dripNote(t, deg) {
+  const f = degFreq(deg, 1);
+  for (const [d, peak] of [[0, 0.06], [0.3, 0.022]]) {             // the plink, then its cave echo
+    if (!musicVoiceOk(t + d, 0.3)) continue;
+    const o = ac.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(f * 0.8, t + d); o.frequency.exponentialRampToValueAtTime(f, t + d + 0.03);
+    const g = ac.createGain(); env(g, t + d, peak, 0.004, 0.28);
+    o.connect(g); g.connect(musicBus); o.start(t + d); o.stop(t + d + 0.33);
+  }
+}
+function musicTick() {                                             // schedule drips AMB.ahead before they land
+  if (!music) return;
+  for (;;) {
+    const e = DRIPS[music.i], T = music.loop * AMB.loop + e[0];
+    if (T > st.amb + AMB.ahead) return;
+    if (st.amb - T < 0.1 && st.phase !== 'RECORDING') dripNote(ac.currentTime + Math.max(0, T - st.amb), e[2]);
+    if (++music.i >= DRIPS.length) { music.i = 0; music.loop++; }
+  }
+}
+function duckMusic(now, len) {                                     // drips dip to 0.35 under cues and voices
+  if (!duck) return;
+  duckUntil = Math.max(duckUntil, now + len);
+  duck.gain.cancelScheduledValues(now);
+  duck.gain.setTargetAtTime(0.35, now, 0.03); duck.gain.setTargetAtTime(1, duckUntil, 0.3);
+}
+
+// ---------- particles, rings ----------
+let parts = [], rings = [];
+function addPart(p) { if (parts.length >= maxParticles) parts.shift(); parts.push(p); }   // evict oldest, never exceed cap
+function emit(x, y, n, o) {
+  n = Math.max(1, Math.round(n * (reduced ? 0.5 : 1)));
+  for (let i = 0; i < n; i++) {
+    const a = frng() * Math.PI * 2, sp = lerp(o.speed[0], o.speed[1], frng()), life = lerp(o.life[0], o.life[1], frng());
+    addPart({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - (o.up || 0), g: o.gravity, life, max: life,
+      shape: o.shape, color: o.colors[(frng() * o.colors.length) | 0], size: o.size * lerp(0.7, 1.3, frng()),
+      rot: frng() * 6.28, vr: (frng() - 0.5) * 8, add: !!o.additive });
+  }
+}
+const SPARKLE = { speed: [40, 110], life: [0.35, 0.7], gravity: 60, shape: 'star', size: 5, colors: ['#FFEB9C', '#FFFBEF'], additive: true };
+const NOTES = { speed: [10, 30], life: [0.6, 0.9], gravity: -40, shape: 'note', size: 4, up: 45, colors: ['#FFFBEF'] };
+const CONFETTI = { speed: [60, 140], life: [0.9, 1.5], gravity: 170, shape: 'rect', size: 6, up: 70, colors: ['#FFFBEF'] };
+const MIST = { speed: [8, 24], life: [0.6, 0.9], gravity: -30, shape: 'circle', size: 5, up: 20, colors: ['#FFFBEF'] };
+// Bin whoosh: mist puffs arc from the jar into the bin mouth in 0.5 s (ballistic, so they land on it).
+function flyMist(n, colors) {
+  n = Math.max(1, Math.round(n * (reduced ? 0.5 : 1)));
+  for (let i = 0; i < n; i++) {
+    const x = JAR.x + (frng() - 0.5) * 50, y = JAR.y + 10 + (frng() - 0.5) * 28, tx = BIN.x + (frng() - 0.5) * 18, ty = 108;
+    const T = 0.5, g = 240;
+    addPart({ x, y, vx: (tx - x) / T, vy: (ty - y) / T - g * T / 2, g, life: T, max: T, shape: 'circle',
+      color: colors[i % colors.length], size: 4 + frng() * 3, rot: 0, vr: 0, add: false });
+  }
+}
+function ring(x, y, r0, r1, dur, color, w, delay = 0, alpha = 1) {   // delay: echo rings start later and fainter
+  if (rings.length >= 24) rings.shift();
+  rings.push({ x, y, r0, r1, t: -delay, dur, color, w, a: alpha });
+}
+
+// ---------- entities ----------
+// Springs: q/qv drawn as scale(1 - q, 1 + q) about the object's foot (q < 0 = squash). A press kicks qv < 0, the
+// release kicks qv > 0 (a little rebound), so press and release always look different.
+// jar.sound = the clip the pads play; jar.mist = the take whose colour fills the glass; level = fill 0..1.
+const jar = { sound: FROG, mist: FROG, level: 0.38, levelTo: 0.38, next: null, q: 0, qv: 0, ang: 0, wig: 0,
+  happy: 0, hmm: 0, look: [0, 1], blink: 2.5, visor: 0, visorTo: 0, mouth: 0, swirl: 0, lastTap: -9, hum: 0, wobA: 0 };
+const lid = { u: 0, to: 0 };                           // hop: 0 = on the jar, 1 = leaning on the jar's left shoulder
+// wig = hint wiggle timer (TOK.wiggleMs); bend = visual stretch that follows the held pad's pitch bend.
+const pads = PADS.map((p, i) => ({ q: 0, qv: 0, lastTap: -9, blink: 1.5 + i * 0.9, glow: 0, hop: 9, awake: false, sing: 0,
+  bend: 0, wig: 0 }));
+const fxb = FX.map(() => ({ q: 0, qv: 0, lastTap: -9, on: 0, wig: 0 }));    // on: eased 0..1 toggle visual
+const recb = { q: 0, qv: 0, lastTap: -9, louder: 0, wig: 0 };
+const bin = { q: 0, qv: 0, lastTap: -9, lid: 0 };
+let hold = null, pressed = null, pending = null;      // held pad, last pressed object, one pending jar preview
+const st = { phase: 'START', t: 0, idle: 0, hint: 0, spoken: false, actions: 0, tries: 0, order: [], take: -1,
+  fx: [], amb: 0, voiced: 0, lastAct: -1, lev: 0, duckT: 0, nudge: 0 };
+let time = 0;
+
+const canPlay = () => st.phase === 'EMPTY' || st.phase === 'FULL' || st.phase === 'TOO_QUIET';
+function startGame() { initAudio(); startMusic(); st.phase = 'INTRO'; st.t = 0; }
+// The next built-in take: a seeded order of the three voices, then the whisper (every 4th take is too quiet).
+function nextTake() {
+  if (!st.order.length) {
+    const b = [1, 2, 3];
+    for (let i = b.length - 1; i > 0; i--) { const j = (grng() * (i + 1)) | 0; [b[i], b[j]] = [b[j], b[i]]; }
+    st.order = [WHISPER, ...b];                       // popped from the end
+  }
+  return st.order.pop();
+}
+function pourOut(mist, level) { jar.levelTo = 0; jar.next = { mist, level }; }   // drain, then refill as `mist`
+function startRecording() {
+  stopAllVoices(); hold = null; pending = null;
+  st.take = nextTake(); st.tries++;
+  if (jar.level > 0.04) emit(JAR.x, 78, 6, { ...MIST, colors: TAKES[jar.mist].hue.slice(0, 2) });  // old clip drifts off
+  jar.sound = FROG; pourOut(st.take, 0);              // a new recording wipes the old clip (doc §7)
+  lid.to = 1; lidPop(); emit(LID.x, 62, 5, SPARKLE); ring(REC.x, REC.y, 14, 40, 0.45, HUE.red[0], 3);
+  st.phase = 'COUNTDOWN'; st.t = 0; st.voiced = 0; st.lastAct = -1; st.lev = 0; recb.louder = 0;
+}
+function finishRecording() {
+  st.t = 0; st.lev = 0; lid.to = 0;
+  if (jar.next) { jar.mist = jar.next.mist; jar.next = null; }
+  if (st.voiced < 0.15) { tooQuiet(); return; }      // doc: sustained level < 512 or shorter than 150 ms
+  st.phase = 'PROCESSING'; jar.sound = st.take; jar.levelTo = 0.62;
+}
+function tooQuiet() {                                  // friendly retry: wiggle, "hm-hm?", louder arcs; no failure sound
+  st.phase = 'TOO_QUIET'; jar.wig = 0.7; jar.hmm = 1.6; recb.louder = 1.4;
+  hmmSound(); pourOut(FROG, 0.38);                    // the jar keeps its built-in frog sound
+}
+function lidClosed() {
+  if (st.phase !== 'PROCESSING') { softShut(); return; }
+  const c = TAKES[jar.sound].hue;                     // the "pop": mist settles in the take's colour
+  lidShut(); jar.qv = -3.5; ring(LID.x, LID.y, 10, 42, 0.4, '#FFFFFF', 2.5);
+  emit(LID.x, LID.y - 4, 8, { ...SPARKLE, colors: [c[0], '#FFFBEF'] });
+}
+function celebrate() {
+  st.phase = 'FULL'; st.t = 0; jar.happy = 1.5; jar.qv = -2.5;
+  const c = TAKES[jar.sound].hue;
+  emit(JAR.x, 92, 36, { ...CONFETTI, colors: [c[0], c[1], '#FFFBEF', HUE.yellow[1]] });
+  pads.forEach((p, i) => { p.hop = -0.08 * i; });   // the pads cheer in a wave
+  tadaSound(); pending = { t: 0.45 };                 // then the jar plays its new sound once
+}
+function recordTap() {
+  if (st.phase === 'RECORDING' && st.t > 0.3) { finishRecording(); return; }       // tap again = stop
+  if (!canPlay()) { ring(REC.x, REC.y, 12, 36, 0.4, '#FFFFFF', 2); return; }        // busy: acknowledged only
+  startRecording();
+}
+function toggleFx(i) {
+  const f = FX[i]; st.actions++;
+  const k = st.fx.indexOf(i);
+  if (k >= 0) { st.fx.splice(k, 1); fxOffSound(); ring(f.x, FX_Y, 8, 26, 0.35, f.hue[0], 2); }
+  else {
+    if (st.fx.length >= 2) {                          // max 2 at once: turning on a 3rd turns off the oldest
+      const old = st.fx.shift(); fxb[old].qv = 2.5; ring(FX[old].x, FX_Y, 6, 24, 0.35, '#FFFFFF', 2); plop(0.06, 0.4, 1.3);
+    }
+    st.fx.push(i); fxOnSound(i);
+    emit(f.x, FX_Y, 6, { ...SPARKLE, colors: [f.hue[0], '#FFFBEF'] }); ring(f.x, FX_Y, 10, 30, 0.4, f.hue[0], 3);
+    if (canPlay()) pending = { t: 0.18 };             // a short preview so the change is heard
+  }
+  jar.visorTo = st.fx.includes(ROBOT) ? 1 : 0;
+  applyFx();
+}
+function binTap() {
+  bin.lid = 1; whoosh(); ring(BIN.x, 110, 8, 36, 0.45, '#FFFFFF', 2);
+  stopAllVoices(); hold = null; pending = null;
+  if (jar.level > 0.04) flyMist(10, TAKES[jar.mist].hue.slice(0, 2));
+  if (!canPlay()) { lid.to = 0; if (jar.next) { jar.mist = jar.next.mist; jar.next = null; } }   // abort a recording
+  jar.sound = FROG; pourOut(FROG, 0.38); jar.qv = -2;  // explicit wipe; the built-in frog sound comes back
+  st.phase = 'EMPTY'; st.t = 0;
+}
+function jarTap() {
+  ring(JAR.x, JAR.y, 16, 56, 0.45, '#FFFFFF', 2);
+  if (!canPlay()) return;                              // busy recording: squash + ring only
+  startVoice(-1, false); emit(JAR.x, 80, 4, SPARKLE);
+}
+function padDown(i, y, id) {
+  try { cv.setPointerCapture(id); } catch (err) { /* synthetic pointer */ }
+  if (hold) releaseHold();
+  hold = { pad: i, id, y0: y, t: 0, v: null, bend: 0, looped: false };
+  const P = PADS[i], x = padX(i), py = padY(i);
+  if (!canPlay()) { ring(x, py, 8, 30, 0.4, '#FFFFFF', 2); return; }               // busy recording: acknowledged only
+  st.actions++; hold.v = startVoice(i, false); pads[i].glow = 1;
+  emit(x, py - 20 * P.s, 3, { ...NOTES, colors: [P.hue[0], '#FFFBEF'] }); ring(x, py, 10, 36, 0.4, P.hue[0], 2.5);
+}
+function releaseHold() {
+  const h = hold; hold = null;
+  if (h.v && h.v.loop) releaseVoice(h.v, 0.05);       // loops stop on release; one-shots play out
+}
+function preview() {                                   // the jar sings its clip once (after a pop or an effect toggle)
+  if (!canPlay() || hold || svoices.some(v => !v.rel)) return;
+  startVoice(-1, false); jar.qv = -1.5;
+}
+
+// ---------- input ----------
+function toStage(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H]; }
+function press(o) { if (time - o.lastTap < TOK.tapDebounce) return false; o.lastTap = time; o.qv = -3.2; pressed = o; return true; }
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const [x, y] = toStage(e);
+  jar.look = [x - JAR.x, y - 112];
+  if (st.phase === 'START') { startGame(); return; }
+  if (ac && ac.state === 'suspended') ac.resume();
+  if (inRect(x, y, [0, 0, 56, 56])) { home(); return; }
+  if (inRect(x, y, [264, 0, 56, 56])) { ring(292, 28, 6, 24, 0.4, '#FFFFFF', 2); return; } // mic: disabled in this game
+  if (st.phase === 'INTRO') { st.t = 99; return; }                                      // intro skippable
+  st.idle = 0; st.hint = 0; st.spoken = false;
+  for (let i = 0; i < FX.length; i++) if (inRect(x, y, [FX[i].x - 24, 6, 48, 48])) { if (press(fxb[i])) toggleFx(i); return; }
+  if (inRect(x, y, REC.hit)) { if (press(recb)) recordTap(); return; }
+  if (inRect(x, y, BIN.hit)) { if (press(bin)) binTap(); return; }
+  if (inRect(x, y, JAR.hit)) { if (press(jar)) jarTap(); return; }
+  for (let i = 0; i < PADS.length; i++) if (inRect(x, y, [64 * i, 168, 64, 72])) { if (press(pads[i])) padDown(i, y, e.pointerId); return; }
+  ring(x, y, 3, 22, 0.5, '#FFFFFF', 2); emit(x, y, 4, SPARKLE); tapNote();              // empty space
+});
+cv.addEventListener('pointermove', e => {
+  if (!hold || e.pointerId !== hold.id) return;
+  const dy = hold.y0 - toStage(e)[1], a = Math.abs(dy);                                // slide up = higher
+  const bend = a <= TOK.dragDeadZone ? 0 : Math.sign(dy) * Math.min(TOK.maxBend, (a - TOK.dragDeadZone) / TOK.pxPerSemitone);
+  if (bend !== hold.bend) { hold.bend = bend; if (hold.v && !hold.v.rel) bendVoice(hold.v, bend); }
+});
+function pointerEnd(e) {
+  if (pressed) { pressed.qv = Math.max(0, pressed.qv) + 2.2; pressed = null; }       // release: a small rebound
+  if (hold && e.pointerId === hold.id) releaseHold();
+}
+cv.addEventListener('pointerup', pointerEnd); cv.addEventListener('pointercancel', pointerEnd);
+addEventListener('keydown', e => {
+  if (e.key === 'd' || e.key === 'D') debug = !debug;
+  if (e.key === 'r' || e.key === 'R') reduced = !reduced;
+  if (e.key === 'p' || e.key === 'P') maxParticles = maxParticles === TOK.deviceMaxParticles ? TOK.webMaxParticles : TOK.deviceMaxParticles;
+});
+function home() {                                      // exit wipes the clip (doc §7) and resets the scene
+  stopMusic(); stopAllVoices(); svoices = [];
+  hold = null; pressed = null; pending = null; parts = []; rings = [];
+  Object.assign(st, { phase: 'START', t: 0, idle: 0, hint: 0, spoken: false, actions: 0, tries: 0, order: [], take: -1,
+    fx: [], amb: 0, voiced: 0, lastAct: -1, lev: 0 });
+  Object.assign(jar, { sound: FROG, mist: FROG, level: 0.38, levelTo: 0.38, next: null, q: 0, qv: 0, wig: 0, happy: 0,
+    hmm: 0, visor: 0, visorTo: 0, hum: 0 });
+  lid.u = 0; lid.to = 0; recb.louder = 0; bin.lid = 0;
+  for (const p of pads) { p.awake = false; p.hop = 9; p.glow = 0; }
+  applyFx();
+}
+
+// ---------- update ----------
+function spring(o, target, dt) {                                    // 2 substeps (stable at 60 Hz)
+  for (let i = 0; i < 2; i++) {
+    const h = dt / 2, a = -TOK.springBouncy.k * (o.q - target) - TOK.springBouncy.c * o.qv;
+    o.qv += a * h; o.q += o.qv * h;
+  }
+}
+// What a helpful player does next (pure): record while the jar holds only its built-in sound, else a fixed
+// tour of pads and effects.
+const CYCLE = [['pad', 2], ['fx', ECHO], ['pad', 0], ['fx', WOBBLE], ['pad', 4], ['fx', ROBOT], ['pad', 1], ['fx', BACK], ['pad', 3]];
+function suggest() {
+  if (st.phase === 'EMPTY' || st.phase === 'TOO_QUIET') return { o: recb, x: REC.x, y: REC.y, r: REC.r + 5 };
+  if (st.phase !== 'FULL') return null;
+  const [k, i] = CYCLE[st.actions % CYCLE.length];
+  if (k === 'pad') return { o: pads[i], x: padX(i), y: padY(i), r: PAD_R * PADS[i].s + 6 };
+  return { o: fxb[i], x: FX[i].x, y: FX_Y, r: FX_R + 4 };
+}
+function update(dt) {
+  time += dt; st.t += dt;
+  const m = reduced ? 0.3 : 1;
+  if (st.phase !== 'START') st.amb += dt;                          // ambience clock (logic time)
+  if (st.phase === 'INTRO') {                                       // the jar wakes, then the pads one by one
+    const skip = st.t > 50;
+    if (st.t >= 0.3 && st.t - dt < 0.3) { jar.qv = -3; wakeSound(); }
+    pads.forEach((p, i) => { if (!p.awake && st.t >= 0.35 + 0.1 * i) { p.awake = true; p.hop = 0; if (!skip) padNote(i); } });
+    if (st.t >= 1.3) { st.phase = 'EMPTY'; st.t = 0; }
+  } else if (st.phase === 'COUNTDOWN') {                            // 3 silent dots, then listen
+    if (st.t >= 1.35) {
+      st.phase = 'RECORDING'; st.t = 0;
+      if (jar.next) { jar.mist = jar.next.mist; jar.next = null; }
+    }
+  } else if (st.phase === 'RECORDING') {
+    const tk = TAKES[st.take], f = Math.floor((st.t - 0.3) / FRAME);
+    st.lev = f >= 0 && f < tk.lev.length ? tk.lev[f] : 0;          // the built-in take arrives as the input level
+    if (st.lev >= ACTIVE) st.lastAct = st.t;
+    if (st.lev >= LOUD) st.voiced += dt;
+    jar.levelTo = Math.min(0.66, 0.06 + st.voiced * 0.9);          // level-reactive: the mist swirls in
+    if ((st.lastAct >= 0 && st.t - st.lastAct >= 0.5) || st.t >= 3) finishRecording();   // silence or 3 s
+  } else if (st.phase === 'PROCESSING') {
+    if (st.t >= 0.5) celebrate();
+  } else if (st.phase === 'TOO_QUIET') {
+    if (st.t >= 1.4) { st.phase = 'EMPTY'; st.t = 0; }
+  }
+
+  // idle hints: 6 s the next thing glows and wiggles; 12 s the jar hums and the helper hand shows it
+  if (canPlay() && !hold && !svoices.some(v => !v.rel)) {
+    st.idle += dt;
+    if (st.idle > TOK.idleVisualHint && st.hint < 1) { st.hint = 1; st.nudge = 0; }
+    if (st.idle > TOK.idleSpokenHint && !st.spoken) { st.spoken = true; st.hint = 2; hintSound(); jar.hum = 0.9; jar.qv = -2.2; }
+  }
+  if (st.hint >= 1 && (st.nudge -= dt) <= 0) { st.nudge = 1.6; const s = suggest(); if (s) s.o.wig = TOK.wiggleMs / 1000; }
+
+  // sampler voice mirrors (playhead, loops, release fades)
+  for (const v of svoices) {
+    v.pos += dt * v.rate * Math.pow(2, v.bend / 12);
+    if (v.loop && v.pos >= v.dur) v.pos %= v.dur;
+    if (v.rel) v.fade -= dt / 0.15;
+  }
+  svoices = svoices.filter(v => (v.loop || v.pos < v.dur) && v.fade > 0);
+  if (hold) {
+    hold.t += dt;
+    if (!hold.looped && hold.t >= TOK.holdLoop && canPlay()) {     // hold > 350 ms: the sound loops
+      hold.looped = true;
+      const v = hold.v;
+      if (v && !v.rel && !v.ended && v.pos < v.dur - 0.03) loopVoice(v);
+      else { hold.v = startVoice(hold.pad, true); bendVoice(hold.v, hold.bend); }
+      ring(padX(hold.pad), padY(hold.pad), 12, 40, 0.5, PADS[hold.pad].hue[0], 2.5);
+    }
+  }
+  if (ac && svoices.some(v => v.loop && !v.rel) && (st.duckT -= dt) <= 0) { st.duckT = 0.4; duckMusic(ac.currentTime, 0.6); }
+  if (pending && (pending.t -= dt) <= 0) { pending = null; preview(); }
+
+  // jar: mist level (drains first when a new colour waits), mouth from the voices, face timers, sway
+  jar.level += (jar.levelTo - jar.level) * Math.min(1, dt * (jar.next ? 6 : 4));
+  if (jar.next && jar.level < 0.02) { jar.mist = jar.next.mist; jar.levelTo = jar.next.level; jar.next = null; }
+  let lev = 0;
+  for (const p of pads) p.sing = 0;
+  for (const v of svoices) { const l = voiceLevel(v); lev = Math.max(lev, l); if (v.pad >= 0) pads[v.pad].sing = Math.max(pads[v.pad].sing, l); }
+  jar.mouth += (clamp(lev / 0.15, 0, 1) - jar.mouth) * Math.min(1, dt * 25);
+  const rl = st.phase === 'RECORDING' ? clamp(st.lev / 0.12, 0, 1) : 0;
+  jar.swirl += dt * (0.8 + 3 * Math.max(rl, jar.mouth)) * (st.fx.includes(BACK) ? -1 : 1) * m;
+  jar.wobA += ((st.fx.includes(WOBBLE) ? 1 : 0) - jar.wobA) * Math.min(1, dt * 4);
+  jar.visor += (jar.visorTo - jar.visor) * Math.min(1, dt * 8);
+  jar.wig = Math.max(0, jar.wig - dt); jar.happy = Math.max(0, jar.happy - dt);
+  jar.hmm = Math.max(0, jar.hmm - dt); jar.hum = Math.max(0, jar.hum - dt);
+  const wk = 1 - jar.wig / 0.7;
+  jar.ang = ((jar.wig > 0 ? Math.sin(wk * Math.PI * 4) * 0.1 * (1 - wk) : 0) + Math.sin(time * 2 * Math.PI * 1.2) * 0.035 * jar.wobA) * m;
+  spring(jar, 0, dt);
+  jar.blink -= dt; if (jar.blink < -0.12) jar.blink = 2 + frng() * 4;
+  const lu = lid.u;                                                 // lid hop: 0.4 s open, 0.3 s shut
+  lid.u = lid.to > lid.u ? Math.min(lid.to, lid.u + dt / 0.4) : Math.max(lid.to, lid.u - dt / 0.3);
+  if (lu > 0 && lid.u === 0) lidClosed();
+
+  pads.forEach((p, i) => {
+    spring(p, 0, dt);
+    p.bend += ((hold && hold.pad === i ? hold.bend : 0) - p.bend) * Math.min(1, dt * 14);
+    p.glow = Math.max(p.sing > 0.005 ? 0.55 + 0.45 * clamp(p.sing / 0.15, 0, 1) : 0, p.glow - dt * 2.5);
+    p.hop += dt; p.wig = Math.max(0, p.wig - dt);
+    p.blink -= dt; if (p.blink < -0.12) p.blink = 2.4 + frng() * 3.5;
+  });
+  fxb.forEach((b, i) => { spring(b, 0, dt); b.on += ((st.fx.includes(i) ? 1 : 0) - b.on) * Math.min(1, dt * 10); b.wig = Math.max(0, b.wig - dt); });
+  spring(recb, 0, dt); recb.louder = Math.max(0, recb.louder - dt); recb.wig = Math.max(0, recb.wig - dt);
+  spring(bin, 0, dt); bin.lid = Math.max(0, bin.lid - dt * 1.6);
+
+  for (const p of parts) { p.life -= dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; }
+  parts = parts.filter(p => p.life > 0);
+  for (const r of rings) r.t += dt; rings = rings.filter(r => r.t < r.dur);
+}
+
+// ---------- drawing helpers ----------
+function starPath(cx, cy, ro, ri, rot) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) { const r = i % 2 ? ri : ro, a = rot + i * Math.PI / 5; ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); }
+  ctx.closePath();
+}
+function heartPath(cx, cy, s) {
+  ctx.beginPath(); ctx.moveTo(cx, cy + s * 0.55);
+  ctx.bezierCurveTo(cx - s * 1.1, cy - s * 0.1, cx - s * 0.5, cy - s * 0.95, cx, cy - s * 0.35);
+  ctx.bezierCurveTo(cx + s * 0.5, cy - s * 0.95, cx + s * 1.1, cy - s * 0.1, cx, cy + s * 0.55);
+}
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+const wiggle = o => o.wig > 0 ? Math.sin((1 - o.wig / (TOK.wiggleMs / 1000)) * Math.PI * 4) * TOK.wiggleDeg * Math.PI / 180 *
+  (o.wig / (TOK.wiggleMs / 1000)) * (reduced ? 0.3 : 1) : 0;
+// Jar glass: a superellipse body |x/a|^n + |y/b|^n = 1 whose shoulders narrow towards a short neck (local coords,
+// origin = body centre). jarXY(t) walks the body; JAR_OUT is the whole glass outline (computed once).
+function jarXY(t, a, b) {
+  const c = Math.cos(t), s = Math.sin(t);
+  const y = b * Math.sign(s) * Math.pow(Math.abs(s), 2 / JAR.n);
+  let x = a * Math.sign(c) * Math.pow(Math.abs(c), 2 / JAR.n);
+  if (y < 0) x *= 1 - 0.1 * (-y / b);
+  return [x, y];
+}
+const JAR_OUT = [[-24, -41], [-24, -34]];
+for (let i = 0; i <= 36; i++) JAR_OUT.push(jarXY(Math.PI * 1.5 - 0.63 - (Math.PI * 2 - 1.26) * i / 36, JAR.a, JAR.b));
+JAR_OUT.push([24, -34], [24, -41]);
+function polyPath(pts) { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.closePath(); }
+// Mist inside the glass: the inset body below a gently waving surface; level 0..1 of the body height.
+function mistPath(level) {
+  const a = JAR.a - 4, b = JAR.b - 4, ys = b - level * 2 * b;
+  const t0 = Math.asin(clamp(Math.sign(ys) * Math.pow(Math.abs(ys / b), JAR.n / 2), -1, 1));
+  const w = jarXY(t0, a, b)[0], amp = Math.min(1.6, level * 6) * (reduced ? 0.5 : 1);
+  ctx.beginPath();
+  for (let i = 0; i <= 10; i++) { const x = -w + 2 * w * i / 10; ctx.lineTo(x, ys + Math.sin(x * 0.17 + time * 2.4) * amp * Math.sin(Math.PI * i / 10)); }
+  for (let i = 0; i <= 20; i++) { const p = jarXY(t0 + (Math.PI - 2 * t0) * i / 20, a, b); ctx.lineTo(p[0], p[1]); }
+  ctx.closePath();
+  return { ys, w, amp };
+}
+// Pad shapes, centred on (0, 0) with radius r; every shape's lowest point sits at y = +r (its foot).
+function padPath(shape, r) {
+  if (shape === 'circle') { ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); }
+  else if (shape === 'square') roundRect(-r * 0.9, -r * 0.8, r * 1.8, r * 1.8, r * 0.32);
+  else if (shape === 'triangle') {
+    const p = [0, 1, 2].map(k => [Math.cos(-Math.PI / 2 + k * 2.0944) * r * 1.3, Math.sin(-Math.PI / 2 + k * 2.0944) * r * 1.3 + r * 0.35]);
+    ctx.beginPath(); ctx.moveTo((p[0][0] + p[2][0]) / 2, (p[0][1] + p[2][1]) / 2);
+    for (let k = 0; k < 3; k++) { const a = p[k], b = p[(k + 1) % 3]; ctx.arcTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, r * 0.3); }
+    ctx.closePath();
+  } else if (shape === 'heart') heartPath(0, r * 0.09, r * 1.65);
+  else starPath(0, r * 0.07, r * 1.15, r * 0.62, -Math.PI / 2);
+}
+const FACE_Y = { circle: 0, square: 0.1, triangle: 0.32, heart: -0.08, star: 0.14 };
+// Small pad face: dot eyes (closed when asleep or blinking), a smile that opens with the voice level.
+function padFace(r, asleep, blink, sing, cheer) {
+  const ex = r * 0.32, ey = -r * 0.12, er = Math.max(2, r * 0.1);
+  ctx.fillStyle = TOK.ink; ctx.strokeStyle = TOK.ink; ctx.lineCap = 'round'; ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  if (asleep || blink < 0 || cheer) {
+    for (const s of [-1, 1]) { ctx.moveTo(s * ex + er * 1.1, ey + (cheer ? 1 : -1)); ctx.arc(s * ex, ey + (cheer ? 1 : -1), er * 1.1, 0, Math.PI, !!cheer); }
+    ctx.stroke();
+  } else {
+    ctx.arc(-ex, ey, er, 0, 7); ctx.moveTo(ex + er, ey); ctx.arc(ex, ey, er, 0, 7); ctx.fill();
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(-ex - er * 0.35, ey - er * 0.35, er * 0.38, 0, 7);
+    ctx.moveTo(ex - er * 0.35 + er * 0.38, ey - er * 0.35); ctx.arc(ex - er * 0.35, ey - er * 0.35, er * 0.38, 0, 7); ctx.fill();
+    ctx.fillStyle = TOK.ink;
+  }
+  if (sing > 0.03) { ctx.beginPath(); ctx.ellipse(0, r * 0.26, r * 0.11 + 1, r * 0.06 + 1 + r * 0.16 * clamp(sing / 0.15, 0, 1), 0, 0, 7); ctx.fill(); }
+  else { ctx.beginPath(); ctx.arc(0, r * 0.1, r * 0.17, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke(); }
+}
+// The jar's face on the glass. mood: sleep | idle | listen | hmm | happy; mouth 0..1 opens with the clip.
+function jarFace(mood, mouth) {
+  const look = mood === 'listen' ? [REC.x - JAR.x, REC.y - 112] : mood === 'hmm' ? [40, -60] : jar.look;
+  const ln = Math.hypot(look[0], look[1]) || 1, er = mood === 'listen' ? 7.5 : 6.5;
+  const lx = look[0] / ln * er * 0.35, ly = look[1] / ln * er * 0.35;
+  ctx.lineCap = 'round'; ctx.strokeStyle = TOK.ink; ctx.fillStyle = TOK.ink;
+  ctx.fillStyle = 'rgba(240,107,184,0.4)'; ctx.beginPath(); ctx.ellipse(-23, 3, 5, 3, 0, 0, 7);
+  ctx.moveTo(28, 3); ctx.ellipse(23, 3, 5, 3, 0, 0, 7); ctx.fill();                       // cheeks
+  if (mood === 'sleep' || mood === 'happy' || jar.blink < 0) {
+    const up = mood === 'happy';
+    ctx.lineWidth = 2.4; ctx.beginPath();
+    for (const s of [-1, 1]) { ctx.moveTo(s * 13 + 5, up ? -6 : -10); ctx.arc(s * 13, up ? -6 : -10, 5, 0, Math.PI, up); }
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(-13, -8, er, 0, 7); ctx.moveTo(13 + er, -8); ctx.arc(13, -8, er, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(59,53,80,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.arc(-13 + lx, -8 + ly, er * 0.5, 0, 7);
+    ctx.moveTo(13 + lx + er * 0.5, -8 + ly); ctx.arc(13 + lx, -8 + ly, er * 0.5, 0, 7); ctx.fill();
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(-13 + lx - er * 0.18, -8 + ly - er * 0.2, er * 0.17, 0, 7);
+    ctx.moveTo(13 + lx - er * 0.01, -8 + ly - er * 0.2); ctx.arc(13 + lx - er * 0.18, -8 + ly - er * 0.2, er * 0.17, 0, 7); ctx.fill();
+    ctx.strokeStyle = TOK.ink;
+  }
+  if (mood === 'hmm') {                                                                   // raised, curious brows
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-19, -19); ctx.quadraticCurveTo(-13, -23, -7, -20);
+    ctx.moveTo(7, -21); ctx.quadraticCurveTo(13, -25, 19, -21); ctx.stroke();
+  }
+  ctx.fillStyle = TOK.ink; ctx.lineWidth = 2.2;
+  if (mood === 'listen' || jar.hum > 0) {                                                 // small "o"
+    const o = 1 + (jar.hum > 0 ? 0.25 * Math.sin(jar.hum * Math.PI * 4.4) : 0);
+    ctx.beginPath(); ctx.ellipse(0, 9, 3.2 * o, 3.8 * o, 0, 0, 7); ctx.fill();
+  } else if (mood === 'hmm') {
+    ctx.beginPath(); ctx.moveTo(-5, 10); ctx.quadraticCurveTo(-2, 7, 1, 10); ctx.quadraticCurveTo(4, 13, 6, 9); ctx.stroke();
+  } else if (mouth > 0.05 && mood !== 'sleep') {                                          // singing: opens with the clip
+    ctx.beginPath(); ctx.ellipse(0, 9, 4.5 + 2 * mouth, 1.5 + 6 * mouth, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#F06BB8'; ctx.beginPath(); ctx.ellipse(0, 9 + 3.5 * mouth, 2.6 + mouth, 1 + 1.6 * mouth, 0, 0, 7); ctx.fill();
+  } else if (mood === 'happy') {
+    ctx.beginPath(); ctx.moveTo(-8, 6); ctx.quadraticCurveTo(0, 17, 8, 6); ctx.closePath(); ctx.fill();
+  } else if (mood === 'sleep') {
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 6, 3.5, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke();
+  } else {
+    ctx.beginPath(); ctx.arc(0, 4, 6.5, 0.18 * Math.PI, 0.82 * Math.PI); ctx.stroke();
+  }
+}
+
+// ---------- scene ----------
+// Static background (Echo Cave, firmware ui::art::cave() geometry + a rock ledge). On the device this is a cached
+// layer: drawn once into the background buffer, then copied each frame; nothing in it moves.
+function drawBackground() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, TOK.caveTop); g.addColorStop(1, TOK.caveBot);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 0.14; ctx.fillStyle = HUE.purple[1];
+  ctx.beginPath(); ctx.ellipse(156, 142, 128, 112, 0, 0, 7); ctx.fill();
+  ctx.globalAlpha = 0.55; ctx.fillStyle = TOK.rockDark;                         // side walls
+  ctx.beginPath(); ctx.moveTo(0, 58); ctx.quadraticCurveTo(26, 96, 12, 130); ctx.quadraticCurveTo(4, 150, 10, 170); ctx.lineTo(0, 170);
+  ctx.moveTo(320, 62); ctx.quadraticCurveTo(298, 100, 310, 134); ctx.quadraticCurveTo(318, 152, 312, 170); ctx.lineTo(320, 170); ctx.fill();
+  for (const odd of [0, 1]) {                                                     // hanging crystals (2 colour batches)
+    ctx.globalAlpha = 0.86; ctx.fillStyle = odd ? TOK.crystalA : TOK.crystalB; ctx.beginPath();
+    for (let i = odd; i < 8; i += 2) {
+      const x = i * 47 - 8, k = (i * 13) % 24;
+      ctx.moveTo(x, 0); ctx.lineTo(x + 12, 0); ctx.lineTo(x + 9, 24 + k); ctx.lineTo(x + 5, 54); ctx.lineTo(x + 2, 20 + k); ctx.closePath();
+    }
+    ctx.fill();
+  }
+  ctx.globalAlpha = 0.3; ctx.strokeStyle = HUE.purple[0]; ctx.lineWidth = 1; ctx.beginPath();   // crystal facets
+  for (let i = 0; i < 8; i++) { const x = i * 47 - 8; ctx.moveTo(x + 6, 2); ctx.lineTo(x + 5, 50); }
+  ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.fillStyle = TOK.caveFloor; ctx.beginPath(); ctx.ellipse(160, 250, 164, 40, 0, 0, 7); ctx.fill();   // floor pool
+  ctx.globalAlpha = 0.39; ctx.strokeStyle = HUE.purple[0]; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 218);
+  for (let x = 0; x < W; x += 40) { ctx.quadraticCurveTo(x + 10, 214, x + 20, 218); ctx.quadraticCurveTo(x + 30, 222, x + 40, 218); }
+  ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.fillStyle = TOK.rock; ctx.beginPath(); ctx.moveTo(0, LEDGE + 2);               // the rock ledge everything stands on
+  ctx.quadraticCurveTo(80, LEDGE - 3, 160, LEDGE); ctx.quadraticCurveTo(240, LEDGE + 3, 320, LEDGE - 1);
+  ctx.lineTo(320, 166); ctx.quadraticCurveTo(240, 172, 160, 168); ctx.quadraticCurveTo(80, 165, 0, 170); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = TOK.rockRim; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, LEDGE + 2);
+  ctx.quadraticCurveTo(80, LEDGE - 3, 160, LEDGE); ctx.quadraticCurveTo(240, LEDGE + 3, 320, LEDGE - 1); ctx.stroke();
+  for (const [x0, d] of [[6, 1], [314, -1]]) {                                   // teal crystal clusters on the ledge ends
+    ctx.fillStyle = HUE.teal[2]; ctx.beginPath();
+    ctx.moveTo(x0 - 5 * d, LEDGE + 1); ctx.lineTo(x0 - 2 * d, LEDGE - 18); ctx.lineTo(x0 + 2 * d, LEDGE + 1);
+    ctx.moveTo(x0 + 1 * d, LEDGE + 1); ctx.lineTo(x0 + 7 * d, LEDGE - 12); ctx.lineTo(x0 + 9 * d, LEDGE + 1); ctx.fill();
+    ctx.fillStyle = HUE.teal[0]; ctx.globalAlpha = 0.6; ctx.beginPath();
+    ctx.moveTo(x0 - 2 * d, LEDGE - 18); ctx.lineTo(x0, LEDGE - 2); ctx.lineTo(x0 - 3.5 * d, LEDGE - 2); ctx.fill(); ctx.globalAlpha = 1;
+  }
+}
+// Animated ambience: twinkling specks, a crystal glint and the drips (all pure functions of time / st.amb).
+const T_FALL = Math.sqrt(2 * (LEDGE - 56) / AMB.g);
+function drawAmbient() {
+  const m = reduced ? 0.3 : 1;
+  ctx.fillStyle = HUE.teal[0];
+  for (let grp = 0; grp < 4; grp++) {
+    ctx.globalAlpha = 0.32 + 0.22 * Math.sin(time * (0.7 + grp * 0.17) + grp * 1.9) * m; ctx.beginPath();
+    for (let i = grp; i < 16; i += 4) { const x = (i * 73 + 19) % W, y = (i * 41 + 24) % 190 + 20, r = 1 + (i % 2); ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 7); }
+    ctx.fill();
+  }
+  const gk = (time % 4) / 4, gi = [1, 3, 6][Math.floor(time / 4) % 3], ga = Math.pow(Math.sin(gk * Math.PI), 4);
+  if (ga > 0.02) {
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7 * ga; ctx.fillStyle = HUE.purple[0];
+    starPath(gi * 47 - 3, 50, 4.5, 1.6, time * 0.5); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
+  }
+  ctx.fillStyle = HUE.teal[0]; ctx.strokeStyle = HUE.teal[0]; ctx.lineWidth = 1.5;
+  const L = Math.floor(st.amb / AMB.loop);
+  for (let l = L; l <= L + 1; l++) for (const [t0, lane] of DRIPS) {
+    const u = st.amb - (l * AMB.loop + t0), ln = LANES[lane];
+    if (u < -1.1 || u >= 0.45) continue;
+    if (u < -T_FALL) {                                   // a drop swells at the crystal tip
+      const k = (u + 1.1) / (1.1 - T_FALL); ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.ellipse(ln.x, ln.tip + 1 + 2 * k, 1 + 1.4 * k, 1.2 + 1.8 * k, 0, 0, 7); ctx.fill();
+    } else if (u < 0) {                                  // falls (y from logic time, so it lands on its plink)
+      const y = ln.land - 0.5 * AMB.g * u * u; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.ellipse(ln.x, y, 2.2, 3.2, 0, 0, 7); ctx.fill();
+    } else {                                             // splash ring + two droplets
+      const k = u / 0.45; ctx.globalAlpha = 0.6 * (1 - k);
+      ctx.beginPath(); ctx.ellipse(ln.x, ln.land + 1, 3 + 13 * k, 1 + 2.5 * k, 0, 0, 7); ctx.stroke();
+      const hy = Math.sin(k * Math.PI) * 9 * m; ctx.beginPath();
+      ctx.arc(ln.x - 7 * k, ln.land - hy, 1.3, 0, 7); ctx.moveTo(ln.x + 7 * k + 1.3, ln.land - hy); ctx.arc(ln.x + 7 * k, ln.land - hy, 1.3, 0, 7); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+function drawBin() {
+  const br = 1 + Math.sin(time * 2 * Math.PI / 2.9) * 0.012 * (reduced ? 0.3 : 1);
+  ctx.globalAlpha = 0.28; ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.ellipse(BIN.x, LEDGE, 22, 3.5, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.save(); ctx.translate(BIN.x, LEDGE); ctx.scale((1 - bin.q) * br, (1 + bin.q) / br);
+  ctx.fillStyle = HUE.cream[1]; ctx.strokeStyle = HUE.cream[2]; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(-19, -46); ctx.lineTo(19, -46); ctx.lineTo(15, -1); ctx.quadraticCurveTo(14.5, 0, 12, 0);
+  ctx.lineTo(-12, 0); ctx.quadraticCurveTo(-14.5, 0, -15, -1); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); for (const x of [-8, 0, 8]) { ctx.moveTo(x * 1.05, -40); ctx.lineTo(x * 0.85, -7); } ctx.stroke();   // ribs
+  ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.ellipse(-12, -32, 2, 8, 0.08, 0, 7); ctx.fill();
+  const la = -bin.lid * 1.1 * (reduced ? 0.6 : 1) - Math.max(0, Math.sin(time * 1.3)) * 0.04;   // flips open on tap
+  ctx.translate(21, -47); ctx.rotate(la);
+  ctx.fillStyle = HUE.cream[0]; roundRect(-44, -7, 46, 8, 4); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-21, -7, 5, Math.PI, 2 * Math.PI); ctx.stroke();                       // handle
+  ctx.restore();
+}
+function drawRecord() {
+  const recording = st.phase === 'RECORDING', m = reduced ? 0.3 : 1;
+  ctx.globalAlpha = 0.28; ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.ellipse(REC.x, LEDGE, 24, 4, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+  if (st.phase === 'COUNTDOWN' || recording) {           // 3 gentle dots (silent: no beep-pressure)
+    for (let i = 0; i < 3; i++) {
+      const lit = recording ? 1 : clamp((st.t - i * 0.45) / 0.2, 0, 1), x = REC.x - 14 + 14 * i, s = lit > 0 ? easeOutBack(lit) : 1;
+      ctx.fillStyle = lit > 0 ? '#FFFFFF' : 'rgba(255,243,214,0.35)'; ctx.beginPath(); ctx.arc(x, 86, 4.5 * s, 0, 7); ctx.fill();
+      if (lit > 0) { ctx.strokeStyle = HUE.red[0]; ctx.lineWidth = 2; ctx.stroke(); }
+    }
+  }
+  if (recording || recb.louder > 0) {                     // level arcs while listening; "louder" arcs after a whisper
+    const lv = recording ? clamp(st.lev / 0.12, 0, 1) : 0, k = 1 - recb.louder / 1.4;
+    ctx.lineCap = 'round'; ctx.lineWidth = 3;
+    for (let j = 0; j < 3; j++) {
+      const a = recording ? clamp(lv * 3 - j, 0, 1) : clamp(k * 4 - j, 0, 1) * (1 - k);
+      if (a <= 0.02) continue;
+      ctx.globalAlpha = a; ctx.strokeStyle = recording ? HUE.red[0] : TOK.hintGlow; ctx.beginPath();
+      const r = REC.r + 6 + 7 * j + (recording ? 0 : 3 * k);
+      ctx.arc(REC.x, REC.y, r, -0.3, 0.3); ctx.moveTo(REC.x + Math.cos(Math.PI - 0.3) * r, REC.y + Math.sin(Math.PI - 0.3) * r);
+      ctx.arc(REC.x, REC.y, r, Math.PI - 0.3, Math.PI + 0.3); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  const pulse = recording ? 1 + 0.04 * Math.sin(time * 2 * Math.PI * 1.2) * m : 1 + Math.sin(time * 2 * Math.PI / 2.4) * 0.015 * m;
+  ctx.save(); ctx.translate(REC.x, LEDGE - 1); ctx.rotate(wiggle(recb)); ctx.scale((1 - recb.q) * pulse, (1 + recb.q) * pulse); ctx.translate(0, -REC.r);
+  const g = ctx.createRadialGradient(-8, -10, 3, 0, 0, REC.r);
+  g.addColorStop(0, HUE.red[0]); g.addColorStop(0.55, HUE.red[1]); g.addColorStop(1, HUE.red[2]);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, REC.r, 0, 7); ctx.fill();
+  ctx.strokeStyle = HUE.red[2]; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.fillStyle = '#FFFFFF'; roundRect(-5, -15, 10, 18, 5); ctx.fill();                                // mic glyph
+  ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.beginPath();
+  ctx.arc(0, -5, 9, 0.1 * Math.PI, 0.9 * Math.PI); ctx.moveTo(0, 4); ctx.lineTo(0, 10); ctx.moveTo(-5, 10); ctx.lineTo(5, 10); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.ellipse(-13, -13, 6, 3.5, -0.7, 0, 7); ctx.fill();
+  ctx.restore();
+}
+// Lid pose: closed on the rim (u = 0) or hopping to lean on the jar's left shoulder (u = 1).
+function drawLid(local) {
+  const e = easeInOut(lid.u);
+  if (local) ctx.translate(0, LID.y - JAR.y);
+  else { ctx.save(); ctx.translate(lerp(LID.x, LID.restX, e), lerp(LID.y, LID.restY, e) - Math.sin(lid.u * Math.PI) * 30); ctx.rotate(lerp(0, LID.restA, e)); }
+  if (st.phase === 'EMPTY' && lid.u === 0) {               // "the jar sits with a glowing lid": an invitation
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.22 + 0.12 * Math.sin(time * 2.2);
+    ctx.fillStyle = HUE.teal[0]; ctx.beginPath(); ctx.ellipse(0, -6, 30, 13, 0, 0, 7); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  }
+  const g = ctx.createLinearGradient(0, -5, 0, 5);
+  g.addColorStop(0, HUE.brown[0]); g.addColorStop(0.5, HUE.brown[1]); g.addColorStop(1, HUE.brown[2]);
+  ctx.fillStyle = g; roundRect(-31, -5, 62, 10, 5); ctx.fill();
+  ctx.strokeStyle = HUE.brown[2]; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = HUE.teal[1]; ctx.beginPath(); ctx.moveTo(-5, -5); ctx.lineTo(-3.5, -11); ctx.lineTo(0, -13.5); ctx.lineTo(3.5, -11); ctx.lineTo(5, -5); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = HUE.teal[2]; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = HUE.teal[0]; ctx.beginPath(); ctx.moveTo(-3.5, -6); ctx.lineTo(-2.2, -10.5); ctx.lineTo(0, -12); ctx.lineTo(-0.5, -6); ctx.fill();
+  if (!local) ctx.restore();
+}
+// Mote subpaths (no beginPath, so a handful batch into one fill).
+function heartSub(cx, cy, s) {
+  ctx.moveTo(cx, cy + s * 0.55);
+  ctx.bezierCurveTo(cx - s * 1.1, cy - s * 0.1, cx - s * 0.5, cy - s * 0.95, cx, cy - s * 0.35);
+  ctx.bezierCurveTo(cx + s * 0.5, cy - s * 0.95, cx + s * 1.1, cy - s * 0.1, cx, cy + s * 0.55); ctx.closePath();
+}
+function starSub(cx, cy, ro, ri, rot) {
+  for (let i = 0; i < 10; i++) { const r = i % 2 ? ri : ro, a = rot + i * Math.PI / 5, x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+  ctx.closePath();
+}
+function jarMood() {
+  if (st.phase === 'START' || (st.phase === 'INTRO' && st.t < 0.3)) return 'sleep';
+  if (st.phase === 'COUNTDOWN' || st.phase === 'RECORDING') return 'listen';
+  return jar.hmm > 0 ? 'hmm' : jar.happy > 0 ? 'happy' : 'idle';
+}
+function drawJar() {
+  const m = reduced ? 0.3 : 1, tk = TAKES[jar.mist], hue = tk.hue;
+  const br = Math.sin(time * 2 * Math.PI / 2.8) * TOK.breathScale * m;
+  ctx.globalAlpha = 0.28; ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.ellipse(JAR.x, LEDGE, 40, 5, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.save(); ctx.translate(JAR.x, LEDGE - 1); ctx.rotate(jar.ang); ctx.scale((1 - jar.q) * (1 - br * 0.5), (1 + jar.q) * (1 + br));
+  ctx.translate(0, JAR.y - LEDGE + 1);
+  polyPath(JAR_OUT);                                                   // glass (back)
+  const gg = ctx.createRadialGradient(-12, -14, 4, 0, 0, 56);
+  gg.addColorStop(0, 'rgba(233,246,255,0.42)'); gg.addColorStop(0.6, 'rgba(169,219,251,0.22)'); gg.addColorStop(1, 'rgba(120,150,230,0.42)');
+  ctx.fillStyle = gg; ctx.fill();
+  if (jar.level > 0.01) {                                              // the sound as coloured mist
+    const { ys, w, amp } = mistPath(jar.level);
+    const mg = ctx.createLinearGradient(0, ys, 0, 34);
+    mg.addColorStop(0, hue[0]); mg.addColorStop(0.5, hue[1]); mg.addColorStop(1, hue[2]);
+    ctx.globalAlpha = 0.9; ctx.fillStyle = mg; ctx.fill();
+    const cy = (ys + 32) / 2, rr = Math.max(3, Math.min(w * 0.6, (32 - ys) * 0.42));   // swirls (reverse with Backwards)
+    ctx.globalAlpha = 0.55; ctx.strokeStyle = hue[0]; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.beginPath();
+    for (const k of [0, 1]) { const a = jar.swirl + k * Math.PI; ctx.moveTo(Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.6); ctx.ellipse(0, cy, rr, rr * 0.6, 0, a, a + 1.7); }
+    ctx.stroke();
+    if (jar.level > 0.12) {                                            // motes rise (sink when Backwards is on)
+      const dir = st.fx.includes(BACK) ? -1 : 1;
+      ctx.globalAlpha = 0.8; ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.2; ctx.beginPath();
+      for (let j = 0; j < 5; j++) {
+        const ph = ((time * 0.22 * dir + j / 5) % 1 + 1) % 1, y = lerp(30, ys + 4, ph), x = Math.sin(j * 2.1 + time * 0.5) * w * 0.55;
+        const s = Math.sin(ph * Math.PI);
+        if (s < 0.15) continue;
+        if (tk.mote === 'heart') heartSub(x, y, 3.6 * s);
+        else if (tk.mote === 'star') starSub(x, y, 3.8 * s, 1.6 * s, time + j);
+        else { const r = (tk.mote === 'bubble' ? 2.6 : 1.8) * s; ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 7); }
+      }
+      if (tk.mote === 'bubble') ctx.stroke(); else ctx.fill();
+    }
+    ctx.globalAlpha = 0.55; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5; ctx.beginPath();   // surface sheen
+    for (let i = 1; i < 10; i++) { const x = -w + 2 * w * i / 10; ctx.lineTo(x, ys + Math.sin(x * 0.17 + time * 2.4) * amp * Math.sin(Math.PI * i / 10)); }
+    ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  ctx.save(); ctx.translate(0, 2); jarFace(jarMood(), jar.mouth);
+  if (jar.visor > 0.01) {                                              // Robot: a visor slides down over the eyes
+    const vy = -26 * (1 - jar.visor);
+    ctx.globalAlpha = Math.min(1, jar.visor * 1.5);
+    ctx.fillStyle = HUE.blue[2]; roundRect(-27, -16.5 + vy, 54, 16, 8); ctx.fill();
+    ctx.strokeStyle = HUE.blue[1]; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = HUE.teal[0]; roundRect(-19, -11 + vy, 11, 5, 2.5); ctx.fill(); roundRect(8, -11 + vy, 11, 5, 2.5); ctx.fill();
+    ctx.globalAlpha *= 0.6; ctx.fillRect(Math.sin(time * 2.5) * 18 * m - 3, -3.5 + vy, 6, 1.5);
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+  polyPath(JAR_OUT); ctx.strokeStyle = HUE.sky[1]; ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.stroke();   // glass edge
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.beginPath();
+  ctx.ellipse(0, 2, 34, 28, 0, 2.55, 3.55); ctx.moveTo(34 * Math.cos(-0.95), 2 + 28 * Math.sin(-0.95)); ctx.ellipse(0, 2, 34, 28, 0, -0.95, -0.65); ctx.stroke();
+  ctx.fillStyle = 'rgba(233,246,255,0.7)'; roundRect(-30, -47, 60, 7, 3.5); ctx.fill();                       // rim
+  ctx.strokeStyle = HUE.sky[1]; ctx.lineWidth = 2; ctx.stroke();
+  if (lid.u === 0) drawLid(true);
+  ctx.restore();
+  if (lid.u > 0) drawLid(false);
+}
+// The live "waveform": a ribbon from the record button into the open jar, waving with the input level.
+function drawRibbon() {
+  if (st.phase !== 'RECORDING') return;
+  const tk = TAKES[st.take], lv = clamp(st.lev / 0.12, 0, 1), m = reduced ? 0.3 : 1;
+  const P0 = [248, 108], C = [226, 52], P1 = [166, 78];
+  const pt = u => { const a = (1 - u) * (1 - u), b = 2 * u * (1 - u), c = u * u; return [a * P0[0] + b * C[0] + c * P1[0], a * P0[1] + b * C[1] + c * P1[1]]; };
+  const pts = [];
+  for (let i = 0; i <= 24; i++) {
+    const u = i / 24, p = pt(u);
+    const dx = 2 * (1 - u) * (C[0] - P0[0]) + 2 * u * (P1[0] - C[0]), dy = 2 * (1 - u) * (C[1] - P0[1]) + 2 * u * (P1[1] - C[1]);
+    const ln = Math.hypot(dx, dy) || 1, off = Math.sin(u * 14 - time * 9 * m) * (1.5 + 7 * lv) * Math.sin(u * Math.PI);
+    pts.push([p[0] - dy / ln * off, p[1] + dx / ln * off]);
+  }
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (const [col, w, a] of [[tk.hue[1], 3 + 3 * lv, 0.85], [tk.hue[0], 1.4 + lv, 1]]) {
+    ctx.globalAlpha = a; ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath();
+    pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
+  }
+  ctx.globalAlpha = 0.8; ctx.fillStyle = '#FFFFFF'; ctx.beginPath();
+  for (let k = 0; k < 5; k++) { const p = pt((time * 0.9 + k / 5) % 1), r = 1.2 + 1.6 * lv; ctx.moveTo(p[0] + r, p[1]); ctx.arc(p[0], p[1], r, 0, 7); }
+  ctx.fill(); ctx.globalAlpha = 1;
+}
+const HL = { circle: [-0.4, -0.42], square: [-0.45, -0.4], triangle: [-0.13, -0.3], heart: [-0.42, -0.38], star: [-0.12, -0.45] };
+function drawPads() {
+  const m = reduced ? 0.3 : 1;
+  ctx.globalAlpha = 0.3; ctx.fillStyle = TOK.ink; ctx.beginPath();     // contact shadows
+  PADS.forEach((P, i) => { const r = PAD_R * P.s; ctx.moveTo(padX(i) + r * 0.85, PAD_FOOT + 1); ctx.ellipse(padX(i), PAD_FOOT + 1, r * 0.85, 3.5, 0, 0, 7); });
+  ctx.fill(); ctx.globalAlpha = 1;
+  PADS.forEach((P, i) => {
+    const p = pads[i], r = PAD_R * P.s, x = padX(i);
+    const hopY = p.hop >= 0 && p.hop < 0.45 ? Math.sin(p.hop / 0.45 * Math.PI) * 7 * m : 0;
+    const br = Math.sin(time * 2 * Math.PI / (2.6 + 0.12 * i) + i) * 0.02 * m;
+    const sx = (1 - p.q) * (1 - 0.025 * p.bend) * (1 - br * 0.5), sy = (1 + p.q) * (1 + 0.05 * p.bend) * (1 + br);
+    ctx.save(); ctx.translate(x, PAD_FOOT - hopY); ctx.rotate(wiggle(p)); ctx.scale(sx, sy); ctx.translate(0, -r);
+    if (p.glow > 0.02) {                                               // lit while its note sounds
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.35 * p.glow; ctx.fillStyle = P.hue[0];
+      ctx.beginPath(); ctx.arc(0, 0, r * 1.4, 0, 7); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    }
+    const g = ctx.createRadialGradient(-r * 0.35, -r * 0.45, r * 0.1, 0, 0, r * 1.25);
+    g.addColorStop(0, P.hue[0]); g.addColorStop(0.55, P.hue[1]); g.addColorStop(1, P.hue[2]);
+    padPath(P.shape, r); ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = P.hue[2]; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+    const hl = HL[P.shape];
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.ellipse(hl[0] * r, hl[1] * r, r * 0.2, r * 0.11, -0.6, 0, 7); ctx.fill();
+    ctx.translate(0, FACE_Y[P.shape] * r);
+    padFace(r, st.phase === 'START' || !p.awake, p.blink, p.sing, p.hop >= 0 && p.hop < 0.6);
+    ctx.restore();
+    if (svoices.some(v => v.pad === i && v.loop && !v.rel)) {         // looping: a dotted ring turns (0.5 rev/s)
+      const a0 = time * Math.PI * m, cy = PAD_FOOT - r;
+      ctx.fillStyle = P.hue[0]; ctx.beginPath();
+      for (let k = 0; k < 8; k++) { const a = a0 + k * Math.PI / 4, px = x + Math.cos(a) * (r + 8), py = cy + Math.sin(a) * (r + 8); ctx.moveTo(px + 2, py); ctx.arc(px, py, 2, 0, 7); }
+      ctx.fill();
+    }
+  });
+}
+// Effect icons (about ±11 px): ink-soft when off, white and gently animated when on.
+function fxIcon(i, on) {
+  const m = reduced ? 0.3 : 1, col = on ? '#FFFFFF' : TOK.inkSoft;
+  ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 3;
+  if (i === BACK) {                                    // arrow pointing back
+    const dx = on ? -Math.abs(Math.sin(time * Math.PI * 1.2)) * 2 * m : 0;
+    ctx.beginPath(); ctx.moveTo(9 + dx, 0); ctx.lineTo(-4 + dx, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-11 + dx, 0); ctx.lineTo(-3 + dx, -7); ctx.lineTo(-3 + dx, 7); ctx.closePath(); ctx.fill();
+  } else if (i === ECHO) {                             // a dot and two rings
+    ctx.beginPath(); ctx.arc(-7, 0, 3, 0, 7); ctx.fill();
+    ctx.lineWidth = 2.5;
+    for (let j = 0; j < 2; j++) {
+      ctx.globalAlpha = on ? 0.6 + 0.4 * Math.sin(time * 5 * m - j * 1.4) : 1;
+      ctx.beginPath(); ctx.arc(-7, 0, 8 + 6 * j, -0.75, 0.75); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  } else if (i === ROBOT) {                            // robot head
+    ctx.lineWidth = 2.2; roundRect(-8, -5, 16, 13, 3.5); ctx.stroke();
+    ctx.fillRect(-5, -1.5, 3.5, 3.5); ctx.fillRect(1.5, -1.5, 3.5, 3.5);
+    const by = on ? Math.sin(time * 6) * 1.2 * m : 0;
+    ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(0, -8.5 + by); ctx.moveTo(-3, 4.5); ctx.lineTo(3, 4.5); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, -10.5 + by, 2.2, 0, 7); ctx.fill();
+  } else {                                             // wavy line (the wave travels while on)
+    const ph = on ? time * 5 * m : 0;
+    ctx.beginPath();
+    for (let j = 0; j <= 16; j++) { const x = -11 + 22 * j / 16, y = -3.2 * Math.sin(j / 16 * 4 * Math.PI + ph); if (j) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+    ctx.stroke();
+  }
+}
+function drawFxButtons() {
+  const m = reduced ? 0.3 : 1;
+  FX.forEach((f, i) => {
+    const b = fxb[i], on = b.on > 0.5, r = FX_R * (1 + 0.08 * b.on);
+    const y = FX_Y + Math.sin(time * 2.1 + i * 1.7) * TOK.bob * m;
+    if (b.on > 0.05) {                                 // active: a soft pulsing halo
+      ctx.globalAlpha = 0.5 * b.on; ctx.strokeStyle = f.hue[0]; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(f.x, y, r + 4 + 1.5 * Math.sin(time * 2 * Math.PI * 0.8) * m, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    ctx.save(); ctx.translate(f.x, y); ctx.rotate(wiggle(b)); ctx.scale(1 - b.q, 1 + b.q);
+    ctx.fillStyle = on ? f.hue[1] : TOK.cream; ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill();
+    ctx.strokeStyle = on ? f.hue[2] : TOK.creamLine; ctx.lineWidth = 2; ctx.stroke();
+    fxIcon(i, on);
+    ctx.restore();
+  });
+}
+function drawHint() {                                  // 6 s: the next thing glows (and wiggles, see update)
+  if (st.hint < 1) return;
+  const s = suggest(); if (!s) return;
+  ctx.strokeStyle = TOK.hintGlow; ctx.lineWidth = 4; ctx.globalAlpha = 0.4 + 0.4 * Math.sin(time * 2 * Math.PI / TOK.glowPeriod);
+  ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+}
+function drawFx() {
+  for (const r of rings) {
+    if (r.t < 0) continue;                             // echo rings wait for their delay
+    const k = r.t / r.dur; ctx.globalAlpha = r.a * (1 - k); ctx.strokeStyle = r.color; ctx.lineWidth = r.w;
+    ctx.beginPath(); ctx.arc(r.x, r.y, lerp(r.r0, r.r1, easeOutCubic(k)), 0, 7); ctx.stroke();
+  }
+  for (const p of parts) {
+    ctx.globalAlpha = clamp(p.life / p.max * 1.6, 0, 1);
+    ctx.globalCompositeOperation = p.add ? 'lighter' : 'source-over';
+    ctx.fillStyle = p.color;
+    if (p.shape === 'star') { starPath(p.x, p.y, p.size, p.size * 0.45, p.rot); ctx.fill(); }
+    else if (p.shape === 'rect') { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2); ctx.restore(); }
+    else if (p.shape === 'note') {
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, p.size * 0.8, p.size * 0.6, -0.4, 0, 7); ctx.fill();
+      ctx.fillRect(p.x + p.size * 0.5, p.y - p.size * 2.2, 1.6, p.size * 2.2);
+    } else { ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (0.5 + 0.5 * p.life / p.max), 0, 7); ctx.fill(); }
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+function drawHelperHand() {                            // 12 s: a hand points at the next thing
+  if (st.hint < 2) return;
+  const s = suggest(); if (!s) return;
+  const y = s.y + 16 + Math.abs(Math.sin(time * 4)) * -6 * (reduced ? 0.3 : 1);
+  ctx.save(); ctx.translate(s.x + 8, y); ctx.rotate(-0.5);
+  ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = TOK.ink; ctx.lineWidth = 1.5;
+  roundRect(-4, -16, 8, 18, 4); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0, 6, 9, 8, 0, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+function drawChrome() {
+  ctx.fillStyle = TOK.cream; roundRect(6, 6, 44, 44, 14); ctx.fill();               // Home
+  ctx.strokeStyle = '#D9C7A3'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = TOK.ink; ctx.beginPath(); ctx.moveTo(28, 15); ctx.lineTo(41, 27); ctx.lineTo(37, 27); ctx.lineTo(37, 39);
+  ctx.lineTo(19, 39); ctx.lineTo(19, 27); ctx.lineTo(15, 27); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 0.45; ctx.fillStyle = TOK.cream; roundRect(270, 6, 44, 44, 14); ctx.fill();   // Mic (disabled in this game)
+  ctx.fillStyle = TOK.ink; roundRect(287, 14, 10, 18, 5); ctx.fill();
+  ctx.strokeStyle = TOK.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(292, 25, 9, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(292, 34); ctx.lineTo(292, 40); ctx.stroke(); ctx.globalAlpha = 1;
+}
+function drawStart() {
+  ctx.fillStyle = 'rgba(30,34,69,0.35)'; ctx.fillRect(0, 0, W, H);
+  const p = 1 + Math.sin(time * 3) * 0.04;
+  ctx.save(); ctx.translate(160, 120); ctx.scale(p, p);
+  ctx.fillStyle = TOK.cream; ctx.beginPath(); ctx.arc(0, 0, 36, 0, 7); ctx.fill();
+  ctx.fillStyle = '#2DB26E'; ctx.beginPath(); ctx.moveTo(-10, -16); ctx.lineTo(18, 0); ctx.lineTo(-10, 16); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+let fps = 60, frameMs = 0;
+function drawHud() {
+  if (!debug) return;
+  const ph = (st.phase === 'EMPTY' || st.phase === 'FULL') && svoices.some(v => !v.rel) ? 'PLAYING' : st.phase;   // derived state
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(120, 214, 200, 26);
+  ctx.fillStyle = parts.length > TOK.deviceMaxParticles ? '#FF9A92' : '#FFFFFF'; ctx.font = '8px monospace';
+  ctx.fillText(`fps ${fps.toFixed(0)} draw ${frameMs.toFixed(1)}ms p ${parts.length}/${maxParticles} v ${svoices.length}`, 124, 224);
+  ctx.fillText(`seed ${seed} ${ph} ${TAKES[jar.sound].name} fx[${st.fx.map(i => FX[i].id).join(',')}] hint ${st.hint} ${reduced ? 'RM' : ''}`, 124, 235);
+}
+// One full frame of the game scene (the golden harness calls this directly).
+function drawScene() {
+  drawBackground();
+  drawAmbient();
+  drawBin(); drawRecord(); drawJar(); drawRibbon(); drawPads();
+  drawHint(); drawFxButtons(); drawFx(); drawChrome(); drawHelperHand();
+}
+
+// Test hook for tools/quality_bar_golden/sketch_check.mjs (not ported): the logical point a helpful player taps next, or null.
+function autoTarget() {
+  if (st.phase === 'START') return { x: 160, y: 120 };
+  const s = suggest();
+  return s ? { x: s.x, y: s.y } : null;
+}
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  update(dt); if (ac) musicTick();
+  const t0 = performance.now();
+  drawScene();
+  if (st.phase === 'START') drawStart();
+  frameMs = lerp(frameMs, performance.now() - t0, 0.1); fps = lerp(fps, 1 / Math.max(dt, 1e-3), 0.05);
+  drawHud();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,956 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Little Arcade v2 – reference sketch (Rocket Rescue)</title>
+<!--
+  REFERENCE SKETCH: the device port must match this file exactly (see docs/06 §4).
+  Same visual language, motion tokens and audio graph as quality_bar.html (Color Pop) and
+  hatch_a_pet.html. Canvas features are limited to what firmware ui/ctx2d supports: paths, arcs,
+  ellipses, bezier/quadratic curves, linear/radial gradients, globalAlpha, 'lighter', transforms.
+  No clip, drawImage, text, shadows or filters in the game scene.
+  Audio nodes: sine oscillators, linear-attack/exponential-decay gains, exponential pitch
+  glides, white noise (rendered once at 16 kHz) through one biquad lowpass per voice for the
+  rocket whoosh and the brake/landing puffs, an original looping B-flat Lydian score (sine pads
+  + glockenspiel) on its own small voice pool that ducks under the cues, one compressor.
+  All art is procedural and original; no external resources, no network, no storage, no mic.
+  Keys: D = debug HUD, R = reduced motion, P = toggle device/web particle cap. URL ?seed=N.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #1E2245; overflow: hidden;
+    touch-action: none; user-select: none; -webkit-user-select: none; }
+  #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,.45); }
+  #note { position: fixed; left: 8px; bottom: 6px; color: #9DB8FA; font: 12px system-ui, sans-serif; opacity: .7; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" aria-label="Rocket Rescue reference sketch"></canvas></div>
+<div id="note">v2 reference sketch · Rocket Rescue · 320×240 logical stage · D debug · R reduced motion · P particle cap</div>
+<script>
+'use strict';
+// ---------- tokens (same subset as quality_bar.html / hatch_a_pet.html) ----------
+const W = 320, H = 240;
+const TOK = {
+  ink: '#3B3550', inkSoft: '#6F6888', paper: '#FFF8EC', cream: '#FFF3D6', hintGlow: '#FFE066',
+  skyTop: '#2C326D', skyBot: '#141A43',                       // scene_art space backdrop
+  squashPress: [1.12, 0.88], wiggleDeg: 6, wiggleMs: 360, glowPeriod: 0.9,
+  idleVisualHint: 6, idleSpokenHint: 12, maxInputBlock: 0.3, autoHelpMisses: 2,
+  springBouncy: { k: 380, c: 14 }, breathScale: 0.025, bob: 2, tapDebounce: 0.08,
+  deviceMaxParticles: 96, webMaxParticles: 400,
+  glide: 2.5, starRespawn: 0.9, brake: 0.22, resume: 0.3,   // v1 glide/respawn; STOP halts within 300 ms
+};
+// tokens.json hue triples.
+const HUE = {
+  red:    { shadow: '#B8323A', base: '#EF4B4F', light: '#FF9A92' },
+  orange: { shadow: '#C2621B', base: '#FF8A2A', light: '#FFC07F' },
+  yellow: { shadow: '#C99A0E', base: '#FFD23F', light: '#FFEB9C' },
+  lime:   { shadow: '#6E9A1F', base: '#A6D13B', light: '#D6EE95' },
+  green:  { shadow: '#1E8452', base: '#2DB26E', light: '#8EE0B4' },
+  teal:   { shadow: '#127A7D', base: '#21B3B0', light: '#8FE3DE' },
+  sky:    { shadow: '#2B79B8', base: '#4FB0F0', light: '#A9DBFB' },
+  purple: { shadow: '#6236A6', base: '#8F5BE0', light: '#C9AEF5' },
+  pink:   { shadow: '#B23E86', base: '#F06BB8', light: '#FBB6DC' },
+  cream:  { shadow: '#D9C7A3', base: '#FFF3D6', light: '#FFFBEF' },
+};
+// Original space friends (v1 roster). deg = call pitch (B-flat Lydian degree).
+const FRIENDS = [
+  { name: 'MOON_PUP',    ...HUE.sky,    deg: 2 },
+  { name: 'STAR_BUNNY',  ...HUE.pink,   deg: 4 },
+  { name: 'COMET_KITTY', ...HUE.yellow, deg: 3 },
+];
+// Planets: silhouette (ringed / round / oblate), pattern (ring / spots / stripes) and colour all differ.
+const PLANETS = [
+  { name: 'RINGED',  x: 110, y: 134, rx: 27, ry: 27, c: HUE.purple, deg: 0 },
+  { name: 'SPOTTED', x: 192, y: 130, rx: 27, ry: 27, c: HUE.orange, deg: 2 },
+  { name: 'STRIPED', x: 272, y: 136, rx: 29, ry: 25, c: HUE.teal,   deg: 4 },
+];
+// Stage geometry (logical px).
+const PLANET_HIT = 36;                                // 72 px hit circle per planet (doc: >= 64x64)
+const LAND_A = -122 * Math.PI / 180;                  // the rocket parks on a planet's upper-left shoulder
+const STAND_A = -52 * Math.PI / 180;                  // friends and aliens stand on the upper-right shoulder
+const FOOT = 22, SINK = 5;                            // rocket centre -> feet; sits SINK px into a planet's limb
+const DOCK = { x: 36, y: 150 };                       // launch pad top on Star Hill
+const GO = { x: 48, y: 180, w: 96, h: 56, cx: 96, cy: 208 };
+const STOP = { x: 176, y: 180, w: 96, h: 56, cx: 224, cy: 208 };
+const BADGE = [132, 4, 56, 56];
+const SLOTS = [[13, 184], [35, 199], [14, 222]];      // dock party spots (feet), bottom-left of Star Hill
+const STAR_AT = [0.3, 0.52, 0.74];                    // collectible stars along every course (path progress)
+const PARTY_SCALE = 0.72, RIDE_SCALE = 0.5;
+
+// ---------- utils ----------
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+const easeOutBack = t => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+const easeInOutSine = t => 0.5 - 0.5 * Math.cos(Math.PI * t);
+const smooth01 = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const seed = parseInt(new URLSearchParams(location.search).get('seed') || '1234', 10);
+const grng = mulberry32(seed);          // gameplay RNG (deterministic per seed)
+const frng = Math.random;               // cosmetic RNG
+const inRect = (x, y, r) => x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3];
+const inBox = (x, y, b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h;
+// Ground profile of Star Hill: a mound under the dock (x 36) rolling off to the right.
+const groundY = x => 174 - 22 * Math.exp(-Math.pow((x - 36) / 46, 2)) + 2.5 * Math.sin(x / 19 + 0.6);
+// Planet surface radius along angle a (the striped planet is an oblate ellipse).
+const surfR = (p, a) => 1 / Math.sqrt(Math.pow(Math.cos(a) / p.rx, 2) + Math.pow(Math.sin(a) / p.ry, 2));
+// Rocket rest pose: centre + tilt (0 = nose up) on planet i, or on the dock pad when i < 0.
+function landPose(i) {
+  if (i < 0) return { x: DOCK.x, y: DOCK.y - FOOT, rot: 0 };
+  const p = PLANETS[i], d = surfR(p, LAND_A) + FOOT - SINK;
+  return { x: p.x + Math.cos(LAND_A) * d, y: p.y + Math.sin(LAND_A) * d, rot: LAND_A + Math.PI / 2 };
+}
+// Where a friend (or the local alien) stands on planet i: feet position + tilt.
+function standPose(i) {
+  const p = PLANETS[i], d = surfR(p, STAND_A) - 2;
+  return { x: p.x + Math.cos(STAND_A) * d, y: p.y + Math.sin(STAND_A) * d, rot: STAND_A + Math.PI / 2 };
+}
+// Local point (lx, ly) of a body at (x, y) rotated by rot -> stage coordinates.
+const toWorld = (x, y, rot, lx, ly) => [x + lx * Math.cos(rot) - ly * Math.sin(rot), y + lx * Math.sin(rot) + ly * Math.cos(rot)];
+// Cubic bezier course from pose a to pose b: leaves along a's "up" and arrives along b's "down".
+// Control points stay at y >= 92 so the rocket's nose never reaches the top band (badge, Home, Mic).
+function courseCurve(a, b) {
+  const L = clamp(0.45 * Math.hypot(b.x - a.x, b.y - a.y), 26, 70);
+  return { p0: [a.x, a.y], p3: [b.x, b.y],
+    c1: [a.x + Math.sin(a.rot) * L, Math.max(92, a.y - Math.cos(a.rot) * L)],
+    c2: [b.x + Math.sin(b.rot) * L, Math.max(92, b.y - Math.cos(b.rot) * L)] };
+}
+const bez = (a, b, c, d, t) => { const u = 1 - t; return u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d; };
+const curvePt = (cv, t) => [bez(cv.p0[0], cv.c1[0], cv.c2[0], cv.p3[0], t), bez(cv.p0[1], cv.c1[1], cv.c2[1], cv.p3[1], t)];
+
+// ---------- canvas ----------
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let scale = 1;
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  scale = Math.min(innerWidth / W, innerHeight / H) * 0.96;
+  cv.style.width = (W * scale) + 'px'; cv.style.height = (H * scale) + 'px';
+  cv.width = Math.round(W * scale * dpr); cv.height = Math.round(H * scale * dpr);
+  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+let reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let debug = false, maxParticles = TOK.deviceMaxParticles;
+
+// ---------- audio (Web Audio, B-flat Lydian, conservative gain) ----------
+let ac = null, master = null, voices = [], noiseBuf = null, whoosh = null;
+const LYD = [0, 2, 4, 6, 7, 9, 11];                          // B-flat Lydian: Bb C D E F G A
+function degFreq(deg, oct = 0) {
+  const o = Math.floor(deg / 7), i = ((deg % 7) + 7) % 7;
+  return 466.16 * Math.pow(2, (LYD[i] + 12 * (o + oct)) / 12);
+}
+function initAudio() {
+  if (ac) return;
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  const comp = ac.createDynamicsCompressor();
+  comp.threshold.value = -14; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.15;
+  master = ac.createGain(); master.gain.value = 0;
+  master.connect(comp); comp.connect(ac.destination);
+  master.gain.setTargetAtTime(0.35, ac.currentTime, 0.1);   // ramp in: never a loud start
+  noiseBuf = ac.createBuffer(1, 16000, 16000);               // 1 s of white noise at 16 kHz, rendered once (fixed LCG)
+  const d = noiseBuf.getChannelData(0);
+  for (let i = 0, s = 7; i < d.length; i++) { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; d[i] = s / 2147483648 - 1; }
+}
+function voiceOk(len, when = 0) {                            // -> the voice's end time, or 0 when all 8 are busy
+  const now = ac.currentTime; voices = voices.filter(e => e > now);
+  if (voices.length >= 8) return 0;                          // voice limit
+  const end = now + when + len; voices.push(end); duckMusic(now, when + len); return end;
+}
+function env(g, t, peak, attack, dur) {
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+}
+// Glockenspiel: sine fundamental plus a short, bright inharmonic sine partial (2.76x, kept < 7.6 kHz).
+function glock(freq, when = 0, vel = 1, dur = 0.5) {
+  if (!ac || !voiceOk(dur, when)) return;
+  const t = ac.currentTime + when;
+  const g = ac.createGain(); env(g, t, 0.3 * vel, 0.002, dur);
+  const o1 = ac.createOscillator(); o1.type = 'sine'; o1.frequency.value = freq;
+  const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = Math.min(freq * 2.76, 7600);
+  const g2 = ac.createGain(); env(g2, t, 0.45, 0.002, Math.min(0.15, dur));
+  o1.connect(g); o2.connect(g2); g2.connect(g); g.connect(master);
+  o1.start(t); o2.start(t); o1.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
+}
+// Pitched sine with an exponential glide (plop, beeps, friend calls and the brake fwump use this voice).
+function glide(f0, f1, glideS, when, peak, dur) {
+  if (!ac || !voiceOk(dur, when)) return;
+  const t = ac.currentTime + when;
+  const o = ac.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + glideS);
+  const g = ac.createGain(); env(g, t, peak, 0.003, dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.04);
+}
+// Noise puff: the 16 kHz noise table, looped, through one lowpass biquad whose cutoff glides down.
+function puff(f0, f1, glideS, when, peak, dur) {
+  if (!ac || !noiseBuf || !voiceOk(dur, when)) return;
+  const t = ac.currentTime + when;
+  const src = ac.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 0.7;
+  f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + glideS);
+  const g = ac.createGain(); env(g, t, peak, 0.005, dur);
+  src.connect(f); f.connect(g); g.connect(master); src.start(t); src.stop(t + dur + 0.05);
+}
+// Rocket whoosh: one noise voice (<= 2 s) whose lowpass cutoff ("pitch") and loudness follow the speed.
+function whooshStart(len) {
+  whooshCut();
+  len = Math.min(2, len);
+  const end = ac && noiseBuf && len > 0.3 ? voiceOk(len) : 0;
+  if (!end) return;
+  const t = ac.currentTime;
+  const src = ac.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 0.7; f.frequency.setValueAtTime(320, t);
+  const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t);
+  src.connect(f); f.connect(g); g.connect(master); src.start(t); src.stop(t + len + 0.05);
+  whoosh = { f, g, end, fc: 320, gv: 0.0001 };
+}
+function whooshSpeed(v) {                                    // every flight frame, v = speed 0..1
+  if (!whoosh) return;
+  const now = ac.currentTime, fade = clamp((whoosh.end - now - 0.1) / 0.35, 0, 1);
+  const fc = 320 + 1300 * v, gv = Math.max(0.0001, 0.15 * v * fade);
+  if (Math.abs(fc - whoosh.fc) > 25) { whoosh.fc = fc; whoosh.f.frequency.setTargetAtTime(fc, now, 0.05); }
+  if (Math.abs(gv - whoosh.gv) > 0.004) { whoosh.gv = gv; whoosh.g.gain.setTargetAtTime(gv, now, 0.06); }
+}
+function whooshCut() {                                       // STOP, landing, Home: fade out now (no second stop())
+  if (!whoosh) return;
+  const now = ac.currentTime, i = voices.indexOf(whoosh.end);
+  if (i >= 0) voices[i] = Math.min(whoosh.end, now + 0.2);   // hand its cue voice back early
+  whoosh.g.gain.cancelScheduledValues(now); whoosh.g.gain.setTargetAtTime(0.0001, now, 0.04);
+  whoosh = null;
+}
+// ---------- score (original tune; B-flat Lydian, 4/4 at 84 bpm, 8 bars = 22.9 s loop) ----------
+// pads: one two-note sine chord per 2 bars at octave -1 (slow swell); glock: [beat, degree] melody;
+// twinkle: very soft high glock answers.
+const SCORE = { spb: 60 / 84, beats: 32, voices: 6,
+  pads: [[0, 4], [1, 3], [-2, 2], [1, 5]],
+  glock: [[0, 4], [1.5, 3], [2, 2], [4, 1], [5, 2], [6, 4], [8, 3], [9.5, 4], [10, 5], [12, 6], [13, 5], [14, 3],
+          [16, 5], [17, 4], [18, 2], [20, 0], [21, 2], [22, 1], [24, 1], [25, 3], [26, 5], [27, 6], [28, 7], [30, 4]],
+  twinkle: [[3.5, 9], [11.5, 8], [19.5, 7], [27.5, 9]] };
+// Events in time order: [beat, freq, peak, attack, dur, partial ratio (0 = pure sine)].
+const SONG = [];
+for (const [b, d] of SCORE.glock) SONG.push([b, degFreq(d), 0.05, 0.004, 0.9, 2.76]);
+SCORE.pads.forEach((ch, i) => { for (const d of ch) SONG.push([i * 8, degFreq(d, -1), 0.045, 2.0, 8 * SCORE.spb - 0.05, 0]); });
+for (const [b, d] of SCORE.twinkle) SONG.push([b, degFreq(d), 0.022, 0.004, 1.2, 2.76]);
+SONG.sort((a, b) => a[0] - b[0] || b[2] - a[2]);
+let music = null, musicBus = null, duck = null, duckUntil = 0, musicVoices = [];
+function startMusic() {
+  if (!ac) return;
+  if (!musicBus) { musicBus = ac.createGain(); duck = ac.createGain(); musicBus.connect(duck); duck.connect(master); }
+  const now = ac.currentTime;
+  musicBus.gain.cancelScheduledValues(now); musicBus.gain.setValueAtTime(0, now);
+  musicBus.gain.setTargetAtTime(1, now + 0.5, 1.5);                // gentle fade-in, never a loud start
+  music = { t0: now + 0.5, i: 0, loop: 0 }; musicVoices = [];
+}
+function stopMusic() {
+  if (!music) return;
+  musicBus.gain.cancelScheduledValues(ac.currentTime); musicBus.gain.setTargetAtTime(0, ac.currentTime, 0.15);
+  music = null;
+}
+function musicVoiceOk(t, len) {                                    // own pool: never takes cue voices
+  musicVoices = musicVoices.filter(e => e > t);
+  if (musicVoices.length >= SCORE.voices) return false;
+  musicVoices.push(t + len); return true;
+}
+function musicNote(t, freq, peak, attack, dur, partial) {
+  if (!musicVoiceOk(t, dur)) return;
+  const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+  const g = ac.createGain(); env(g, t, peak, attack, dur);
+  o.connect(g); g.connect(musicBus); o.start(t); o.stop(t + dur + 0.05);
+  if (!partial) return;
+  const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = Math.min(freq * partial, 7600);
+  const g2 = ac.createGain(); env(g2, t, peak * 0.35, attack, 0.12);  // glockenspiel strike shimmer
+  o2.connect(g2); g2.connect(musicBus); o2.start(t); o2.stop(t + 0.17);
+}
+function musicTick() {                                             // schedule notes 0.4 s ahead
+  if (!music) return;
+  for (;;) {
+    const e = SONG[music.i], t = music.t0 + (music.loop * SCORE.beats + e[0]) * SCORE.spb;
+    if (t > ac.currentTime + 0.4) return;
+    musicNote(t, e[1], e[2], e[3], e[4], e[5]);
+    if (++music.i >= SONG.length) { music.i = 0; music.loop++; }
+  }
+}
+function duckMusic(now, len) {                                     // music dips to 0.35 under cues
+  if (!duck) return;
+  duckUntil = Math.max(duckUntil, now + len);
+  duck.gain.cancelScheduledValues(now);
+  duck.gain.setTargetAtTime(0.35, now, 0.03); duck.gain.setTargetAtTime(1, duckUntil, 0.3);
+}
+// ---------- cues (every pitch comes from the B-flat Lydian scale) ----------
+const plop = (when = 0, vel = 1) => glide(degFreq(5), degFreq(0, -1), 0.07, when, 0.3 * vel, 0.14);
+const tapNote = x => glock(degFreq(7 + Math.floor(clamp(x, 0, 319) / 64)), 0, 0.3, 0.15);   // empty tap: pitch by x
+const beepBoop = () => { glide(degFreq(4), degFreq(4), 0.01, 0, 0.16, 0.07); glide(degFreq(0), degFreq(0), 0.01, 0.075, 0.16, 0.07); };
+const softNote = d => glide(degFreq(d, -1), degFreq(d, -1), 0.01, 0, 0.14, 0.13);           // GO/STOP that has nothing to do
+const courseSound = i => { const d = PLANETS[i].deg; glock(degFreq(d + 7), 0, 0.45, 0.09); glock(degFreq(d + 9), 0.06, 0.45, 0.09); };
+const planetNote = i => glock(degFreq(PLANETS[i].deg + 7), 0, 0.35, 0.15);
+function goSound() {                                               // "Go, rocket, go!": ignition swell + rising triad
+  glide(degFreq(0, -1), degFreq(4, -1), 0.25, 0, 0.16, 0.35);
+  [0, 2, 4].forEach((d, i) => glock(degFreq(d + 7), i * 0.08, 0.45 + i * 0.1, i < 2 ? 0.2 : 0.35));
+}
+function brakeSound() {                                            // brake "fwump"
+  glide(degFreq(4, -1), degFreq(0, -1), 0.16, 0, 0.3, 0.22);
+  puff(1200, 220, 0.15, 0, 0.1, 0.2);
+}
+function landSound() { glide(degFreq(2, -1), degFreq(0, -1), 0.06, 0, 0.3, 0.16); puff(800, 200, 0.1, 0, 0.08, 0.16); }
+function chimeSound() { glock(degFreq(2 + st.chime % 8), 0, 0.55, 0.4); st.chime++; }  // stars climb the scale
+function callSound(f) {                                            // a friend's "Help!" call (non-verbal motif)
+  const d = FRIENDS[f].deg;
+  if (f === 0) { glide(degFreq(d), degFreq(d + 2), 0.08, 0, 0.2, 0.14); glide(degFreq(d), degFreq(d + 2), 0.08, 0.2, 0.22, 0.16); } // pup: arf arf
+  else if (f === 1) [7, 9, 8].forEach((x, i) => glock(degFreq(x), i * 0.11, 0.45, 0.22));                                           // bunny: tinkle
+  else { glide(degFreq(d), degFreq(d + 2), 0.12, 0, 0.2, 0.16); glide(degFreq(d + 2), degFreq(d - 1), 0.22, 0.15, 0.2, 0.32); }    // kitty: mew
+}
+const cheerSound = (f, when = 0) => { const d = FRIENDS[f].deg + 4;
+  glide(degFreq(d), degFreq(d + 3), 0.1, when, 0.2, 0.16); glide(degFreq(d), degFreq(d + 3), 0.1, when + 0.18, 0.2, 0.18); };
+function rescueSound(f) {                                          // "You found <friend>!"
+  [0, 2, 4, 7].forEach((d, i) => glock(degFreq(d), i * 0.07, 0.5 + i * 0.08, i < 3 ? 0.25 : 0.35)); cheerSound(f, 0.24);
+}
+const dockSound = () => [0, 2, 4, 6, 7].forEach((d, i) => glock(degFreq(d), i * 0.08, 0.5, i < 4 ? 0.25 : 0.5));
+function alienSound() {                                            // the local alien's friendly "ba-loo"
+  glide(degFreq(4, -1), degFreq(6, -1), 0.08, 0, 0.2, 0.14); glide(degFreq(6, -1), degFreq(2, -1), 0.16, 0.16, 0.2, 0.26);
+}
+const giftSound = () => { glock(degFreq(9), 0, 0.5, 0.3); glock(degFreq(11), 0.08, 0.5, 0.45); };
+const goHint = () => { glock(degFreq(7), 0, 0.35, 0.18); glock(degFreq(11), 0.14, 0.35, 0.3); };   // idle with a course: "press GO" motif
+const PARTY_CHORDS = [[0, 4], [2, 6], [4, 7], [7, 9]];
+function bloomSound(i) {                                           // party: one soft chord per slow bloom (<= 2 s total)
+  const [a, b] = PARTY_CHORDS[i];
+  glock(degFreq(a), 0, 0.45, 0.55); glock(degFreq(b), 0.05, 0.45, 0.55); glide(degFreq(0, -1), degFreq(4, -1), 0.25, 0, 0.1, 0.4);
+}
+
+// ---------- particles, rings ----------
+let parts = [], rings = [];
+function emit(x, y, n, o) {
+  n = Math.max(1, Math.round(n * (reduced ? 0.5 : 1)));
+  for (let i = 0; i < n; i++) {
+    if (parts.length >= maxParticles) parts.shift();            // evict oldest, never exceed cap
+    const a = frng() * Math.PI * 2, sp = lerp(o.speed[0], o.speed[1], frng()), life = lerp(o.life[0], o.life[1], frng());
+    parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - (o.up || 0), g: o.gravity, life, max: life,
+      shape: o.shape, color: o.colors[(frng() * o.colors.length) | 0], size: o.size * lerp(0.7, 1.3, frng()),
+      rot: frng() * 6.28, vr: (frng() - 0.5) * 8, add: !!o.additive, drag: o.drag || 0, fin: o.fadeIn || 0, back: !!o.back });
+  }
+}
+const SPARKLE = { speed: [40, 110], life: [0.35, 0.7], gravity: 60, shape: 'star', size: 5, colors: ['#FFEB9C', '#FFFBEF'], additive: true };
+const TRAIL = { speed: [4, 16], life: [0.5, 0.85], gravity: 0, shape: 'star', size: 3.2, colors: ['#FFEB9C', '#FFD23F', '#FFFBEF'], additive: true, back: true };
+const PUFF = { speed: [16, 46], life: [0.35, 0.6], gravity: -14, shape: 'circle', size: 5, colors: ['#FFFBEF', '#E9DDC6'] };
+const HEARTS = { speed: [30, 70], life: [0.7, 1.1], gravity: -40, shape: 'heart', size: 6, colors: ['#F06BB8', '#FF9A92'] };
+const CONFETTI = { speed: [60, 150], life: [0.9, 1.4], gravity: 140, shape: 'rect', size: 6, up: 60,
+  colors: ['#FFD23F', '#8EE0B4', '#A9DBFB', '#FBB6DC', '#FFFBEF'] };
+// Party bloom: slow, decelerating, fading in and out (a soft firework without any flash).
+const BLOOM = { speed: [40, 80], life: [1.3, 1.9], gravity: 10, drag: 1.3, fadeIn: 0.25, shape: 'star', size: 4.5, additive: true };
+const ring = (x, y, r0, r1, dur, color, w) => rings.push({ x, y, r0, r1, t: 0, dur, color, w });
+
+// ---------- entities ----------
+// rocket: pose (x, y, rot; rot 0 = nose up), q/qv = squash spring (sx = 1 + q, sy = 1 - q, pivot at the feet),
+// wob = brake wobble time left, at = planet it rests on (-1 = dock, -2 = in the air), lean = visual lean (rad),
+// hov = hover height, thrust = flame 0..1, rider = friend in the window (-1 = empty).
+const rocket = { x: DOCK.x, y: DOCK.y - FOOT, rot: 0, q: 0, qv: 0, wob: 0, wa: 0, at: -1, lean: 0, hov: 0, thrust: 0,
+  rider: -1, look: [1, -1], blink: 2.5, lastTap: -9, happy: 0 };
+// fl: the course. cv = bezier from the rocket's pose to the destination pose (dest -1 = home dock); ft = flight
+// clock (s); rate 0..1 (STOP brakes it to 0 within TOK.brake, GO ramps it back over TOK.resume); back = return trip;
+// show = dotted preview reveal 0..1.
+const fl = { cv: null, dest: -1, ft: 0, k: 0, rate: 0, want: 1, back: false, vx: 0, acc: 0, rot0: 0, rot1: 0, show: 0 };
+let stars = [];                            // collectible stars on the course: { k, x, y, got, t (respawn), s (pop-in) }
+// friend: who waits this round (f) on which planet (p); pop = time since it appeared (-1 = hidden);
+// mode: wait (on its planet) | hop (into the rocket) | ride (in the window) | out (to the dock party) | gone.
+const friend = { f: 0, p: 0, pop: -1, mode: 'gone', x: 0, y: 0, rot: 0, s: 1, q: 0, qv: 0, wave: 0, nextWave: 3,
+  from: null, blink: 2, look: [0, 1], lastTap: -9 };
+// alien: the friendly local on a planet without the friend (after a wrong landing); out > 0 = sinking back home.
+const alien = { p: -1, t: 0, out: 0, wave: 0, q: 0, qv: 0, blink: 1.5, lastTap: -9 };
+const gift = { on: false, t: 0, x0: 0, y0: 0, x: 0, y: 0 };      // the alien's star, flying into the rocket window
+const pl = PLANETS.map(() => ({ q: 0, qv: 0, lastTap: -9, s: 1 })); // planet squash springs + intro pop-in scale
+const goBtn = { q: 0, qv: 0, lastTap: -9, down: false }, stopBtn = { q: 0, qv: 0, lastTap: -9, down: false };
+const badge = { sv: 0, happy: 0, lastTap: -9 };
+let crew = [];                             // rescued friends at the dock party (RAM only, cleared on Home)
+const st = { phase: 'START', t: 0, idle: 0, hint: 0, spoken: false, misses: 0, rescued: 0, chime: 0, round: 0,
+  order: [0, 1, 2], porder: [0, 1, 2], lastPlanet: -1, blooms: 0, toFriend: false };
+let time = 0;
+const sky = { shoot: -1, x: 0, y: 0, next: 8 };                   // the occasional shooting star (cosmetic)
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = (grng() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function newSet() {                        // new friend + planet order; a set never starts where the last one ended
+  st.order = shuffle([0, 1, 2]); st.porder = shuffle([0, 1, 2]);
+  if (st.porder[0] === st.lastPlanet) [st.porder[0], st.porder[2]] = [st.porder[2], st.porder[0]];
+  st.round = 0; st.rescued = 0;
+}
+function newRound() {
+  friend.f = st.order[st.round]; friend.p = st.porder[st.round]; st.lastPlanet = friend.p;
+  const sp = standPose(friend.p);
+  Object.assign(friend, { x: sp.x, y: sp.y, rot: sp.rot * TILT, s: 0, pop: 0, mode: 'wait', q: 0, qv: 0, wave: 0, nextWave: 3.5 });
+  st.idle = 0; st.hint = 0; st.spoken = false; st.misses = 0; st.chime = 0;
+  st.phase = 'ASK'; st.t = 0; clearCourse();
+}
+function clearCourse() { fl.cv = null; stars = []; fl.show = 0; }
+function startGame() { initAudio(); startMusic(); newSet(); st.phase = 'INTRO'; st.t = 0; for (const p of pl) p.s = 0; }
+function home() {
+  stopMusic(); whooshCut();
+  parts = []; rings = []; crew = []; clearCourse();
+  Object.assign(rocket, { x: DOCK.x, y: DOCK.y - FOOT, rot: 0, q: 0, qv: 0, wob: 0, wa: 0, at: -1, lean: 0, hov: 0, thrust: 0, rider: -1, happy: 0 });
+  friend.mode = 'gone'; friend.pop = -1; alien.p = -1; gift.on = false; badge.happy = 0;
+  for (const p of pl) { p.s = 1; p.q = 0; p.qv = 0; }
+  st.phase = 'START'; st.t = 0; st.lastPlanet = -1; st.rescued = 0; st.idle = 0; st.hint = 0; st.misses = 0;
+}
+
+// ---------- input ----------
+const WIN_Y = -10, WIN_R = 9;              // rocket window centre / radius (local coords, nose up)
+const TILT = 0.55;                         // friends and aliens lean this fraction of the planet's surface normal
+// Rocket draw pose: logical pose + hover lift along its up axis + visual lean and brake wobble.
+function rocketPose() {
+  return { x: rocket.x + Math.sin(rocket.rot) * rocket.hov, y: rocket.y - Math.cos(rocket.rot) * rocket.hov,
+    rot: rocket.rot + rocket.lean + rocket.wa };
+}
+const winPt = () => { const P = rocketPose(); return toWorld(P.x, P.y, P.rot, 0, WIN_Y); };
+// Centre of a standing character's body (feet at x, y; body radius 12 * s; leaning rot).
+const headPt = (x, y, rot, s) => toWorld(x, y, rot, 0, -12 * s);
+function hitPlanet(i, x, y) {
+  const p = PLANETS[i];
+  if (Math.hypot(x - p.x, y - p.y) < PLANET_HIT) return true;
+  if (friend.mode !== 'wait' || friend.p !== i || friend.s < 0.5) return false;
+  const [hx, hy] = headPt(friend.x, friend.y, friend.rot, 1);
+  return Math.hypot(x - hx, y - hy) < 16;
+}
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W, y = (e.clientY - r.top) / r.height * H;
+  const P = rocketPose();
+  rocket.look = [x - P.x, y - P.y]; friend.look = [x - friend.x, y - friend.y + 12];
+  for (const c of crew) c.look = [x - c.x, y - c.y + 9];
+  if (st.phase === 'START') { startGame(); return; }
+  if (ac && ac.state === 'suspended') ac.resume();
+  if (inRect(x, y, [0, 0, 56, 56])) { home(); return; }
+  if (inRect(x, y, [264, 0, 56, 56])) { ring(292, 28, 6, 24, 0.4, '#FFFFFF', 2); return; } // mic: disabled in sketch
+  if (st.phase === 'INTRO') { st.t = 99; return; }               // intro skippable
+  resetIdle();
+  if (inRect(x, y, BADGE)) { tapBadge(); return; }
+  if (inBox(x, y, GO)) { pressGo(); return; }
+  if (inBox(x, y, STOP)) { pressStop(); return; }
+  if (Math.hypot(x - P.x, y - P.y) < 20) { tapRocket(); return; }
+  if (alien.p >= 0 && alien.out <= 0 && alien.t > 0.3) {
+    const a = standPose(alien.p), [hx, hy] = headPt(a.x, a.y, a.rot * TILT, 1);
+    if (Math.hypot(x - hx, y - hy) < 16) { tapAlien(); return; }
+  }
+  for (let i = 0; i < 3; i++) if (hitPlanet(i, x, y)) { tapPlanet(i); return; }
+  for (const c of crew) if (c.leave < 0 && Math.hypot(x - c.x, y - c.y + 9) < 16) { tapCrew(c); return; }
+  ring(x, y, 3, 22, 0.5, '#FFFFFF', 2); emit(x, y, 4, SPARKLE); tapNote(x);
+});
+const release = () => { goBtn.down = false; stopBtn.down = false; };
+cv.addEventListener('pointerup', release); cv.addEventListener('pointercancel', release); cv.addEventListener('pointerleave', release);
+addEventListener('keydown', e => {
+  if (e.key === 'd' || e.key === 'D') debug = !debug;
+  if (e.key === 'r' || e.key === 'R') reduced = !reduced;
+  if (e.key === 'p' || e.key === 'P') maxParticles = maxParticles === TOK.deviceMaxParticles ? TOK.webMaxParticles : TOK.deviceMaxParticles;
+});
+// Any touch resets the idle clock; the hint level falls back to what the misses earned (1 = brighter glow, 2 = hand).
+function resetIdle() { st.idle = 0; st.spoken = false; st.hint = Math.min(2, st.misses); }
+
+// ---------- actions ----------
+function tapBadge() {                      // replay the prompt: the friend calls and waves again
+  if (time - badge.lastTap < TOK.tapDebounce) return;
+  badge.lastTap = time; badge.sv = -12;
+  if (st.phase === 'PARTY') { ring(160, 32, 24, 52, 0.45, '#FFEB9C', 3); emit(160, 50, 6, SPARKLE); giftSound(); return; }
+  const c = FRIENDS[friend.f];
+  ring(160, 32, 24, 52, 0.45, c.light, 3); emit(160, 56, 5, { ...SPARKLE, colors: [c.light, '#FFEB9C'] });
+  if (friend.mode === 'wait') callSound(friend.f); else cheerSound(friend.f);
+  friend.wave = 1.2; friend.qv = -2;
+  for (const m of crew) if (m.f === friend.f) { m.wave = 1; m.qv = -2.5; }
+}
+function tapRocket() {
+  if (time - rocket.lastTap < TOK.tapDebounce) return;
+  rocket.lastTap = time; rocket.qv = -2.4; rocket.happy = 0.6;
+  const P = rocketPose();
+  ring(P.x, P.y, 14, 32, 0.35, '#FFFBEF', 2); emit(P.x, P.y - 6, 4, SPARKLE); beepBoop();
+  if (rocket.rider >= 0) friend.wave = 1;
+}
+function tapAlien() {
+  if (time - alien.lastTap < TOK.tapDebounce) return;
+  alien.lastTap = time; alien.wave = 1.2; alien.qv = -2.5; alienSound();
+  const a = standPose(alien.p), [hx, hy] = headPt(a.x, a.y, a.rot * TILT, 1);
+  ring(hx, hy, 8, 26, 0.4, HUE.lime.light, 2);
+}
+function tapCrew(c) {
+  if (time - c.lastTap < TOK.tapDebounce) return;
+  c.lastTap = time; c.qv = -3; c.wave = 0.8;
+  const d = FRIENDS[c.f].deg; glide(degFreq(d + 7), degFreq(d + 9), 0.08, 0, 0.18, 0.12);
+  emit(c.x, c.y - 16, 3, { ...HEARTS, colors: [FRIENDS[c.f].base, FRIENDS[c.f].light] });
+}
+function tapPlanet(i) {
+  const P = pl[i], p = PLANETS[i];
+  if (time - P.lastTap < TOK.tapDebounce) return;
+  P.lastTap = time; P.qv = 2.6;
+  ring(p.x, p.y, 22, 44, 0.4, p.c.light, 3);
+  if (friend.mode === 'wait' && friend.p === i) { friend.wave = 1; friend.qv = -2; }
+  const canAim = (st.phase === 'ASK' || st.phase === 'AIM' || (st.phase === 'STOPPED' && !fl.back)) && rocket.at !== i;
+  if (!canAim) { planetNote(i); if (alien.p === i) alien.wave = 1; return; }  // flying, landing, or already here
+  if (st.phase === 'STOPPED') whooshCut();
+  aimAt(i); courseSound(i); emit(p.x, p.y, 6, { ...SPARKLE, colors: [p.c.light, '#FFFBEF'] });
+}
+function plot(dest) {                      // course + its three stars from the rocket's current pose
+  fl.cv = courseCurve({ x: rocket.x, y: rocket.y, rot: rocket.rot }, landPose(dest));
+  fl.dest = dest; fl.ft = 0; fl.k = 0;
+  stars = STAR_AT.map(k => { const [x, y] = curvePt(fl.cv, k); return { k, x, y, got: false, t: 0, s: 0 }; });
+}
+function aimAt(i) { plot(i); fl.back = false; fl.show = 0; st.phase = 'AIM'; st.t = 0; }
+function pressGo() {
+  goBtn.down = true; goBtn.qv = 3;
+  if (time - goBtn.lastTap < TOK.tapDebounce) return;
+  goBtn.lastTap = time;
+  ring(GO.cx, GO.cy, 22, 42, 0.4, HUE.green.light, 3);
+  if (st.phase === 'ASK') { aimAt(friend.p); launch(); }                      // no course yet: auto-help to the friend
+  else if (st.phase === 'AIM') launch();
+  else if (st.phase === 'STOPPED') resume();
+  else if (st.phase === 'LANDED' && friend.mode === 'ride') launchReturn();  // friend aboard: home right away
+  else { softNote(4); emit(GO.cx, GO.cy - 14, 3, SPARKLE); }               // already flying or celebrating
+}
+function pressStop() {
+  stopBtn.down = true; stopBtn.qv = 3;
+  if (time - stopBtn.lastTap < TOK.tapDebounce) return;
+  stopBtn.lastTap = time;
+  ring(STOP.cx, STOP.cy, 22, 42, 0.4, HUE.red.light, 3);
+  if (st.phase === 'FLYING' || st.phase === 'RETURN') brake();
+  else { softNote(0); rocket.wob = Math.max(rocket.wob, 0.2); }           // nothing to stop: a tiny wiggle
+}
+function startFlight() {
+  const P = rocketPose(), [fx, fy] = toWorld(P.x, P.y, P.rot, 0, FOOT);
+  emit(fx, fy, 6, PUFF); ring(fx, fy, 6, 30, 0.4, '#FFFBEF', 2);
+  fl.ft = 0; fl.rate = 1; fl.want = 1; fl.rot0 = rocket.rot; fl.rot1 = landPose(fl.dest).rot; fl.acc = 0; fl.vx = 0; fl.show = 1;
+  if (rocket.at >= 0 && alien.p === rocket.at) alien.out = 0.001;   // the alien waves goodbye and sinks home
+  rocket.at = -2; rocket.qv = -2.6; whooshStart(TOK.glide);
+}
+function launch() { startFlight(); st.phase = 'FLYING'; st.t = 0; goSound(); }
+function launchReturn() {
+  plot(-1); for (const s of stars) s.s = 1;
+  fl.back = true; startFlight(); st.phase = 'RETURN'; st.t = 0; goSound();
+}
+function brake() {                         // STOP: the speed falls to 0 within TOK.brake, with a short wobble
+  st.phase = 'STOPPED'; st.t = 0; fl.want = 0; rocket.wob = 0.3; rocket.qv = 2.2;
+  const P = rocketPose(), [nx, ny] = toWorld(P.x, P.y, P.rot, 0, -30);
+  emit(nx, ny, 4, PUFF); brakeSound(); whooshCut();
+}
+function resume() {                        // GO after STOP: same course, speed ramps back over TOK.resume
+  st.phase = fl.back ? 'RETURN' : 'FLYING'; st.t = 0; fl.want = 1; rocket.qv = -2;
+  whooshStart(TOK.glide - fl.ft + TOK.resume); goSound();
+}
+function collect(s) {
+  s.got = true; s.t = TOK.starRespawn;
+  emit(s.x, s.y, 6, SPARKLE); ring(s.x, s.y, 4, 22, 0.35, '#FFEB9C', 2); chimeSound();
+}
+function arrive() {
+  whooshCut(); landSound();
+  const dest = fl.dest, lp = landPose(dest);
+  rocket.x = lp.x; rocket.y = lp.y; rocket.rot = lp.rot; rocket.at = dest; rocket.qv = 3.2; rocket.wob = 0; fl.rate = 0;
+  const [fx, fy] = toWorld(rocket.x, rocket.y, rocket.rot, 0, FOOT);
+  emit(fx, fy, 6, PUFF);
+  for (const s of stars) if (!s.got || s.t <= 0) emit(s.x, s.y, 2, SPARKLE);   // leftover stars twinkle away
+  clearCourse(); st.t = 0;
+  if (dest < 0) { st.phase = 'DOCK'; return; }
+  st.phase = 'LANDED'; st.toFriend = dest === friend.p; pl[dest].qv = 2;
+  if (st.toFriend) { friend.wave = 1; friend.qv = -3; return; }
+  alien.p = dest; alien.t = 0; alien.out = 0; alien.wave = 0;               // wrong planet: a local friend says hi
+  st.misses++; st.hint = Math.max(st.hint, Math.min(2, st.misses));        // ...and the friend's planet glows brighter
+}
+function bloom(i) {                        // party: one slow sparkle bloom
+  const [x, y] = BLOOM_AT[i], c = FRIENDS[i % 3];
+  emit(x, y, 18, { ...BLOOM, colors: [c.light, '#FFEB9C', '#FFFBEF'] });
+  ring(x, y, 4, 34, 0.9, c.light, 2); bloomSound(i);
+  for (const m of crew) { m.qv = -3; m.wave = 0.6; }
+  rocket.qv = -1.5;
+}
+const BLOOM_AT = [[84, 94], [236, 88], [160, 80], [160, 116]], BLOOM_T = [0.25, 0.65, 1.05, 1.45];
+function giveGift() {                      // wrong planet: the local alien tosses a star into the rocket window
+  const a = standPose(alien.p), [hx, hy] = toWorld(a.x, a.y, a.rot * TILT, -11, -16);
+  Object.assign(gift, { on: true, t: 0, x0: hx, y0: hy, x: hx, y: hy });
+}
+function boardRocket() {                   // "You found <friend>!"
+  const f = FRIENDS[friend.f], [wx, wy] = winPt();
+  friend.mode = 'ride'; rocket.rider = friend.f; rocket.qv = 2.4; rocket.happy = 1.2; badge.happy = 1.6; badge.sv = -10;
+  emit(wx, wy - 4, 6, { ...HEARTS, colors: [f.base, f.light] }); ring(wx, wy, 8, 30, 0.45, f.light, 2);
+  rescueSound(friend.f);
+}
+function joinCrew() {                      // the friend hops onto Star Hill: dock party
+  const [x, y] = SLOTS[st.rescued], f = FRIENDS[friend.f];
+  crew.push({ f: friend.f, x, y, ph: frng() * 6.28, wave: 0.8, q: 0, qv: -3, blink: 1.5, lastTap: -9, leave: -1, look: [1, -1] });
+  friend.mode = 'gone'; st.rescued++; badge.happy = 1; badge.sv = -10;
+  emit(x, y - 12, 10, CONFETTI); ring(x, y - 8, 6, 34, 0.5, f.light, 2); dockSound(); cheerSound(friend.f, 0.35);
+}
+
+// ---------- update ----------
+const passed = (t, dt, at) => t >= at && t - dt < at;              // a timeline mark was crossed this frame
+function spring(o, target, dt) {                                    // 2 substeps (stable at 60 Hz)
+  const k = TOK.springBouncy.k, c = reduced ? 2 * Math.sqrt(k) : TOK.springBouncy.c;   // reduced motion: no overshoot
+  for (let i = 0; i < 2; i++) {
+    const h = dt / 2, a = -k * (o.q - target) - c * o.qv;
+    o.qv += a * h; o.q += o.qv * h;
+  }
+}
+// Advance the rocket along fl.cv. STOP / GO only change fl.want; the speed eases to it.
+function flyStep(dt) {
+  fl.rate = fl.want > fl.rate ? Math.min(fl.want, fl.rate + dt / TOK.resume) : Math.max(fl.want, fl.rate - dt / TOK.brake);
+  fl.ft += dt * fl.rate;
+  const u = clamp(fl.ft / TOK.glide, 0, 1), k = easeInOutSine(u), [x, y] = curvePt(fl.cv, k);
+  fl.vx = lerp(fl.vx, (x - rocket.x) / Math.max(dt, 0.001), Math.min(1, dt * 8));
+  rocket.x = x; rocket.y = y;
+  rocket.rot = lerp(lerp(fl.rot0, 0, smooth01(u / 0.25)), fl.rot1, smooth01((u - 0.6) / 0.4));   // upright, then the landing tilt
+  const v = Math.sin(Math.PI * u) * fl.rate;                       // 0..1 speed: whoosh pitch/loudness, trail density
+  whooshSpeed(v);
+  for (const s of stars) if (!s.got && fl.k < s.k && k >= s.k) collect(s);
+  fl.k = k;
+  if (fl.rate > 0.05) fl.acc += dt * (8 + 22 * v) * (reduced ? 0.5 : 1);
+  while (fl.acc >= 1) {
+    fl.acc -= 1;
+    const P = rocketPose(), [nx, ny] = toWorld(P.x, P.y, P.rot, 0, 27);
+    emit(nx, ny, 1, TRAIL);
+  }
+  if (u >= 1) arrive();
+}
+function update(dt) {
+  time += dt; st.t += dt;
+  const m = reduced ? 0.3 : 1;
+  if (st.phase === 'INTRO') {
+    for (let i = 0; i < 3; i++) {                                  // planets pop in left to right
+      const t0 = 0.1 + i * 0.22, k = clamp((st.t - t0) / 0.45, 0, 1);
+      pl[i].s = reduced ? smooth01(k) : easeOutBack(k);
+      if (passed(st.t, dt, t0)) planetNote(i);
+    }
+    if (st.t >= 1.2) { for (const p of pl) p.s = 1; newRound(); }
+  } else if (st.phase === 'ASK' || st.phase === 'AIM' || st.phase === 'STOPPED') {
+    st.idle += dt;
+    if (st.idle > TOK.idleVisualHint && st.hint < 1) st.hint = 1;
+    if (st.idle > TOK.idleSpokenHint && !st.spoken) {             // spoken-hint slot: the prompt replays (non-verbal)
+      st.spoken = true; st.hint = 2; badge.sv = -8;
+      if (st.phase === 'ASK') { callSound(friend.f); friend.wave = 1.2; friend.qv = -2; } else { goHint(); goBtn.qv = 2; }
+    }
+    if (st.phase === 'AIM') fl.show = Math.min(1, fl.show + dt / 0.35);
+    if (st.phase === 'STOPPED') flyStep(dt);                       // finishes the brake: speed -> 0 within TOK.brake
+  } else if (st.phase === 'FLYING' || st.phase === 'RETURN') {
+    flyStep(dt);
+  } else if (st.phase === 'LANDED') {
+    if (!st.toFriend) { if (st.t >= TOK.maxInputBlock) { st.phase = 'ASK'; st.t = 0; } }   // wrong planet: free again
+    else {
+      if (passed(st.t, dt, 0.35)) { friend.mode = 'hop'; friend.from = [friend.x, friend.y, friend.rot]; friend.qv = -3; plop(0, 0.5); }
+      if (friend.mode === 'ride' && st.t >= 1.6) launchReturn();
+    }
+  } else if (st.phase === 'DOCK') {
+    if (passed(st.t, dt, 0.2)) {
+      const P = rocketPose(), [wx, wy] = toWorld(P.x, P.y, P.rot, 0, WIN_Y + 6);
+      friend.mode = 'out'; friend.from = [wx, wy, P.rot]; friend.x = wx; friend.y = wy; rocket.rider = -1; rocket.qv = -2; plop(0, 0.5);
+    }
+    if (st.t >= 1.0) { if (st.rescued >= 3) { st.phase = 'PARTY'; st.t = 0; } else { st.round++; newRound(); } }
+  } else if (st.phase === 'PARTY') {
+    for (let i = 0; i < 4; i++) if (passed(st.t, dt, BLOOM_T[i])) bloom(i);
+    if (st.t >= 2.0) { for (const c of crew) c.leave = 0; newSet(); newRound(); }   // friends float off; a new set begins
+  }
+  const ph = st.phase, flying = ph === 'FLYING' || ph === 'RETURN';
+
+  // rocket: idle hover + engine glow, lean into the course, brake wobble, squash spring
+  const bob = Math.sin(time * 2.2) * TOK.bob * m;
+  const hovT = ph === 'ASK' || ph === 'AIM' ? 3 + bob : ph === 'STOPPED' ? 4 + bob : 0;
+  rocket.hov += (hovT - rocket.hov) * Math.min(1, dt * 5);
+  const thrT = flying ? 0.3 + 0.7 * fl.rate : ph === 'STOPPED' ? 0.4 : ph === 'ASK' || ph === 'AIM' ? 0.35 : 0;
+  rocket.thrust += (thrT - rocket.thrust) * Math.min(1, dt * 6);
+  let leanT = 0;
+  if ((flying || ph === 'STOPPED') && fl.cv) leanT = clamp(fl.vx / 110, -1, 1) * 0.42 * (1 - smooth01((fl.ft / TOK.glide - 0.75) / 0.25));
+  else if (ph === 'AIM' && fl.cv) leanT = clamp((fl.cv.p3[0] - rocket.x) / 160, -1, 1) * 0.22 * fl.show;
+  rocket.lean += (leanT - rocket.lean) * Math.min(1, dt * 6);
+  if (rocket.wob > 0) {
+    rocket.wob = Math.max(0, rocket.wob - dt);
+    const k = 1 - rocket.wob / 0.3;
+    rocket.wa = Math.sin(k * Math.PI * 3) * 0.18 * (1 - k) * m;
+  } else rocket.wa = 0;
+  rocket.happy = Math.max(0, rocket.happy - dt);
+  rocket.blink -= dt; if (rocket.blink < -0.12) rocket.blink = 2.5 + frng() * 3;
+  spring(rocket, 0, dt);
+
+  // friend: pop in + call, idle waves; hop into the window / out to the dock
+  if (friend.mode === 'wait') {
+    friend.pop += dt;
+    const k = clamp((friend.pop - 0.15) / 0.4, 0, 1);
+    friend.s = reduced ? smooth01(k) : easeOutBack(k);
+    if (passed(friend.pop, dt, 0.15)) { plop(0, 0.6); emit(friend.x, friend.y - 10, 4, SPARKLE); }
+    if (passed(friend.pop, dt, 0.6)) { callSound(friend.f); friend.wave = 1.2; badge.sv = -8; }
+    friend.nextWave -= dt;
+    if (friend.nextWave <= 0) { friend.wave = 1.2; friend.nextWave = st.hint >= 1 ? 1.8 : 3.5 + frng() * 1.5; }
+  } else if (friend.mode === 'hop' || friend.mode === 'out') {
+    const hop = friend.mode === 'hop', k = clamp((st.t - (hop ? 0.35 : 0.2)) / (hop ? 0.6 : 0.5), 0, 1), e = easeInOutSine(k);
+    const P = rocketPose(), to = hop ? [...toWorld(P.x, P.y, P.rot, 0, WIN_Y + 6), P.rot] : [...SLOTS[st.rescued], 0];
+    friend.x = lerp(friend.from[0], to[0], e); friend.y = lerp(friend.from[1], to[1], e) - Math.sin(k * Math.PI) * (hop ? 26 : 22);
+    friend.rot = lerp(friend.from[2], to[2], e);
+    friend.s = hop ? lerp(1, RIDE_SCALE, e) : lerp(RIDE_SCALE, PARTY_SCALE, e);
+    if (k >= 1) { if (hop) boardRocket(); else joinCrew(); }
+  }
+  friend.wave = Math.max(0, friend.wave - dt); spring(friend, 0, dt);
+  friend.blink -= dt; if (friend.blink < -0.12) friend.blink = 2 + frng() * 3;
+
+  // the friendly alien on a wrong planet: rise, wave, toss a star, sink home when the rocket leaves
+  if (alien.p >= 0) {
+    alien.t += dt;
+    if (passed(alien.t, dt, 0.45)) { alien.wave = 1.2; alien.qv = -2; alienSound(); }
+    if (passed(alien.t, dt, 0.95) && alien.out <= 0) giveGift();
+    if (passed(alien.t, dt, 1.7) && ph === 'ASK') { callSound(friend.f); friend.wave = 1.2; friend.qv = -2; badge.sv = -8; }
+    if (alien.out > 0) { alien.out += dt; if (alien.out >= 0.5) alien.p = -1; }
+    alien.wave = Math.max(0, alien.wave - dt); spring(alien, 0, dt);
+    alien.blink -= dt; if (alien.blink < -0.12) alien.blink = 2 + frng() * 3;
+  }
+  if (gift.on) {
+    gift.t += dt;
+    const k = clamp(gift.t / 0.6, 0, 1), e = easeInOutSine(k), [wx, wy] = winPt();
+    gift.x = lerp(gift.x0, wx, e); gift.y = lerp(gift.y0, wy, e) - Math.sin(k * Math.PI) * 24;
+    if (k >= 1) {
+      gift.on = false; giftSound(); emit(wx, wy, 6, SPARKLE); ring(wx, wy, 6, 26, 0.4, '#FFEB9C', 2);
+      rocket.happy = 0.9; rocket.qv = -1.6;
+    }
+  }
+
+  // dock crew: breathe, blink, the odd wave; float away when a new set starts
+  for (const c of crew) {
+    c.ph += dt; c.wave = Math.max(0, c.wave - dt); spring(c, 0, dt);
+    c.blink -= dt; if (c.blink < -0.12) c.blink = 2 + frng() * 3;
+    if (c.leave >= 0) c.leave += dt; else if (frng() < dt * 0.08) c.wave = 0.8;
+  }
+  crew = crew.filter(c => c.leave < 1.4);
+
+  // course stars: pop in with the preview, respawn TOK.starRespawn after being collected
+  for (const s of stars) {
+    if (s.got) { s.t -= dt; if (s.t <= 0) { s.got = false; s.s = 0; } }
+    else if (fl.show >= s.k || ph !== 'AIM') s.s = Math.min(1, s.s + dt / 0.25);
+  }
+
+  spring(goBtn, goBtn.down ? 0.12 : 0, dt); spring(stopBtn, stopBtn.down ? 0.12 : 0, dt);
+  for (const p of pl) spring(p, 0, dt);
+  badge.happy = Math.max(0, badge.happy - dt); badge.sv *= Math.pow(0.86, dt * 60);
+
+  for (const p of parts) {
+    p.life -= dt; p.vy += p.g * dt;
+    if (p.drag) { const f = Math.max(0, 1 - p.drag * dt); p.vx *= f; p.vy *= f; }
+    p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+  }
+  parts = parts.filter(p => p.life > 0);
+  for (const r of rings) r.t += dt; rings = rings.filter(r => r.t < r.dur);
+  if (sky.shoot >= 0) { sky.shoot += dt; if (sky.shoot > 0.9) sky.shoot = -1; }     // the occasional soft shooting star
+  else if ((sky.next -= dt) <= 0) {
+    sky.next = 10 + frng() * 8;
+    if (!reduced) { sky.shoot = 0; sky.x = 70 + frng() * 170; sky.y = 16 + frng() * 34; }
+  }
+}
+
+// ---------- drawing helpers ----------
+function starPts(cx, cy, ro, ri, rot) {    // one 5-point star subpath (callers may batch several per path)
+  ctx.moveTo(cx + Math.cos(rot) * ro, cy + Math.sin(rot) * ro);
+  for (let i = 1; i < 10; i++) { const r = i % 2 ? ri : ro, a = rot + i * Math.PI / 5; ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); }
+  ctx.closePath();
+}
+function starPath(cx, cy, ro, ri, rot) { ctx.beginPath(); starPts(cx, cy, ro, ri, rot); }
+const dotPts = (x, y, r) => { ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 7); };          // circle subpath (batched)
+const ellPts = (x, y, rx, ry, rot = 0) => { ctx.moveTo(x + rx * Math.cos(rot), y + rx * Math.sin(rot)); ctx.ellipse(x, y, rx, ry, rot, 0, 7); };
+function heartPath(cx, cy, s) {
+  ctx.beginPath(); ctx.moveTo(cx, cy + s * 0.55);
+  ctx.bezierCurveTo(cx - s * 1.1, cy - s * 0.1, cx - s * 0.5, cy - s * 0.95, cx, cy - s * 0.35);
+  ctx.bezierCurveTo(cx + s * 0.5, cy - s * 0.95, cx + s * 1.1, cy - s * 0.1, cx, cy + s * 0.55);
+}
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function octPath(r) {                      // STOP: regular octagon, flat top
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) { const a = Math.PI / 8 + i * Math.PI / 4; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+  ctx.closePath();
+}
+function courseDots(c) {                   // evenly spaced dots (~9 px apart) along a course: [k, x, y]
+  const out = []; let [px, py] = c.p0, acc = 4.5;
+  for (let i = 1; i <= 64; i++) {
+    const k = i / 64, [x, y] = curvePt(c, k);
+    acc += Math.hypot(x - px, y - py); px = x; py = y;
+    if (acc >= 9) { acc -= 9; out.push([k, x, y]); }
+  }
+  return out;
+}
+// Star field: scene_art space() formula (36 stars). The static layer draws them dim; drawSky adds a slow twinkle.
+const SKY_STARS = [];
+for (let i = 0; i < 36; i++) {
+  const x = (i * 83 + 17) % 320, y = (i * 47 + 11) % 240;
+  if (y < groundY(x) - 4) SKY_STARS.push({ x, y, r: i % 7 === 0 ? 2.2 : 0.9 + (i % 2) * 0.4, warm: i % 4 === 0, g: i % 4, big: i % 7 === 0 });
+}
+const NEBULA = [[172, 106, 124, 84, '143,91,224', 0.26], [66, 156, 56, 40, '240,107,184', 0.22]];
+const CRATERS = [[160, 198, 7], [159, 228, 5], [297, 196, 9], [306, 226, 5.5]];
+const SPOTS = [[0, -0.35, 5], [1.3, 0.25, 6.5], [2.4, -0.05, 4], [3.6, 0.45, 4.5], [4.7, -0.5, 3.5], [5.5, 0.1, 5]];
+
+// ---------- scene ----------
+// Static backdrop: sky, nebula glow, dim star field, Star Hill, dock pad, button plates. The device renders it once
+// into its cached background layer; only the layers drawn after it are redrawn per frame (docs/06 §4.5).
+function drawBackground() {
+  let g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, TOK.skyTop); g.addColorStop(0.6, '#1F2556'); g.addColorStop(1, TOK.skyBot);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  for (const [x, y, rx, ry, c, a] of NEBULA) {                     // soft nebula: radial gradient squashed by a transform
+    ctx.save(); ctx.translate(x, y); ctx.scale(1, ry / rx);
+    g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+    g.addColorStop(0, `rgba(${c},${a})`); g.addColorStop(0.6, `rgba(${c},${a * 0.45})`); g.addColorStop(1, `rgba(${c},0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, rx, 0, 7); ctx.fill(); ctx.restore();
+  }
+  ctx.globalAlpha = 0.7;
+  for (const warm of [false, true]) {
+    ctx.fillStyle = warm ? HUE.yellow.light : '#FFFFFF'; ctx.beginPath();
+    for (const s of SKY_STARS) if (s.warm === warm) dotPts(s.x, s.y, s.r);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  g = ctx.createLinearGradient(0, 150, 0, H); g.addColorStop(0, '#4A4E9C'); g.addColorStop(1, '#2A2D69');   // Star Hill
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, H);
+  for (let x = 0; x <= W; x += 8) ctx.lineTo(x, groundY(x));
+  ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = HUE.purple.light; ctx.globalAlpha = 0.5; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(0, groundY(0)); for (let x = 8; x <= W; x += 8) ctx.lineTo(x, groundY(x)); ctx.stroke();
+  ctx.globalAlpha = 1;
+  for (const [x, y, r] of CRATERS) {
+    ctx.fillStyle = '#34387E'; ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.45, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#6E73C2'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(x, y + 0.5, r, r * 0.45, 0, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+  }
+  ctx.fillStyle = HUE.yellow.light; ctx.beginPath();               // little star-flowers on the hill
+  for (const x of [70, 152, 304]) starPts(x, groundY(x) + 4, 3.2, 1.4, -Math.PI / 2);
+  ctx.fill();
+  ctx.fillStyle = HUE.cream.shadow; ctx.beginPath(); ctx.moveTo(12, 150); ctx.lineTo(12, 157);   // home dock pad
+  ctx.ellipse(36, 157, 24, 6, 0, Math.PI, 0, true); ctx.lineTo(60, 150); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = HUE.cream.base; ctx.beginPath(); ctx.ellipse(36, 150, 24, 6, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = HUE.cream.shadow; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.strokeStyle = HUE.yellow.base; ctx.globalAlpha = 0.8; ctx.beginPath(); ctx.ellipse(36, 150, 15, 3.6, 0, 0, 7); ctx.stroke();
+  ctx.globalAlpha = 1; ctx.fillStyle = HUE.pink.base; heartPath(36, 159, 3.2); ctx.fill();
+  for (const b of [GO, STOP]) {                                     // button plates: the whole 96 x 56 touch area
+    ctx.fillStyle = 'rgba(20,26,67,0.38)'; roundRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4, 18); ctx.fill();
+    ctx.strokeStyle = 'rgba(169,219,251,0.25)'; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+}
+function drawSky() {
+  ctx.globalCompositeOperation = 'lighter';                        // twinkle: 4 star groups, slow and out of phase
+  for (let g = 0; g < 4; g++) {
+    ctx.globalAlpha = 0.3 * (0.5 + 0.5 * Math.sin(time * (0.9 + g * 0.21) + g * 1.9));
+    ctx.fillStyle = g === 0 ? HUE.yellow.light : '#FFFFFF'; ctx.beginPath();
+    for (const s of SKY_STARS) if (s.g === g) dotPts(s.x, s.y, s.r * 1.3);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 0.45; ctx.fillStyle = '#FFFBEF'; ctx.beginPath(); // big stars: soft 4-point glints that grow and shrink
+  for (const s of SKY_STARS) if (s.big) {
+    const k = 3 + 2 * Math.sin(time * 1.3 + s.x);
+    ctx.moveTo(s.x, s.y - k); ctx.quadraticCurveTo(s.x, s.y, s.x + k, s.y); ctx.quadraticCurveTo(s.x, s.y, s.x, s.y + k);
+    ctx.quadraticCurveTo(s.x, s.y, s.x - k, s.y); ctx.quadraticCurveTo(s.x, s.y, s.x, s.y - k); ctx.closePath();
+  }
+  ctx.fill();
+  if (sky.shoot >= 0) {                                             // the occasional soft shooting star
+    const k = sky.shoot / 0.9, hx = sky.x + k * 70, hy = sky.y + k * 26;
+    ctx.globalAlpha = Math.sin(k * Math.PI) * 0.55; ctx.fillStyle = '#FFFBEF';
+    ctx.beginPath(); ctx.moveTo(hx - 0.5, hy + 1.3); ctx.lineTo(hx - 32, hy - 11.8); ctx.lineTo(hx + 0.5, hy - 1.3); ctx.closePath();
+    dotPts(hx, hy, 1.7); ctx.fill();
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  for (let i = 0; i < 2; i++) {                                     // dock pad lights: slow alternating glow
+    ctx.globalAlpha = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * 2.4 + i * Math.PI));
+    ctx.fillStyle = i ? HUE.green.light : HUE.yellow.light; ctx.beginPath(); ctx.arc(i ? 56 : 16, 152.5, 1.8, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+function drawCourse() {
+  const ph = st.phase;
+  if (ph === 'ASK' && st.hint >= 2 && friend.mode === 'wait') {   // auto-help: a faint golden path to the friend's planet
+    const d = courseDots(courseCurve({ x: rocket.x, y: rocket.y, rot: rocket.rot }, landPose(friend.p)));
+    ctx.fillStyle = TOK.hintGlow; ctx.globalAlpha = 0.35 + 0.25 * Math.sin(time * 2 * Math.PI / TOK.glowPeriod);
+    ctx.beginPath(); for (const [, x, y] of d) dotPts(x, y, 1.6); ctx.fill(); ctx.globalAlpha = 1;
+  }
+  if (!fl.cv) return;
+  const aim = ph === 'AIM', from = aim ? 0 : fl.k + 0.02;          // the dotted preview; in flight only the part ahead
+  ctx.fillStyle = '#FFFBEF'; ctx.globalAlpha = ph === 'STOPPED' ? 0.6 + 0.25 * Math.sin(time * 4) : 0.8;
+  ctx.beginPath();
+  for (const [k, x, y] of courseDots(fl.cv)) if (k > from && k <= fl.show) dotPts(x, y, aim ? 1.9 : 1.6);
+  ctx.fill(); ctx.globalAlpha = 1;
+  const vis = stars.filter(s => !s.got && s.s > 0.01);             // collectible stars on the course
+  if (!vis.length) return;
+  ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = HUE.yellow.base; ctx.globalAlpha = 0.25; ctx.beginPath();
+  for (const s of vis) dotPts(s.x, s.y, 10 * s.s);
+  ctx.fill(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  ctx.beginPath();
+  for (const s of vis) { const b = s.s * (1 + 0.08 * Math.sin(time * 3 + s.k * 7)); starPts(s.x, s.y, 6.5 * b, 2.9 * b, -Math.PI / 2 + 0.2 * Math.sin(time * 2 + s.k * 10)); }
+  ctx.fillStyle = HUE.yellow.base; ctx.fill(); ctx.strokeStyle = HUE.yellow.shadow; ctx.lineWidth = 1.2; ctx.lineJoin = 'round'; ctx.stroke();
+}
+function drawPlanets() {
+  const m = reduced ? 0.3 : 1;
+  for (let i = 0; i < 3; i++) {
+    const P = pl[i], p = PLANETS[i];
+    if (alien.p === i) drawAlien();                                // the local alien peeks out from behind its planet
+    if (P.s <= 0.01) continue;
+    if (i === friend.p && friend.mode === 'wait' && friend.s > 0.3) {   // the prompt: the friend's planet glows
+      const hint = st.hint >= 1, pulse = 0.5 + 0.5 * Math.sin(time * 2 * Math.PI / (hint ? TOK.glowPeriod : 2.4));
+      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = p.c.light;
+      for (let j = 0; j < 3; j++) {
+        ctx.globalAlpha = (hint ? 0.15 : 0.07) * (0.7 + 0.3 * pulse);
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.rx + 5 + j * 6 + pulse * 2, 0, 7); ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      if (hint) { ctx.strokeStyle = TOK.hintGlow; ctx.lineWidth = 3; ctx.globalAlpha = 0.35 + 0.4 * pulse; ctx.beginPath(); ctx.arc(p.x, p.y, p.rx + 9, 0, 7); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+    }
+    ctx.save(); ctx.translate(p.x, p.y); ctx.scale(P.s * (1 + P.q), P.s * (1 - P.q));
+    if (i === 0) planetRing(true);
+    const g = ctx.createRadialGradient(-p.rx * 0.35, -p.ry * 0.4, 2, 0, 0, Math.max(p.rx, p.ry) * 1.05);
+    g.addColorStop(0, p.c.light); g.addColorStop(0.45, p.c.base); g.addColorStop(1, p.c.shadow);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, p.rx, p.ry, 0, 0, 7); ctx.fill();
+    ctx.lineCap = 'butt';
+    if (i === 0) {                                                  // RINGED: soft cloud bands
+      ctx.strokeStyle = p.c.light; ctx.globalAlpha = 0.45; ctx.lineWidth = 3; ctx.beginPath();
+      ctx.moveTo(23.8, -8); ctx.ellipse(0, -8, 23.8, 4, 0, 0, Math.PI); ctx.moveTo(23.5, 9); ctx.ellipse(0, 9, 23.5, 4, 0, 0, Math.PI);
+      ctx.stroke(); ctx.globalAlpha = 1;
+    } else if (i === 1) {                                           // SPOTTED: spots drift round as it slowly turns
+      ctx.fillStyle = p.c.shadow; ctx.globalAlpha = 0.75; ctx.beginPath();
+      for (const [lon0, lat, r] of SPOTS) {
+        const lon = lon0 + time * 0.35 * m, c = Math.cos(lon), k = smooth01((c - 0.2) / 0.4);
+        if (k <= 0) continue;
+        ellPts(Math.sin(lon) * p.rx * Math.sqrt(1 - lat * lat), lat * p.ry, r * k * Math.max(0.35, c), r * k);
+      }
+      ctx.fill(); ctx.globalAlpha = 1;
+    } else {                                                        // STRIPED: three bands that ripple gently
+      ctx.strokeStyle = p.c.light; ctx.lineWidth = 4.5; ctx.beginPath();
+      for (let j = -1; j <= 1; j++) {
+        const y = j * 11, rx = p.rx * Math.sqrt(1 - (y / p.ry) * (y / p.ry)) - 1.5, ry = 3.5 + 1.5 * Math.sin(time * 1.2 * m + j * 1.3);
+        ctx.moveTo(rx, y); ctx.ellipse(0, y, rx, ry, 0, 0, Math.PI);
+      }
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#FFFFFF'; ctx.globalAlpha = 0.45; ctx.beginPath(); ctx.ellipse(-p.rx * 0.38, -p.ry * 0.45, 6, 3.5, -0.6, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1; ctx.strokeStyle = p.c.shadow; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(0, 0, p.rx, p.ry, 0, 0, 7); ctx.stroke();
+    if (i === 0) planetRing(false);
+    ctx.restore();
+  }
+}
+function planetRing(back) {                // RINGED: tilted ring; back half behind the body, front half (with shimmer) in front
+  const a0 = back ? Math.PI : 0, a1 = back ? 2 * Math.PI : Math.PI;
+  ctx.lineCap = 'butt';
+  ctx.strokeStyle = HUE.yellow.light; ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(0, 0, 44, 10, -0.3, a0, a1); ctx.stroke();
+  ctx.strokeStyle = HUE.yellow.base; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.ellipse(0, 0, 41, 8.6, -0.3, a0, a1); ctx.stroke();
+  if (back) return;
+  const s = (time * 0.9) % Math.PI;                                // shimmer glides along the front (< 1 rev/s)
+  ctx.strokeStyle = '#FFFFFF'; ctx.globalAlpha = 0.7; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.ellipse(0, 0, 44, 10, -0.3, s, Math.min(Math.PI, s + 0.35)); ctx.stroke(); ctx.globalAlpha = 1;
+}
+// The friendly local alien (original): lime blob, two bobbing antennae. Drawn before its planet, so it rises from behind.
+function drawAlien() {
+  const a = standPose(alien.p), rise = smooth01((alien.t - 0.1) / 0.4) * (1 - smooth01(alien.out / 0.5));
+  if (rise <= 0) return;
+  const m = reduced ? 0.3 : 1, w = Math.sin(time * 3) * 2.2 * m;
+  ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.rot * TILT); ctx.translate(0, (1 - rise) * 26);
+  ctx.scale(1 + alien.q, 1 - alien.q); ctx.lineCap = 'round';
+  ctx.strokeStyle = HUE.lime.shadow; ctx.lineWidth = 1.6; ctx.beginPath();
+  ctx.moveTo(-4, -20); ctx.quadraticCurveTo(-6, -26, -7 + w, -30); ctx.moveTo(4, -20); ctx.quadraticCurveTo(6, -26, 7 + w, -30); ctx.stroke();
+  ctx.fillStyle = HUE.yellow.light; ctx.beginPath(); dotPts(-7 + w, -30, 2.3); dotPts(7 + w, -30, 2.3); ctx.fill();
+  if (alien.wave > 0) {                                             // waving arm
+    const ang = 0.9 + 0.45 * Math.sin(time * 11) * m, ex = -7 - Math.cos(ang) * 9, ey = -12 - Math.sin(ang) * 9;
+    ctx.strokeStyle = HUE.lime.base; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(-6, -11); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.fillStyle = HUE.lime.base; ctx.beginPath(); ctx.arc(ex, ey, 2.6, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = HUE.lime.base; ctx.beginPath(); ctx.ellipse(0, -11, 10, 11, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = HUE.lime.shadow; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = HUE.lime.light; ctx.beginPath(); ctx.ellipse(0, -4.5, 5.5, 3.2, 0, 0, 7); ctx.fill();
+  eyes(3.8, -13, 1.9, alien.blink < 0, false, [0, 1]);
+  cheeks(6.8, -9, 1.6, HUE.pink.light); mouth(-8, alien.wave > 0 ? 'o' : 'smile', 1.8);
+  ctx.restore();
+}
+// @@CONTINUE@@
