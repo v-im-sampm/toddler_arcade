@@ -1,4 +1,5 @@
 #pragma once
+
 #include <cstddef>
 #include <cstdint>
 
@@ -7,88 +8,97 @@
 
 namespace little_arcade::bubble_aquarium {
 
-// Three original fish designs. Each has its own body shape and size, so
-// colour is never the only distinguishing feature (docs/acceptance.md).
-enum class FishType : uint8_t {
-  STRIPEY,  // small oval fish with vertical stripes
-  PUFFY,    // round, spotty puff fish
-  LONGFIN,  // long fish with flowing tail fins
-};
+enum class FishType : uint8_t { STRIPEY, PUFFY, LONGFIN };
 inline constexpr std::size_t kFishTypeCount = 3;
 
-// Surprise visitors that swim across during CELEBRATE.
 enum class Visitor : uint8_t { TURTLE, SEAHORSE, JELLY };
 inline constexpr std::size_t kVisitorCount = 3;
 
-enum class Phase : uint8_t { INTRO, PLAY, CELEBRATE };
+enum class Phase : uint8_t { INTRO, SWIM, PLAY = SWIM };
+enum class FishMode : uint8_t { SWIM, FOOD, GULP, HAPPY, HELLO, FOLLOW, SLEEP };
+enum class FoodMode : uint8_t { FALL, SINK, REST };
 
 struct Fish {
-  FishType type;
-  Rect rect;          // touch target and sprite box; always inside kTank
-  int32_t x_q8;       // sub-pixel position of rect.x / rect.y (Q8)
-  int32_t y_q8;
-  int16_t wander_vx;  // calm swimming velocity (px/s) when there is no food
-  int16_t wander_vy;
-  uint32_t happy_ms;  // visual wiggle after a tap
-  uint32_t munch_ms;  // visual "yum" glow after eating
-  uint32_t meals;
+  FishType type = FishType::STRIPEY;
+  Rect rect{};
+  int32_t x_q8 = 0;
+  int32_t y_q8 = 0;
+  int16_t vx = 0;
+  int16_t vy = 0;
+  int16_t target_x = 0;
+  int16_t target_y = 0;
+  int8_t face = 1;
+  int8_t food_index = -1;
+  FishMode mode = FishMode::SWIM;
+  uint16_t wait_ms = 0;
+  uint16_t mode_ms = 0;
+  uint16_t peek_ms = 0;
+  bool nap_after_meal = false;
+  uint32_t happy_ms = 0;
+  uint32_t munch_ms = 0;
+  uint32_t meals = 0;
 };
 
 struct Bubble {
-  int16_t x;  // centre
-  int16_t y;
-  int32_t y_q8;
-  uint8_t size;  // drawn radius in px (visual only)
-  bool active;
-  uint32_t serial;  // spawn order; the oldest is recycled when the pool is full
+  int16_t x = 0;
+  int16_t y = 0;
+  int32_t x_q8 = 0;
+  int32_t y_q8 = 0;
+  int16_t drift = 0;
+  uint8_t size = 0;
+  bool active = false;
+  uint32_t age_ms = 0;
+  uint32_t serial = 0;
 };
 
 struct Food {
-  int16_t x;  // centre
-  int16_t y;
-  int32_t y_q8;
-  bool active;
+  int16_t x = 0;
+  int16_t y = 0;
+  int32_t x_q8 = 0;
+  int32_t y_q8 = 0;
+  int16_t vy = 0;
+  int8_t eater = -1;
+  FoodMode mode = FoodMode::FALL;
+  bool active = false;
+  uint32_t age_ms = 0;
 };
 
-// Pure scene logic; an LVGL view reads the accessors and renders. Owns no
-// heap memory: fish, bubbles and food live in fixed-size pools that never
-// grow. All timing is driven by update(dt_ms). There is no fail condition.
 class BubbleAquariumGame final : public IGame {
  public:
-  static constexpr std::size_t kFishCount = kFishTypeCount;  // one of each type
+  static constexpr std::size_t kFishCount = kFishTypeCount;
   static constexpr std::size_t kMaxBubbles = 8;
   static constexpr std::size_t kMaxFood = 6;
-  static constexpr std::size_t kBurstBubbles = 3;
   static constexpr uint32_t kFeedsPerVisitor = 3;
 
-  // Water area: tap anywhere to blow a bubble. Fish swim only in here.
   static constexpr Rect kTank = kPlayArea;
-  // Optional top-bar controls (between Home and Mic, x in [64, 256]).
-  static constexpr Rect kFoodButton{72, 0, 56, 56};
+  static constexpr Rect kFoodButton{64, 0, 56, 56};
+  static constexpr Rect kBedtimeButton{128, 0, 56, 56};
   static constexpr Rect kBubbleButton{192, 0, 56, 56};
-  // Treasure-chest bubble maker that bursts bubbles (visual origin only).
-  static constexpr int16_t kChestX = 160;
-  static constexpr int16_t kChestY = 224;
+  static constexpr Rect kChestHit{190, 186, 60, 48};
+  static constexpr int16_t kSpoutX = 100;
+  static constexpr int16_t kSpoutY = 50;
+  static constexpr int16_t kChestX = 220;
+  static constexpr int16_t kChestY = 228;
 
-  static constexpr int16_t kFishW[kFishTypeCount] = {64, 56, 80};
-  static constexpr int16_t kFishH[kFishTypeCount] = {48, 56, 48};
+  static constexpr int16_t kFishW[kFishTypeCount] = {64, 64, 64};
+  static constexpr int16_t kFishH[kFishTypeCount] = {48, 48, 48};
   static constexpr int16_t kVisitorW = 72;
   static constexpr int16_t kVisitorH = 64;
-  static constexpr int16_t kVisitorY = 120;
-  static constexpr int16_t kBubbleHit = 24;  // half-size of a 48x48 pop box
+  static constexpr int16_t kVisitorY = 126;
+  static constexpr int16_t kBubbleRadiusMin = 18;
+  static constexpr int16_t kBubbleRadiusMax = 22;
+  static constexpr int16_t kBubbleHit = kBubbleRadiusMax + 6;
 
   static constexpr uint32_t kIntroMs = 1500;
-  static constexpr uint32_t kCelebrateMs = 3000;
-  static constexpr uint32_t kHappyMs = 600;
-  static constexpr uint32_t kMunchMs = 600;
-  static constexpr uint32_t kPulseMs = 300;
-  static constexpr uint32_t kStepMs = 50;          // physics sub-step
-  static constexpr uint32_t kMaxPhysicsMs = 1000;  // physics time simulated per update()
-  static constexpr int16_t kBubbleRise = 40;       // px/s
-  static constexpr int16_t kFoodSink = 30;         // px/s
-  static constexpr int16_t kChaseSpeed = 70;       // px/s
-  static constexpr int16_t kFoodTopY = 72;
-  static constexpr int16_t kFoodRestY = 228;
+  static constexpr uint32_t kStepMs = 50;
+  static constexpr uint32_t kMaxPhysicsMs = 1000;
+  static constexpr uint32_t kHappyMs = 1600;
+  static constexpr uint32_t kGulpMs = 300;
+  static constexpr uint32_t kBubblePulseMs = 300;
+  static constexpr uint32_t kHintVisualMs = 6000;
+  static constexpr uint32_t kHintSpokenMs = 12000;
+  static constexpr int16_t kBubbleRise = 34;
+  static constexpr int16_t kFoodRestY = 211;
 
   void enter(GameContext& context) override;
   void update(uint32_t dt_ms) override;
@@ -98,6 +108,9 @@ class BubbleAquariumGame final : public IGame {
 
   Phase phase() const { return phase_; }
   bool active() const { return ctx_ != nullptr; }
+  bool bedtime() const { return bedtime_; }
+  uint8_t bedtime_dim() const { return bedtime_dim_; }
+  uint8_t hint_level() const { return hint_level_; }
 
   const Fish& fish(std::size_t i) const { return fish_[i]; }
   const Bubble& bubble(std::size_t i) const { return bubbles_[i]; }
@@ -108,40 +121,70 @@ class BubbleAquariumGame final : public IGame {
   uint32_t meals_eaten() const { return meals_; }
   uint32_t visitors_seen() const { return visitors_seen_; }
   Visitor visitor() const { return visitor_; }
-  bool visitor_visible() const { return phase_ == Phase::CELEBRATE; }
-  // Visitor sprite box; slides from off-screen left to off-screen right.
+  bool visitor_visible() const { return visitor_active_; }
   Rect visitor_rect() const;
   bool food_button_pulsing() const { return food_pulse_ms_ > 0; }
+  bool bedtime_button_pulsing() const { return bedtime_pulse_ms_ > 0; }
   bool bubble_button_pulsing() const { return bubble_pulse_ms_ > 0; }
+  bool chest_open() const { return chest_open_ms_ > 0; }
 
  private:
   void start_play();
-  void spawn_bubble(int16_t x, int16_t y);
+  void set_bedtime(bool enabled);
   void bubble_burst();
   void drop_food();
-  void tap_water(int16_t x, int16_t y);
-  void step(uint32_t dt_ms);
-  void step_fish(Fish& f, uint32_t dt_ms);
-  void eat_check();
-  void start_celebrate();
+  void spawn_bubble();
+  void start_visitor();
+  void step();
+  void step_fish(Fish& fish, std::size_t index);
+  void step_food();
+  void step_bubbles();
+  void step_visitor();
+  void claim_food();
+  void eat_food(std::size_t fish_index, std::size_t food_index);
+  void pick_target(Fish& fish, std::size_t index);
+  void move_toward(Fish& fish, int16_t x, int16_t y, int16_t speed);
   int hit_fish(int16_t x, int16_t y) const;
   int hit_bubble(int16_t x, int16_t y) const;
-  int nearest_food(const Fish& f) const;
+  int hit_visitor(int16_t x, int16_t y) const;
+  int nearest_fish(int16_t x, int16_t y) const;
+  void request_help();
 
   GameContext* ctx_ = nullptr;
   Phase phase_ = Phase::INTRO;
   Fish fish_[kFishCount]{};
   Bubble bubbles_[kMaxBubbles]{};
   Food food_[kMaxFood]{};
+
   uint32_t bubble_serial_ = 0;
   uint32_t meals_ = 0;
-  uint32_t feeds_since_visitor_ = 0;
   uint32_t visitors_seen_ = 0;
   Visitor visitor_ = Visitor::TURTLE;
-  bool have_visitor_ = false;
-  uint32_t phase_ms_ = 0;
+  uint32_t intro_ms_ = 0;
+  uint32_t sim_accumulator_ms_ = 0;
+  uint32_t sim_time_ms_ = 0;
+  uint32_t idle_ms_ = 0;
+  uint32_t next_hint_wiggle_ms_ = 0;
+  uint32_t bubble_spawn_ms_ = 0;
+  uint32_t chest_burp_ms_ = 6000;
+  uint32_t chest_open_ms_ = 0;
   uint32_t food_pulse_ms_ = 0;
+  uint32_t bedtime_pulse_ms_ = 0;
   uint32_t bubble_pulse_ms_ = 0;
+  int32_t visitor_x_q8_ = 0;
+  uint16_t visitor_age_ms_ = 0;
+  int16_t visitor_y_ = kVisitorY;
+  int8_t visitor_direction_ = 1;
+  uint8_t visitor_next_ = 0;
+  uint8_t pending_bubbles_ = 0;
+  uint8_t pending_visitors_ = 0;
+  uint8_t hint_level_ = 0;
+  uint8_t bedtime_dim_ = 0;
+  uint16_t bedtime_fade_ms_ = 0;
+  bool visitor_active_ = false;
+  bool visitor_waved_ = false;
+  bool bedtime_ = false;
+  bool hint_announced_ = false;
   bool ambient_started_ = false;
 };
 

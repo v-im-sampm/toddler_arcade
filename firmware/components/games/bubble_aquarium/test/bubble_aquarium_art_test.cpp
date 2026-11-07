@@ -39,5 +39,11 @@ int main() {
   auto food = render(art::kFoodSize, art::kFoodSize, art::paint_food);
   EXPECT(bubble != food);
   EXPECT(ui::count_opaque(ui::Canvas{bubble.data(), art::kBubbleSize, art::kBubbleSize}) > 20);
+  auto plant = render(art::kPlantW, art::kPlantH, art::paint_plant);
+  auto moon = render(art::kMoonSize, art::kMoonSize, art::paint_moon);
+  auto sun = render(art::kMoonSize, art::kMoonSize, art::paint_sun);
+  EXPECT(ui::count_opaque(ui::Canvas{plant.data(), art::kPlantW, art::kPlantH}) > 100);
+  EXPECT(ui::count_opaque(ui::Canvas{moon.data(), art::kMoonSize, art::kMoonSize}) > 100);
+  EXPECT(moon != sun);
   return testing::finish("bubble_aquarium_art_test");
 }
