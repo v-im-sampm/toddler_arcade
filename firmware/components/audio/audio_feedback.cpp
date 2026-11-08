@@ -84,6 +84,7 @@ void AudioFeedback::render(int16_t* out, std::size_t n) {
     const std::size_t m = n - done < kChunk ? n - done : kChunk;
     synth_.render_mix(mix_, m);
     hatch_.render_add(mix_, m);
+    if (score_) score_->render_add(mix_, m);
     if (sampler_) {
       // The sampler adds into int16 and silences the block while recording.
       for (std::size_t i = 0; i < m; ++i) sampler_out_[i] = 0;

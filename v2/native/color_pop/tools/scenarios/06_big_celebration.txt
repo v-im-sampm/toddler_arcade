@@ -1,0 +1,14 @@
+# Fifth success: big celebration with rising decor and dance
+step 8
+tap 160 120
+step 150
+target
+step 192
+target
+step 192
+target
+step 192
+target
+step 192
+target
+step 40

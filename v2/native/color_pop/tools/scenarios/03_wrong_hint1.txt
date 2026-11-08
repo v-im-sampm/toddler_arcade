@@ -1,0 +1,6 @@
+# One wrong tap: plop, crab points (hint 1)
+step 8
+tap 160 120
+step 150
+wrong
+step 30

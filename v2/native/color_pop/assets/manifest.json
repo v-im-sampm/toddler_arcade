@@ -1,0 +1,4760 @@
+{
+  "game": "color_pop",
+  "source": "v2/reference/quality_bar.html",
+  "source_sha256": "491b9e27fbf9727f7fbbe3e8c785ceaca1fd442e70ffe0aaead6824b3400b4d9",
+  "exporter": "v2/native/color_pop/tools/export_assets.mjs",
+  "renderer": "Microsoft Edge (headless, playwright-core) Canvas 2D at 320x240, devicePixelRatio 1",
+  "logical_size": [
+    320,
+    240
+  ],
+  "pack": {
+    "file": "assets/generated/color_pop.pack",
+    "bytes": 571920,
+    "signature": "f6de2f74a759fd7125bb25f726283b30",
+    "header_bytes": 32,
+    "entry_bytes": 52,
+    "formats": {
+      "RGB565": "LVGL RGB565 (bg dithered)",
+      "RGB565A8": "LVGL RGB565A8: RGB565 plane then A8 plane",
+      "A8": "LVGL A8 alpha mask, recoloured at runtime"
+    }
+  },
+  "memory": {
+    "total_image_bytes": 560579,
+    "by_format": {
+      "RGB565": 153600,
+      "A8": 90719,
+      "RGB565A8": 316260
+    },
+    "device": "memory-mapped from the assets flash partition; 0 bytes copied to PSRAM"
+  },
+  "sprites": [
+    {
+      "id": "bg",
+      "format": "RGB565",
+      "width": 320,
+      "height": 240,
+      "bytes": 153600,
+      "crop": [
+        0,
+        0,
+        320,
+        240
+      ],
+      "origin": [
+        0,
+        0
+      ],
+      "call": "ctx.drawImage(bg, 0, 0, W, H)",
+      "layer_filter": null,
+      "source": "paintBg() cached layer",
+      "note": "ordered 4x4 dither to RGB565"
+    },
+    {
+      "id": "cloud",
+      "format": "A8",
+      "width": 44,
+      "height": 28,
+      "bytes": 1232,
+      "crop": [
+        89,
+        5,
+        44,
+        28
+      ],
+      "origin": [
+        11,
+        17
+      ],
+      "call": "time = 25; reduced = false; drawBackground()",
+      "layer_filter": "(m) => m === 'fill'",
+      "source": "drawBackground() clouds",
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "shimmer_0",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 0; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 0,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "shimmer_1",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 0.3272492347489368; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 1,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "shimmer_2",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 0.6544984694978736; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 2,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "shimmer_3",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 0.9817477042468103; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 3,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "shimmer_4",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 1.3089969389957472; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 4,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "shimmer_5",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 1.636246173744684; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 5,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "shimmer_6",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 1.9634954084936207; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 6,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "shimmer_7",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 2.2907446432425576; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 7,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "shimmer_8",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 2.6179938779914944; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 8,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "shimmer_9",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 2.9452431127404313; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 9,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "shimmer_10",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 3.272492347489368; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 10,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "shimmer_11",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 3.599741582238305; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 11,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "shimmer_12",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 3.9269908169872414; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 12,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "shimmer_13",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 4.254240051736178; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 13,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "shimmer_14",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 4.581489286485115; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 14,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "shimmer_15",
+      "format": "A8",
+      "width": 318,
+      "height": 4,
+      "bytes": 1272,
+      "crop": [
+        0,
+        65,
+        318,
+        4
+      ],
+      "origin": [
+        0,
+        -3
+      ],
+      "call": "time = 4.908738521234052; drawBackground()",
+      "layer_filter": "(m) => m === 'stroke'",
+      "source": "drawBackground() horizon shimmer",
+      "recolor": "#FFFFFF",
+      "frame": 15,
+      "frames": 16,
+      "period_s": 5.235987755982989,
+      "full_width": true
+    },
+    {
+      "id": "bubble_red",
+      "format": "RGB565A8",
+      "width": 68,
+      "height": 77,
+      "bytes": 15708,
+      "crop": [
+        126,
+        86,
+        68,
+        77
+      ],
+      "origin": [
+        34,
+        34
+      ],
+      "call": "bubbles = [{color:'RED', x:160, y:120, alpha:1, rot:0, sx:1, sy:1, s:1, glow:0, ph:0}]; time = 0; drawBubble(bubbles[0])",
+      "layer_filter": "(m, c) => !(m === \"stroke\" && (c.lineWidth === 2.5 || c.lineWidth === 6))",
+      "source": "drawBubble() without rim/glow layers",
+      "pad": 3
+    },
+    {
+      "id": "bubble_yellow",
+      "format": "RGB565A8",
+      "width": 68,
+      "height": 77,
+      "bytes": 15708,
+      "crop": [
+        126,
+        86,
+        68,
+        77
+      ],
+      "origin": [
+        34,
+        34
+      ],
+      "call": "bubbles = [{color:'YELLOW', x:160, y:120, alpha:1, rot:0, sx:1, sy:1, s:1, glow:0, ph:0}]; time = 0; drawBubble(bubbles[0])",
+      "layer_filter": "(m, c) => !(m === \"stroke\" && (c.lineWidth === 2.5 || c.lineWidth === 6))",
+      "source": "drawBubble() without rim/glow layers",
+      "pad": 3
+    },
+    {
+      "id": "bubble_green",
+      "format": "RGB565A8",
+      "width": 68,
+      "height": 77,
+      "bytes": 15708,
+      "crop": [
+        126,
+        86,
+        68,
+        77
+      ],
+      "origin": [
+        34,
+        34
+      ],
+      "call": "bubbles = [{color:'GREEN', x:160, y:120, alpha:1, rot:0, sx:1, sy:1, s:1, glow:0, ph:0}]; time = 0; drawBubble(bubbles[0])",
+      "layer_filter": "(m, c) => !(m === \"stroke\" && (c.lineWidth === 2.5 || c.lineWidth === 6))",
+      "source": "drawBubble() without rim/glow layers",
+      "pad": 3
+    },
+    {
+      "id": "bubble_blue",
+      "format": "RGB565A8",
+      "width": 68,
+      "height": 77,
+      "bytes": 15708,
+      "crop": [
+        126,
+        86,
+        68,
+        77
+      ],
+      "origin": [
+        34,
+        34
+      ],
+      "call": "bubbles = [{color:'BLUE', x:160, y:120, alpha:1, rot:0, sx:1, sy:1, s:1, glow:0, ph:0}]; time = 0; drawBubble(bubbles[0])",
+      "layer_filter": "(m, c) => !(m === \"stroke\" && (c.lineWidth === 2.5 || c.lineWidth === 6))",
+      "source": "drawBubble() without rim/glow layers",
+      "pad": 3
+    },
+    {
+      "id": "bubble_rim",
+      "format": "A8",
+      "width": 31,
+      "height": 45,
+      "bytes": 1395,
+      "crop": [
+        161,
+        106,
+        31,
+        45
+      ],
+      "origin": [
+        -1,
+        14
+      ],
+      "call": "bubbles = [{color:'RED', x:160, y:120, alpha:1, rot:0, sx:1, sy:1, s:1, glow:0, ph:0}]; time = 0; drawBubble(bubbles[0])",
+      "layer_filter": "(m, c) => { if (m !== \"stroke\" || c.lineWidth !== 2.5) return false; c.strokeStyle = \"#fff\"; c.globalAlpha = 1; return true; }",
+      "source": "drawBubble() iridescent rim arc at ph=0",
+      "recolor": "hsl((time*60+ph*40)%360,90%,80%) @ 0.35",
+      "rotate": "ph*0.3 + rot",
+      "pad": 3
+    },
+    {
+      "id": "bubble_glow_1",
+      "format": "A8",
+      "width": 84,
+      "height": 84,
+      "bytes": 7056,
+      "crop": [
+        118,
+        78,
+        84,
+        84
+      ],
+      "origin": [
+        42,
+        42
+      ],
+      "call": "bubbles = [{color:'RED', x:160, y:120, alpha:1, rot:0, sx:1, sy:1, s:1, ph:0, glow:0.25}]; time = 0; drawBubble(bubbles[0])",
+      "layer_filter": "(m, c) => { if (m !== \"stroke\" || c.lineWidth !== 6) return false; c.globalAlpha = 1; return true; }",
+      "source": "drawBubble() hint glow ring",
+      "glow": 0.25,
+      "recolor": "#FFE066 @ (0.35+0.5g)",
+      "pad": 3
+    },
+    {
+      "id": "bubble_glow_2",
+      "format": "A8",
+      "width": 84,
+      "height": 84,
+      "bytes": 7056,
+      "crop": [
+        118,
+        78,
+        84,
+        84
+      ],
+      "origin": [
+        42,
+        42
+      ],
+      "call": "bubbles = [{color:'RED', x:160, y:120, alpha:1, rot:0, sx:1, sy:1, s:1, ph:0, glow:0.5}]; time = 0; drawBubble(bubbles[0])",
+      "layer_filter": "(m, c) => { if (m !== \"stroke\" || c.lineWidth !== 6) return false; c.globalAlpha = 1; return true; }",
+      "source": "drawBubble() hint glow ring",
+      "glow": 0.5,
+      "recolor": "#FFE066 @ (0.35+0.5g)",
+      "pad": 3
+    },
+    {
+      "id": "bubble_glow_3",
+      "format": "A8",
+      "width": 86,
+      "height": 86,
+      "bytes": 7396,
+      "crop": [
+        117,
+        77,
+        86,
+        86
+      ],
+      "origin": [
+        43,
+        43
+      ],
+      "call": "bubbles = [{color:'RED', x:160, y:120, alpha:1, rot:0, sx:1, sy:1, s:1, ph:0, glow:0.75}]; time = 0; drawBubble(bubbles[0])",
+      "layer_filter": "(m, c) => { if (m !== \"stroke\" || c.lineWidth !== 6) return false; c.globalAlpha = 1; return true; }",
+      "source": "drawBubble() hint glow ring",
+      "glow": 0.75,
+      "recolor": "#FFE066 @ (0.35+0.5g)",
+      "pad": 3
+    },
+    {
+      "id": "bubble_glow_4",
+      "format": "A8",
+      "width": 86,
+      "height": 86,
+      "bytes": 7396,
+      "crop": [
+        117,
+        77,
+        86,
+        86
+      ],
+      "origin": [
+        43,
+        43
+      ],
+      "call": "bubbles = [{color:'RED', x:160, y:120, alpha:1, rot:0, sx:1, sy:1, s:1, ph:0, glow:1}]; time = 0; drawBubble(bubbles[0])",
+      "layer_filter": "(m, c) => { if (m !== \"stroke\" || c.lineWidth !== 6) return false; c.globalAlpha = 1; return true; }",
+      "source": "drawBubble() hint glow ring",
+      "glow": 1,
+      "recolor": "#FFE066 @ (0.35+0.5g)",
+      "pad": 3
+    },
+    {
+      "id": "badge_red_glyph",
+      "format": "RGB565A8",
+      "width": 58,
+      "height": 58,
+      "bytes": 10092,
+      "crop": [
+        131,
+        3,
+        58,
+        58
+      ],
+      "origin": [
+        29,
+        29
+      ],
+      "call": "st.target='RED'; st.phase='CELEBRATE'; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "layer_filter": null,
+      "source": "drawBadge()"
+    },
+    {
+      "id": "badge_red_happy",
+      "format": "RGB565A8",
+      "width": 58,
+      "height": 58,
+      "bytes": 10092,
+      "crop": [
+        131,
+        3,
+        58,
+        58
+      ],
+      "origin": [
+        29,
+        29
+      ],
+      "call": "st.target='RED'; st.phase='CELEBRATE'; st.hint=0; badge.happy=1; badge.sv=0; time=0; drawBadge()",
+      "layer_filter": null,
+      "source": "drawBadge()"
+    },
+    {
+      "id": "badge_yellow_glyph",
+      "format": "RGB565A8",
+      "width": 58,
+      "height": 58,
+      "bytes": 10092,
+      "crop": [
+        131,
+        3,
+        58,
+        58
+      ],
+      "origin": [
+        29,
+        29
+      ],
+      "call": "st.target='YELLOW'; st.phase='CELEBRATE'; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "layer_filter": null,
+      "source": "drawBadge()"
+    },
+    {
+      "id": "badge_yellow_happy",
+      "format": "RGB565A8",
+      "width": 58,
+      "height": 58,
+      "bytes": 10092,
+      "crop": [
+        131,
+        3,
+        58,
+        58
+      ],
+      "origin": [
+        29,
+        29
+      ],
+      "call": "st.target='YELLOW'; st.phase='CELEBRATE'; st.hint=0; badge.happy=1; badge.sv=0; time=0; drawBadge()",
+      "layer_filter": null,
+      "source": "drawBadge()"
+    },
+    {
+      "id": "badge_green_glyph",
+      "format": "RGB565A8",
+      "width": 58,
+      "height": 58,
+      "bytes": 10092,
+      "crop": [
+        131,
+        3,
+        58,
+        58
+      ],
+      "origin": [
+        29,
+        29
+      ],
+      "call": "st.target='GREEN'; st.phase='CELEBRATE'; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "layer_filter": null,
+      "source": "drawBadge()"
+    },
+    {
+      "id": "badge_green_happy",
+      "format": "RGB565A8",
+      "width": 58,
+      "height": 58,
+      "bytes": 10092,
+      "crop": [
+        131,
+        3,
+        58,
+        58
+      ],
+      "origin": [
+        29,
+        29
+      ],
+      "call": "st.target='GREEN'; st.phase='CELEBRATE'; st.hint=0; badge.happy=1; badge.sv=0; time=0; drawBadge()",
+      "layer_filter": null,
+      "source": "drawBadge()"
+    },
+    {
+      "id": "badge_blue_glyph",
+      "format": "RGB565A8",
+      "width": 58,
+      "height": 58,
+      "bytes": 10092,
+      "crop": [
+        131,
+        3,
+        58,
+        58
+      ],
+      "origin": [
+        29,
+        29
+      ],
+      "call": "st.target='BLUE'; st.phase='CELEBRATE'; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "layer_filter": null,
+      "source": "drawBadge()"
+    },
+    {
+      "id": "badge_blue_happy",
+      "format": "RGB565A8",
+      "width": 58,
+      "height": 58,
+      "bytes": 10092,
+      "crop": [
+        131,
+        3,
+        58,
+        58
+      ],
+      "origin": [
+        29,
+        29
+      ],
+      "call": "st.target='BLUE'; st.phase='CELEBRATE'; st.hint=0; badge.happy=1; badge.sv=0; time=0; drawBadge()",
+      "layer_filter": null,
+      "source": "drawBadge()"
+    },
+    {
+      "id": "badge_glow",
+      "format": "A8",
+      "width": 66,
+      "height": 66,
+      "bytes": 4356,
+      "crop": [
+        127,
+        9,
+        66,
+        66
+      ],
+      "origin": [
+        33,
+        33
+      ],
+      "call": "ctx.translate(0, 10); st.target='RED'; st.phase='PLAY'; st.hint=1; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "layer_filter": "(m, c) => { if (m !== \"stroke\" || c.lineWidth !== 4) return false; c.globalAlpha = 1; return true; }",
+      "source": "drawBadge() hint glow ring",
+      "recolor": "#FFE066 @ 0.4+0.4sin"
+    },
+    {
+      "id": "crab_legs_0",
+      "format": "A8",
+      "width": 64,
+      "height": 23,
+      "bytes": 1472,
+      "crop": [
+        70,
+        112,
+        64,
+        23
+      ],
+      "origin": [
+        32,
+        10
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; time = 0; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 0 && i <= 5",
+      "source": "drawCrab() legs",
+      "recolor": "#C2621B",
+      "frame": 0,
+      "frames": 8,
+      "period_s": 1.0471975511965976
+    },
+    {
+      "id": "crab_legs_1",
+      "format": "A8",
+      "width": 64,
+      "height": 22,
+      "bytes": 1408,
+      "crop": [
+        70,
+        112,
+        64,
+        22
+      ],
+      "origin": [
+        32,
+        10
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; time = 0.1308996938995747; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 0 && i <= 5",
+      "source": "drawCrab() legs",
+      "recolor": "#C2621B",
+      "frame": 1,
+      "frames": 8,
+      "period_s": 1.0471975511965976
+    },
+    {
+      "id": "crab_legs_2",
+      "format": "A8",
+      "width": 64,
+      "height": 22,
+      "bytes": 1408,
+      "crop": [
+        70,
+        112,
+        64,
+        22
+      ],
+      "origin": [
+        32,
+        10
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; time = 0.2617993877991494; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 0 && i <= 5",
+      "source": "drawCrab() legs",
+      "recolor": "#C2621B",
+      "frame": 2,
+      "frames": 8,
+      "period_s": 1.0471975511965976
+    },
+    {
+      "id": "crab_legs_3",
+      "format": "A8",
+      "width": 64,
+      "height": 21,
+      "bytes": 1344,
+      "crop": [
+        70,
+        112,
+        64,
+        21
+      ],
+      "origin": [
+        32,
+        10
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; time = 0.39269908169872414; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 0 && i <= 5",
+      "source": "drawCrab() legs",
+      "recolor": "#C2621B",
+      "frame": 3,
+      "frames": 8,
+      "period_s": 1.0471975511965976
+    },
+    {
+      "id": "crab_legs_4",
+      "format": "A8",
+      "width": 64,
+      "height": 21,
+      "bytes": 1344,
+      "crop": [
+        70,
+        112,
+        64,
+        21
+      ],
+      "origin": [
+        32,
+        10
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; time = 0.5235987755982988; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 0 && i <= 5",
+      "source": "drawCrab() legs",
+      "recolor": "#C2621B",
+      "frame": 4,
+      "frames": 8,
+      "period_s": 1.0471975511965976
+    },
+    {
+      "id": "crab_legs_5",
+      "format": "A8",
+      "width": 64,
+      "height": 22,
+      "bytes": 1408,
+      "crop": [
+        70,
+        112,
+        64,
+        22
+      ],
+      "origin": [
+        32,
+        10
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; time = 0.6544984694978735; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 0 && i <= 5",
+      "source": "drawCrab() legs",
+      "recolor": "#C2621B",
+      "frame": 5,
+      "frames": 8,
+      "period_s": 1.0471975511965976
+    },
+    {
+      "id": "crab_legs_6",
+      "format": "A8",
+      "width": 64,
+      "height": 22,
+      "bytes": 1408,
+      "crop": [
+        70,
+        112,
+        64,
+        22
+      ],
+      "origin": [
+        32,
+        10
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; time = 0.7853981633974483; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 0 && i <= 5",
+      "source": "drawCrab() legs",
+      "recolor": "#C2621B",
+      "frame": 6,
+      "frames": 8,
+      "period_s": 1.0471975511965976
+    },
+    {
+      "id": "crab_legs_7",
+      "format": "A8",
+      "width": 64,
+      "height": 23,
+      "bytes": 1472,
+      "crop": [
+        70,
+        112,
+        64,
+        23
+      ],
+      "origin": [
+        32,
+        10
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; time = 0.916297857297023; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 0 && i <= 5",
+      "source": "drawCrab() legs",
+      "recolor": "#C2621B",
+      "frame": 7,
+      "frames": 8,
+      "period_s": 1.0471975511965976
+    },
+    {
+      "id": "crab_arm_l_0",
+      "format": "RGB565A8",
+      "width": 32,
+      "height": 28,
+      "bytes": 2688,
+      "crop": [
+        60,
+        86,
+        32,
+        28
+      ],
+      "origin": [
+        42,
+        36
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.clap = 0.6; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 6 && i <= 8",
+      "source": "drawCrab() left arm",
+      "clapT": 0
+    },
+    {
+      "id": "crab_arm_r_0",
+      "format": "RGB565A8",
+      "width": 32,
+      "height": 28,
+      "bytes": 2688,
+      "crop": [
+        112,
+        86,
+        32,
+        28
+      ],
+      "origin": [
+        -10,
+        36
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.clap = 0.6; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm",
+      "clapT": 0
+    },
+    {
+      "id": "crab_arm_l_1",
+      "format": "RGB565A8",
+      "width": 30,
+      "height": 30,
+      "bytes": 2700,
+      "crop": [
+        62,
+        84,
+        30,
+        30
+      ],
+      "origin": [
+        40,
+        38
+      ],
+      "call": "ctx.translate(60, 0.536551382818146); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.clap = 0.587181156630205; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 6 && i <= 8",
+      "source": "drawCrab() left arm",
+      "clapT": 0.2
+    },
+    {
+      "id": "crab_arm_r_1",
+      "format": "RGB565A8",
+      "width": 30,
+      "height": 30,
+      "bytes": 2700,
+      "crop": [
+        112,
+        84,
+        30,
+        30
+      ],
+      "origin": [
+        -10,
+        38
+      ],
+      "call": "ctx.translate(60, 0.536551382818146); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.clap = 0.587181156630205; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm",
+      "clapT": 0.2
+    },
+    {
+      "id": "crab_arm_l_2",
+      "format": "RGB565A8",
+      "width": 27,
+      "height": 31,
+      "bytes": 2511,
+      "crop": [
+        65,
+        83,
+        27,
+        31
+      ],
+      "origin": [
+        37,
+        39
+      ],
+      "call": "ctx.translate(60, 1.0939400712754592); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.clap = 0.5738020239131091; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 6 && i <= 8",
+      "source": "drawCrab() left arm",
+      "clapT": 0.4
+    },
+    {
+      "id": "crab_arm_r_2",
+      "format": "RGB565A8",
+      "width": 27,
+      "height": 31,
+      "bytes": 2511,
+      "crop": [
+        112,
+        83,
+        27,
+        31
+      ],
+      "origin": [
+        -10,
+        39
+      ],
+      "call": "ctx.translate(60, 1.0939400712754592); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.clap = 0.5738020239131091; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm",
+      "clapT": 0.4
+    },
+    {
+      "id": "crab_arm_l_3",
+      "format": "RGB565A8",
+      "width": 25,
+      "height": 32,
+      "bytes": 2400,
+      "crop": [
+        68,
+        82,
+        25,
+        32
+      ],
+      "origin": [
+        34,
+        40
+      ],
+      "call": "ctx.translate(60, 1.7028741966660763); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.clap = 0.5590334470601732; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 6 && i <= 8",
+      "source": "drawCrab() left arm",
+      "clapT": 0.6
+    },
+    {
+      "id": "crab_arm_r_3",
+      "format": "RGB565A8",
+      "width": 25,
+      "height": 32,
+      "bytes": 2400,
+      "crop": [
+        111,
+        82,
+        25,
+        32
+      ],
+      "origin": [
+        -9,
+        40
+      ],
+      "call": "ctx.translate(60, 1.7028741966660763); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.clap = 0.5590334470601732; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm",
+      "clapT": 0.6
+    },
+    {
+      "id": "crab_arm_l_4",
+      "format": "RGB565A8",
+      "width": 24,
+      "height": 33,
+      "bytes": 2376,
+      "crop": [
+        71,
+        81,
+        24,
+        33
+      ],
+      "origin": [
+        31,
+        41
+      ],
+      "call": "ctx.translate(60, 2.4335991547272666); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.clap = 0.5409665529398267; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 6 && i <= 8",
+      "source": "drawCrab() left arm",
+      "clapT": 0.8
+    },
+    {
+      "id": "crab_arm_r_4",
+      "format": "RGB565A8",
+      "width": 25,
+      "height": 33,
+      "bytes": 2475,
+      "crop": [
+        108,
+        81,
+        25,
+        33
+      ],
+      "origin": [
+        -6,
+        41
+      ],
+      "call": "ctx.translate(60, 2.4335991547272666); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.clap = 0.5409665529398267; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm",
+      "clapT": 0.8
+    },
+    {
+      "id": "crab_arm_l_5",
+      "format": "RGB565A8",
+      "width": 24,
+      "height": 34,
+      "bytes": 2448,
+      "crop": [
+        74,
+        80,
+        24,
+        34
+      ],
+      "origin": [
+        28,
+        42
+      ],
+      "call": "ctx.translate(60, 3.9999999999999996); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.clap = 0.5; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 6 && i <= 8",
+      "source": "drawCrab() left arm",
+      "clapT": 1
+    },
+    {
+      "id": "crab_arm_r_5",
+      "format": "RGB565A8",
+      "width": 24,
+      "height": 34,
+      "bytes": 2448,
+      "crop": [
+        106,
+        80,
+        24,
+        34
+      ],
+      "origin": [
+        -4,
+        42
+      ],
+      "call": "ctx.translate(60, 3.9999999999999996); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.clap = 0.5; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm",
+      "clapT": 1
+    },
+    {
+      "id": "crab_point_0",
+      "format": "RGB565A8",
+      "width": 24,
+      "height": 38,
+      "bytes": 2736,
+      "crop": [
+        111,
+        76,
+        24,
+        38
+      ],
+      "origin": [
+        -9,
+        46
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.17364817766693041, 222 + 100 * -0.984807753012208]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -80
+    },
+    {
+      "id": "crab_point_1",
+      "format": "RGB565A8",
+      "width": 25,
+      "height": 38,
+      "bytes": 2850,
+      "crop": [
+        112,
+        76,
+        25,
+        38
+      ],
+      "origin": [
+        -10,
+        46
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.25881904510252074, 222 + 100 * -0.9659258262890683]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -75
+    },
+    {
+      "id": "crab_point_2",
+      "format": "RGB565A8",
+      "width": 26,
+      "height": 37,
+      "bytes": 2886,
+      "crop": [
+        112,
+        77,
+        26,
+        37
+      ],
+      "origin": [
+        -10,
+        45
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.3420201433256688, 222 + 100 * -0.9396926207859083]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -70
+    },
+    {
+      "id": "crab_point_3",
+      "format": "RGB565A8",
+      "width": 28,
+      "height": 37,
+      "bytes": 3108,
+      "crop": [
+        112,
+        77,
+        28,
+        37
+      ],
+      "origin": [
+        -10,
+        45
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.42261826174069944, 222 + 100 * -0.9063077870366499]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -65
+    },
+    {
+      "id": "crab_point_4",
+      "format": "RGB565A8",
+      "width": 29,
+      "height": 36,
+      "bytes": 3132,
+      "crop": [
+        112,
+        78,
+        29,
+        36
+      ],
+      "origin": [
+        -10,
+        44
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.5000000000000001, 222 + 100 * -0.8660254037844386]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -60
+    },
+    {
+      "id": "crab_point_5",
+      "format": "RGB565A8",
+      "width": 31,
+      "height": 35,
+      "bytes": 3255,
+      "crop": [
+        112,
+        79,
+        31,
+        35
+      ],
+      "origin": [
+        -10,
+        43
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.573576436351046, 222 + 100 * -0.8191520442889918]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -55
+    },
+    {
+      "id": "crab_point_6",
+      "format": "RGB565A8",
+      "width": 32,
+      "height": 34,
+      "bytes": 3264,
+      "crop": [
+        112,
+        80,
+        32,
+        34
+      ],
+      "origin": [
+        -10,
+        42
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.6427876096865394, 222 + 100 * -0.766044443118978]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -50
+    },
+    {
+      "id": "crab_point_7",
+      "format": "RGB565A8",
+      "width": 33,
+      "height": 33,
+      "bytes": 3267,
+      "crop": [
+        112,
+        81,
+        33,
+        33
+      ],
+      "origin": [
+        -10,
+        41
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.7071067811865476, 222 + 100 * -0.7071067811865475]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -45
+    },
+    {
+      "id": "crab_point_8",
+      "format": "RGB565A8",
+      "width": 34,
+      "height": 32,
+      "bytes": 3264,
+      "crop": [
+        112,
+        82,
+        34,
+        32
+      ],
+      "origin": [
+        -10,
+        40
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.766044443118978, 222 + 100 * -0.6427876096865393]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -40
+    },
+    {
+      "id": "crab_point_9",
+      "format": "RGB565A8",
+      "width": 35,
+      "height": 31,
+      "bytes": 3255,
+      "crop": [
+        112,
+        83,
+        35,
+        31
+      ],
+      "origin": [
+        -10,
+        39
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.8191520442889918, 222 + 100 * -0.573576436351046]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -35
+    },
+    {
+      "id": "crab_point_10",
+      "format": "RGB565A8",
+      "width": 36,
+      "height": 29,
+      "bytes": 3132,
+      "crop": [
+        112,
+        85,
+        36,
+        29
+      ],
+      "origin": [
+        -10,
+        37
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.8660254037844387, 222 + 100 * -0.49999999999999994]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -30
+    },
+    {
+      "id": "crab_point_11",
+      "format": "RGB565A8",
+      "width": 37,
+      "height": 28,
+      "bytes": 3108,
+      "crop": [
+        112,
+        86,
+        37,
+        28
+      ],
+      "origin": [
+        -10,
+        36
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.9063077870366499, 222 + 100 * -0.42261826174069944]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -25
+    },
+    {
+      "id": "crab_point_12",
+      "format": "RGB565A8",
+      "width": 37,
+      "height": 27,
+      "bytes": 2997,
+      "crop": [
+        112,
+        87,
+        37,
+        27
+      ],
+      "origin": [
+        -10,
+        35
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.9396926207859084, 222 + 100 * -0.3420201433256687]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -20
+    },
+    {
+      "id": "crab_point_13",
+      "format": "RGB565A8",
+      "width": 38,
+      "height": 25,
+      "bytes": 2850,
+      "crop": [
+        112,
+        89,
+        38,
+        25
+      ],
+      "origin": [
+        -10,
+        33
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.9659258262890683, 222 + 100 * -0.25881904510252074]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -15
+    },
+    {
+      "id": "crab_point_14",
+      "format": "RGB565A8",
+      "width": 38,
+      "height": 24,
+      "bytes": 2736,
+      "crop": [
+        112,
+        91,
+        38,
+        24
+      ],
+      "origin": [
+        -10,
+        31
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.984807753012208, 222 + 100 * -0.17364817766693033]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -10
+    },
+    {
+      "id": "crab_point_15",
+      "format": "RGB565A8",
+      "width": 38,
+      "height": 25,
+      "bytes": 2850,
+      "crop": [
+        112,
+        92,
+        38,
+        25
+      ],
+      "origin": [
+        -10,
+        30
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.9961946980917455, 222 + 100 * -0.08715574274765817]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": -5
+    },
+    {
+      "id": "crab_point_16",
+      "format": "RGB565A8",
+      "width": 38,
+      "height": 24,
+      "bytes": 2736,
+      "crop": [
+        112,
+        94,
+        38,
+        24
+      ],
+      "origin": [
+        -10,
+        28
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 1, 222 + 100 * 0]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": 0
+    },
+    {
+      "id": "crab_point_17",
+      "format": "RGB565A8",
+      "width": 38,
+      "height": 25,
+      "bytes": 2850,
+      "crop": [
+        112,
+        95,
+        38,
+        25
+      ],
+      "origin": [
+        -10,
+        27
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.9961946980917455, 222 + 100 * 0.08715574274765817]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": 5
+    },
+    {
+      "id": "crab_point_18",
+      "format": "RGB565A8",
+      "width": 38,
+      "height": 25,
+      "bytes": 2850,
+      "crop": [
+        112,
+        97,
+        38,
+        25
+      ],
+      "origin": [
+        -10,
+        25
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.984807753012208, 222 + 100 * 0.17364817766693033]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": 10
+    },
+    {
+      "id": "crab_point_19",
+      "format": "RGB565A8",
+      "width": 38,
+      "height": 25,
+      "bytes": 2850,
+      "crop": [
+        112,
+        98,
+        38,
+        25
+      ],
+      "origin": [
+        -10,
+        24
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.9659258262890683, 222 + 100 * 0.25881904510252074]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": 15
+    },
+    {
+      "id": "crab_point_20",
+      "format": "RGB565A8",
+      "width": 37,
+      "height": 24,
+      "bytes": 2664,
+      "crop": [
+        112,
+        100,
+        37,
+        24
+      ],
+      "origin": [
+        -10,
+        22
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.9396926207859084, 222 + 100 * 0.3420201433256687]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": 20
+    },
+    {
+      "id": "crab_point_21",
+      "format": "RGB565A8",
+      "width": 37,
+      "height": 25,
+      "bytes": 2775,
+      "crop": [
+        112,
+        101,
+        37,
+        25
+      ],
+      "origin": [
+        -10,
+        21
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.9063077870366499, 222 + 100 * 0.42261826174069944]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": 25
+    },
+    {
+      "id": "crab_point_22",
+      "format": "RGB565A8",
+      "width": 36,
+      "height": 24,
+      "bytes": 2592,
+      "crop": [
+        112,
+        103,
+        36,
+        24
+      ],
+      "origin": [
+        -10,
+        19
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.8660254037844387, 222 + 100 * 0.49999999999999994]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": 30
+    },
+    {
+      "id": "crab_point_23",
+      "format": "RGB565A8",
+      "width": 35,
+      "height": 25,
+      "bytes": 2625,
+      "crop": [
+        112,
+        104,
+        35,
+        25
+      ],
+      "origin": [
+        -10,
+        18
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.8191520442889918, 222 + 100 * 0.573576436351046]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": 35
+    },
+    {
+      "id": "crab_point_24",
+      "format": "RGB565A8",
+      "width": 34,
+      "height": 25,
+      "bytes": 2550,
+      "crop": [
+        112,
+        105,
+        34,
+        25
+      ],
+      "origin": [
+        -10,
+        17
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.766044443118978, 222 + 100 * 0.6427876096865393]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": 40
+    },
+    {
+      "id": "crab_point_25",
+      "format": "RGB565A8",
+      "width": 33,
+      "height": 25,
+      "bytes": 2475,
+      "crop": [
+        112,
+        106,
+        33,
+        25
+      ],
+      "origin": [
+        -10,
+        16
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.7071067811865476, 222 + 100 * 0.7071067811865475]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": 45
+    },
+    {
+      "id": "crab_point_26",
+      "format": "RGB565A8",
+      "width": 32,
+      "height": 26,
+      "bytes": 2496,
+      "crop": [
+        112,
+        106,
+        32,
+        26
+      ],
+      "origin": [
+        -10,
+        16
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.6427876096865394, 222 + 100 * 0.766044443118978]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": 50
+    },
+    {
+      "id": "crab_point_27",
+      "format": "RGB565A8",
+      "width": 31,
+      "height": 27,
+      "bytes": 2511,
+      "crop": [
+        112,
+        106,
+        31,
+        27
+      ],
+      "origin": [
+        -10,
+        16
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.573576436351046, 222 + 100 * 0.8191520442889918]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": 55
+    },
+    {
+      "id": "crab_point_28",
+      "format": "RGB565A8",
+      "width": 29,
+      "height": 28,
+      "bytes": 2436,
+      "crop": [
+        112,
+        106,
+        29,
+        28
+      ],
+      "origin": [
+        -10,
+        16
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.point = [42 + 100 * 0.5000000000000001, 222 + 100 * 0.8660254037844386]; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 9 && i <= 11",
+      "source": "drawCrab() right arm pointing",
+      "angle_deg": 60
+    },
+    {
+      "id": "crab_body_open_calm",
+      "format": "RGB565A8",
+      "width": 46,
+      "height": 47,
+      "bytes": 6486,
+      "crop": [
+        79,
+        81,
+        46,
+        47
+      ],
+      "origin": [
+        23,
+        41
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.blink = 1; crab.clap = 0; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 12 && !(m === \"fill\" && c.fillStyle === \"#3b3550\")",
+      "source": "drawCrab() body, eyes (no pupils), mouth, cheeks"
+    },
+    {
+      "id": "crab_body_open_happy",
+      "format": "RGB565A8",
+      "width": 46,
+      "height": 47,
+      "bytes": 6486,
+      "crop": [
+        79,
+        81,
+        46,
+        47
+      ],
+      "origin": [
+        23,
+        41
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.blink = 1; crab.clap = 0.6; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 12 && !(m === \"fill\" && c.fillStyle === \"#3b3550\")",
+      "source": "drawCrab() body, eyes (no pupils), mouth, cheeks"
+    },
+    {
+      "id": "crab_body_blink_calm",
+      "format": "RGB565A8",
+      "width": 46,
+      "height": 42,
+      "bytes": 5796,
+      "crop": [
+        79,
+        86,
+        46,
+        42
+      ],
+      "origin": [
+        23,
+        36
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.blink = -0.05; crab.clap = 0; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 12 && !(m === \"fill\" && c.fillStyle === \"#3b3550\")",
+      "source": "drawCrab() body, eyes (no pupils), mouth, cheeks"
+    },
+    {
+      "id": "crab_body_blink_happy",
+      "format": "RGB565A8",
+      "width": 46,
+      "height": 42,
+      "bytes": 5796,
+      "crop": [
+        79,
+        86,
+        46,
+        42
+      ],
+      "origin": [
+        23,
+        36
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; crab.blink = -0.05; crab.clap = 0.6; drawCrab()",
+      "layer_filter": "(m, c, i) => i >= 12 && !(m === \"fill\" && c.fillStyle === \"#3b3550\")",
+      "source": "drawCrab() body, eyes (no pupils), mouth, cheeks"
+    },
+    {
+      "id": "crab_pupil",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        89,
+        82,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5.2
+      ],
+      "call": "ctx.translate(60, 0); TOK.breathScale = 0; crab.yOff = -100; crab.look = [0, -1]; crab.blink = 1; crab.clap = 0; crab.giggle = 0; crab.dance = 0; crab.point = null; time = 0; drawCrab()",
+      "layer_filter": "(m, c) => m === \"fill\" && c.fillStyle === \"#3b3550\"",
+      "source": "drawCrab() pupil",
+      "recolor": "#3B3550"
+    },
+    {
+      "id": "hand",
+      "format": "RGB565A8",
+      "width": 28,
+      "height": 35,
+      "bytes": 2940,
+      "crop": [
+        161,
+        112,
+        28,
+        35
+      ],
+      "origin": [
+        13,
+        18
+      ],
+      "call": "st.phase='PLAY'; st.hint=2; st.target='RED'; bubbles=[{color:'RED', state:'float', x:160, y:100}]; time=0; drawHelperHand()",
+      "layer_filter": null,
+      "source": "drawHelperHand() at bob 0"
+    },
+    {
+      "id": "chrome_home",
+      "format": "RGB565A8",
+      "width": 50,
+      "height": 50,
+      "bytes": 7500,
+      "crop": [
+        3,
+        3,
+        50,
+        50
+      ],
+      "origin": [
+        1,
+        1
+      ],
+      "call": "drawChrome()",
+      "layer_filter": null,
+      "source": "drawChrome() Home"
+    },
+    {
+      "id": "chrome_mic",
+      "format": "RGB565A8",
+      "width": 48,
+      "height": 48,
+      "bytes": 6912,
+      "crop": [
+        268,
+        4,
+        48,
+        48
+      ],
+      "origin": [
+        0,
+        0
+      ],
+      "call": "drawChrome()",
+      "layer_filter": null,
+      "source": "drawChrome() disabled mic (alpha 0.45)"
+    },
+    {
+      "id": "start_veil",
+      "format": "RGB565A8",
+      "width": 1,
+      "height": 1,
+      "bytes": 3,
+      "crop": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "origin": [
+        0,
+        0
+      ],
+      "call": "time = 0; drawStart()",
+      "layer_filter": "(m, c, i) => i === 0",
+      "source": "drawStart() veil colour (filled natively over 320x240)",
+      "pad": 0
+    },
+    {
+      "id": "start_button",
+      "format": "RGB565A8",
+      "width": 76,
+      "height": 76,
+      "bytes": 17328,
+      "crop": [
+        122,
+        82,
+        76,
+        76
+      ],
+      "origin": [
+        38,
+        38
+      ],
+      "call": "time = 0; drawStart()",
+      "layer_filter": "(m, c, i) => i >= 1",
+      "source": "drawStart() play button at scale 1"
+    },
+    {
+      "id": "decor_0",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:1.5, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 1.5,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_1",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:2, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 2,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_2",
+      "format": "A8",
+      "width": 12,
+      "height": 12,
+      "bytes": 144,
+      "crop": [
+        154,
+        114,
+        12,
+        12
+      ],
+      "origin": [
+        6,
+        6
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:2.5, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 2.5,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_3",
+      "format": "A8",
+      "width": 12,
+      "height": 12,
+      "bytes": 144,
+      "crop": [
+        154,
+        114,
+        12,
+        12
+      ],
+      "origin": [
+        6,
+        6
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:3, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 3,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_4",
+      "format": "A8",
+      "width": 14,
+      "height": 14,
+      "bytes": 196,
+      "crop": [
+        153,
+        113,
+        14,
+        14
+      ],
+      "origin": [
+        7,
+        7
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:3.5, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 3.5,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_5",
+      "format": "A8",
+      "width": 14,
+      "height": 14,
+      "bytes": 196,
+      "crop": [
+        153,
+        113,
+        14,
+        14
+      ],
+      "origin": [
+        7,
+        7
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:4, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 4,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_6",
+      "format": "A8",
+      "width": 16,
+      "height": 16,
+      "bytes": 256,
+      "crop": [
+        152,
+        112,
+        16,
+        16
+      ],
+      "origin": [
+        8,
+        8
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:4.5, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 4.5,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_7",
+      "format": "A8",
+      "width": 16,
+      "height": 16,
+      "bytes": 256,
+      "crop": [
+        152,
+        112,
+        16,
+        16
+      ],
+      "origin": [
+        8,
+        8
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:5, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 5,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_8",
+      "format": "A8",
+      "width": 18,
+      "height": 18,
+      "bytes": 324,
+      "crop": [
+        151,
+        111,
+        18,
+        18
+      ],
+      "origin": [
+        9,
+        9
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:5.5, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 5.5,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_9",
+      "format": "A8",
+      "width": 18,
+      "height": 18,
+      "bytes": 324,
+      "crop": [
+        151,
+        111,
+        18,
+        18
+      ],
+      "origin": [
+        9,
+        9
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:6, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 6,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_10",
+      "format": "A8",
+      "width": 20,
+      "height": 20,
+      "bytes": 400,
+      "crop": [
+        150,
+        110,
+        20,
+        20
+      ],
+      "origin": [
+        10,
+        10
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:6.5, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 6.5,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_11",
+      "format": "A8",
+      "width": 20,
+      "height": 20,
+      "bytes": 400,
+      "crop": [
+        150,
+        110,
+        20,
+        20
+      ],
+      "origin": [
+        10,
+        10
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:7, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 7,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_12",
+      "format": "A8",
+      "width": 22,
+      "height": 22,
+      "bytes": 484,
+      "crop": [
+        149,
+        109,
+        22,
+        22
+      ],
+      "origin": [
+        11,
+        11
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:7.5, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 7.5,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_13",
+      "format": "A8",
+      "width": 22,
+      "height": 22,
+      "bytes": 484,
+      "crop": [
+        149,
+        109,
+        22,
+        22
+      ],
+      "origin": [
+        11,
+        11
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:8, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 8,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_14",
+      "format": "A8",
+      "width": 24,
+      "height": 24,
+      "bytes": 576,
+      "crop": [
+        148,
+        108,
+        24,
+        24
+      ],
+      "origin": [
+        12,
+        12
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:8.5, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 8.5,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_15",
+      "format": "A8",
+      "width": 24,
+      "height": 24,
+      "bytes": 576,
+      "crop": [
+        148,
+        108,
+        24,
+        24
+      ],
+      "origin": [
+        12,
+        12
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:9, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 9,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_16",
+      "format": "A8",
+      "width": 26,
+      "height": 26,
+      "bytes": 676,
+      "crop": [
+        147,
+        107,
+        26,
+        26
+      ],
+      "origin": [
+        13,
+        13
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:9.5, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 9.5,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "decor_17",
+      "format": "A8",
+      "width": 26,
+      "height": 26,
+      "bytes": 676,
+      "crop": [
+        147,
+        107,
+        26,
+        26
+      ],
+      "origin": [
+        13,
+        13
+      ],
+      "call": "parts = []; rings = []; decor = [{x:160, y:120, r:10, vy:0, ph:0}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() decor bubble",
+      "radius": 10,
+      "recolor": "#FFFFFF"
+    },
+    {
+      "id": "pcircle_0",
+      "format": "A8",
+      "width": 6,
+      "height": 6,
+      "bytes": 36,
+      "crop": [
+        157,
+        117,
+        6,
+        6
+      ],
+      "origin": [
+        3,
+        3
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'circle', size:1, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() circle particle",
+      "radius": 1
+    },
+    {
+      "id": "pcircle_1",
+      "format": "A8",
+      "width": 8,
+      "height": 8,
+      "bytes": 64,
+      "crop": [
+        156,
+        116,
+        8,
+        8
+      ],
+      "origin": [
+        4,
+        4
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'circle', size:1.5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() circle particle",
+      "radius": 1.5
+    },
+    {
+      "id": "pcircle_2",
+      "format": "A8",
+      "width": 8,
+      "height": 8,
+      "bytes": 64,
+      "crop": [
+        156,
+        116,
+        8,
+        8
+      ],
+      "origin": [
+        4,
+        4
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'circle', size:2, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() circle particle",
+      "radius": 2
+    },
+    {
+      "id": "pcircle_3",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'circle', size:2.5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() circle particle",
+      "radius": 2.5
+    },
+    {
+      "id": "pcircle_4",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'circle', size:3, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() circle particle",
+      "radius": 3
+    },
+    {
+      "id": "pcircle_5",
+      "format": "A8",
+      "width": 12,
+      "height": 12,
+      "bytes": 144,
+      "crop": [
+        154,
+        114,
+        12,
+        12
+      ],
+      "origin": [
+        6,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'circle', size:3.5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() circle particle",
+      "radius": 3.5
+    },
+    {
+      "id": "pcircle_6",
+      "format": "A8",
+      "width": 12,
+      "height": 12,
+      "bytes": 144,
+      "crop": [
+        154,
+        114,
+        12,
+        12
+      ],
+      "origin": [
+        6,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'circle', size:4, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() circle particle",
+      "radius": 4
+    },
+    {
+      "id": "pcircle_7",
+      "format": "A8",
+      "width": 14,
+      "height": 14,
+      "bytes": 196,
+      "crop": [
+        153,
+        113,
+        14,
+        14
+      ],
+      "origin": [
+        7,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'circle', size:4.5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() circle particle",
+      "radius": 4.5
+    },
+    {
+      "id": "pcircle_8",
+      "format": "A8",
+      "width": 14,
+      "height": 14,
+      "bytes": 196,
+      "crop": [
+        153,
+        113,
+        14,
+        14
+      ],
+      "origin": [
+        7,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'circle', size:5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() circle particle",
+      "radius": 5
+    },
+    {
+      "id": "pcircle_9",
+      "format": "A8",
+      "width": 16,
+      "height": 16,
+      "bytes": 256,
+      "crop": [
+        152,
+        112,
+        16,
+        16
+      ],
+      "origin": [
+        8,
+        8
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'circle', size:5.5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() circle particle",
+      "radius": 5.5
+    },
+    {
+      "id": "pcircle_10",
+      "format": "A8",
+      "width": 16,
+      "height": 16,
+      "bytes": 256,
+      "crop": [
+        152,
+        112,
+        16,
+        16
+      ],
+      "origin": [
+        8,
+        8
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'circle', size:6, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() circle particle",
+      "radius": 6
+    },
+    {
+      "id": "pcircle_11",
+      "format": "A8",
+      "width": 18,
+      "height": 18,
+      "bytes": 324,
+      "crop": [
+        151,
+        111,
+        18,
+        18
+      ],
+      "origin": [
+        9,
+        9
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'circle', size:6.5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() circle particle",
+      "radius": 6.5
+    },
+    {
+      "id": "pcircle_12",
+      "format": "A8",
+      "width": 18,
+      "height": 18,
+      "bytes": 324,
+      "crop": [
+        151,
+        111,
+        18,
+        18
+      ],
+      "origin": [
+        9,
+        9
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'circle', size:7, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() circle particle",
+      "radius": 7
+    },
+    {
+      "id": "pstar_0_0",
+      "format": "A8",
+      "width": 12,
+      "height": 12,
+      "bytes": 144,
+      "crop": [
+        154,
+        114,
+        12,
+        12
+      ],
+      "origin": [
+        6,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:3.5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 3.5,
+      "rot": 0
+    },
+    {
+      "id": "pstar_0_1",
+      "format": "A8",
+      "width": 12,
+      "height": 11,
+      "bytes": 132,
+      "crop": [
+        154,
+        115,
+        12,
+        11
+      ],
+      "origin": [
+        6,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:3.5, rot:0.20943951023931953, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 3.5,
+      "rot": 0.20943951023931953
+    },
+    {
+      "id": "pstar_0_2",
+      "format": "A8",
+      "width": 12,
+      "height": 11,
+      "bytes": 132,
+      "crop": [
+        154,
+        115,
+        12,
+        11
+      ],
+      "origin": [
+        6,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:3.5, rot:0.41887902047863906, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 3.5,
+      "rot": 0.41887902047863906
+    },
+    {
+      "id": "pstar_0_3",
+      "format": "A8",
+      "width": 12,
+      "height": 12,
+      "bytes": 144,
+      "crop": [
+        154,
+        114,
+        12,
+        12
+      ],
+      "origin": [
+        6,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:3.5, rot:0.6283185307179586, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 3.5,
+      "rot": 0.6283185307179586
+    },
+    {
+      "id": "pstar_0_4",
+      "format": "A8",
+      "width": 12,
+      "height": 11,
+      "bytes": 132,
+      "crop": [
+        154,
+        114,
+        12,
+        11
+      ],
+      "origin": [
+        6,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:3.5, rot:0.8377580409572781, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 3.5,
+      "rot": 0.8377580409572781
+    },
+    {
+      "id": "pstar_0_5",
+      "format": "A8",
+      "width": 12,
+      "height": 11,
+      "bytes": 132,
+      "crop": [
+        154,
+        114,
+        12,
+        11
+      ],
+      "origin": [
+        6,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:3.5, rot:1.0471975511965979, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 3.5,
+      "rot": 1.0471975511965979
+    },
+    {
+      "id": "pstar_1_0",
+      "format": "A8",
+      "width": 12,
+      "height": 14,
+      "bytes": 168,
+      "crop": [
+        154,
+        113,
+        12,
+        14
+      ],
+      "origin": [
+        6,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:4, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 4,
+      "rot": 0
+    },
+    {
+      "id": "pstar_1_1",
+      "format": "A8",
+      "width": 12,
+      "height": 13,
+      "bytes": 156,
+      "crop": [
+        154,
+        114,
+        12,
+        13
+      ],
+      "origin": [
+        6,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:4, rot:0.20943951023931953, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 4,
+      "rot": 0.20943951023931953
+    },
+    {
+      "id": "pstar_1_2",
+      "format": "A8",
+      "width": 12,
+      "height": 13,
+      "bytes": 156,
+      "crop": [
+        154,
+        114,
+        12,
+        13
+      ],
+      "origin": [
+        6,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:4, rot:0.41887902047863906, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 4,
+      "rot": 0.41887902047863906
+    },
+    {
+      "id": "pstar_1_3",
+      "format": "A8",
+      "width": 12,
+      "height": 14,
+      "bytes": 168,
+      "crop": [
+        154,
+        113,
+        12,
+        14
+      ],
+      "origin": [
+        6,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:4, rot:0.6283185307179586, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 4,
+      "rot": 0.6283185307179586
+    },
+    {
+      "id": "pstar_1_4",
+      "format": "A8",
+      "width": 12,
+      "height": 13,
+      "bytes": 156,
+      "crop": [
+        154,
+        113,
+        12,
+        13
+      ],
+      "origin": [
+        6,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:4, rot:0.8377580409572781, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 4,
+      "rot": 0.8377580409572781
+    },
+    {
+      "id": "pstar_1_5",
+      "format": "A8",
+      "width": 12,
+      "height": 13,
+      "bytes": 156,
+      "crop": [
+        154,
+        113,
+        12,
+        13
+      ],
+      "origin": [
+        6,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:4, rot:1.0471975511965979, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 4,
+      "rot": 1.0471975511965979
+    },
+    {
+      "id": "pstar_2_0",
+      "format": "A8",
+      "width": 13,
+      "height": 14,
+      "bytes": 182,
+      "crop": [
+        154,
+        113,
+        13,
+        14
+      ],
+      "origin": [
+        6,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:4.5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 4.5,
+      "rot": 0
+    },
+    {
+      "id": "pstar_2_1",
+      "format": "A8",
+      "width": 13,
+      "height": 14,
+      "bytes": 182,
+      "crop": [
+        154,
+        113,
+        13,
+        14
+      ],
+      "origin": [
+        6,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:4.5, rot:0.20943951023931953, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 4.5,
+      "rot": 0.20943951023931953
+    },
+    {
+      "id": "pstar_2_2",
+      "format": "A8",
+      "width": 13,
+      "height": 14,
+      "bytes": 182,
+      "crop": [
+        153,
+        113,
+        13,
+        14
+      ],
+      "origin": [
+        7,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:4.5, rot:0.41887902047863906, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 4.5,
+      "rot": 0.41887902047863906
+    },
+    {
+      "id": "pstar_2_3",
+      "format": "A8",
+      "width": 13,
+      "height": 14,
+      "bytes": 182,
+      "crop": [
+        153,
+        113,
+        13,
+        14
+      ],
+      "origin": [
+        7,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:4.5, rot:0.6283185307179586, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 4.5,
+      "rot": 0.6283185307179586
+    },
+    {
+      "id": "pstar_2_4",
+      "format": "A8",
+      "width": 13,
+      "height": 14,
+      "bytes": 182,
+      "crop": [
+        153,
+        113,
+        13,
+        14
+      ],
+      "origin": [
+        7,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:4.5, rot:0.8377580409572781, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 4.5,
+      "rot": 0.8377580409572781
+    },
+    {
+      "id": "pstar_2_5",
+      "format": "A8",
+      "width": 13,
+      "height": 14,
+      "bytes": 182,
+      "crop": [
+        154,
+        113,
+        13,
+        14
+      ],
+      "origin": [
+        6,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:4.5, rot:1.0471975511965979, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 4.5,
+      "rot": 1.0471975511965979
+    },
+    {
+      "id": "pstar_3_0",
+      "format": "A8",
+      "width": 14,
+      "height": 14,
+      "bytes": 196,
+      "crop": [
+        153,
+        113,
+        14,
+        14
+      ],
+      "origin": [
+        7,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 5,
+      "rot": 0
+    },
+    {
+      "id": "pstar_3_1",
+      "format": "A8",
+      "width": 14,
+      "height": 15,
+      "bytes": 210,
+      "crop": [
+        153,
+        113,
+        14,
+        15
+      ],
+      "origin": [
+        7,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:5, rot:0.20943951023931953, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 5,
+      "rot": 0.20943951023931953
+    },
+    {
+      "id": "pstar_3_2",
+      "format": "A8",
+      "width": 14,
+      "height": 15,
+      "bytes": 210,
+      "crop": [
+        153,
+        113,
+        14,
+        15
+      ],
+      "origin": [
+        7,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:5, rot:0.41887902047863906, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 5,
+      "rot": 0.41887902047863906
+    },
+    {
+      "id": "pstar_3_3",
+      "format": "A8",
+      "width": 14,
+      "height": 14,
+      "bytes": 196,
+      "crop": [
+        153,
+        113,
+        14,
+        14
+      ],
+      "origin": [
+        7,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:5, rot:0.6283185307179586, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 5,
+      "rot": 0.6283185307179586
+    },
+    {
+      "id": "pstar_3_4",
+      "format": "A8",
+      "width": 14,
+      "height": 15,
+      "bytes": 210,
+      "crop": [
+        153,
+        112,
+        14,
+        15
+      ],
+      "origin": [
+        7,
+        8
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:5, rot:0.8377580409572781, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 5,
+      "rot": 0.8377580409572781
+    },
+    {
+      "id": "pstar_3_5",
+      "format": "A8",
+      "width": 14,
+      "height": 15,
+      "bytes": 210,
+      "crop": [
+        153,
+        112,
+        14,
+        15
+      ],
+      "origin": [
+        7,
+        8
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:5, rot:1.0471975511965979, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 5,
+      "rot": 1.0471975511965979
+    },
+    {
+      "id": "pstar_4_0",
+      "format": "A8",
+      "width": 15,
+      "height": 16,
+      "bytes": 240,
+      "crop": [
+        153,
+        112,
+        15,
+        16
+      ],
+      "origin": [
+        7,
+        8
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:5.5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 5.5,
+      "rot": 0
+    },
+    {
+      "id": "pstar_4_1",
+      "format": "A8",
+      "width": 17,
+      "height": 16,
+      "bytes": 272,
+      "crop": [
+        152,
+        113,
+        17,
+        16
+      ],
+      "origin": [
+        8,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:5.5, rot:0.20943951023931953, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 5.5,
+      "rot": 0.20943951023931953
+    },
+    {
+      "id": "pstar_4_2",
+      "format": "A8",
+      "width": 17,
+      "height": 16,
+      "bytes": 272,
+      "crop": [
+        151,
+        113,
+        17,
+        16
+      ],
+      "origin": [
+        9,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:5.5, rot:0.41887902047863906, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 5.5,
+      "rot": 0.41887902047863906
+    },
+    {
+      "id": "pstar_4_3",
+      "format": "A8",
+      "width": 15,
+      "height": 16,
+      "bytes": 240,
+      "crop": [
+        152,
+        112,
+        15,
+        16
+      ],
+      "origin": [
+        8,
+        8
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:5.5, rot:0.6283185307179586, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 5.5,
+      "rot": 0.6283185307179586
+    },
+    {
+      "id": "pstar_4_4",
+      "format": "A8",
+      "width": 17,
+      "height": 16,
+      "bytes": 272,
+      "crop": [
+        151,
+        111,
+        17,
+        16
+      ],
+      "origin": [
+        9,
+        9
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:5.5, rot:0.8377580409572781, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 5.5,
+      "rot": 0.8377580409572781
+    },
+    {
+      "id": "pstar_4_5",
+      "format": "A8",
+      "width": 17,
+      "height": 16,
+      "bytes": 272,
+      "crop": [
+        152,
+        111,
+        17,
+        16
+      ],
+      "origin": [
+        8,
+        9
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:5.5, rot:1.0471975511965979, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 5.5,
+      "rot": 1.0471975511965979
+    },
+    {
+      "id": "pstar_5_0",
+      "format": "A8",
+      "width": 15,
+      "height": 16,
+      "bytes": 240,
+      "crop": [
+        153,
+        112,
+        15,
+        16
+      ],
+      "origin": [
+        7,
+        8
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:6, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 6,
+      "rot": 0
+    },
+    {
+      "id": "pstar_5_1",
+      "format": "A8",
+      "width": 17,
+      "height": 17,
+      "bytes": 289,
+      "crop": [
+        152,
+        112,
+        17,
+        17
+      ],
+      "origin": [
+        8,
+        8
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:6, rot:0.20943951023931953, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 6,
+      "rot": 0.20943951023931953
+    },
+    {
+      "id": "pstar_5_2",
+      "format": "A8",
+      "width": 17,
+      "height": 17,
+      "bytes": 289,
+      "crop": [
+        151,
+        112,
+        17,
+        17
+      ],
+      "origin": [
+        9,
+        8
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:6, rot:0.41887902047863906, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 6,
+      "rot": 0.41887902047863906
+    },
+    {
+      "id": "pstar_5_3",
+      "format": "A8",
+      "width": 15,
+      "height": 16,
+      "bytes": 240,
+      "crop": [
+        152,
+        112,
+        15,
+        16
+      ],
+      "origin": [
+        8,
+        8
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:6, rot:0.6283185307179586, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 6,
+      "rot": 0.6283185307179586
+    },
+    {
+      "id": "pstar_5_4",
+      "format": "A8",
+      "width": 17,
+      "height": 17,
+      "bytes": 289,
+      "crop": [
+        151,
+        111,
+        17,
+        17
+      ],
+      "origin": [
+        9,
+        9
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:6, rot:0.8377580409572781, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 6,
+      "rot": 0.8377580409572781
+    },
+    {
+      "id": "pstar_5_5",
+      "format": "A8",
+      "width": 17,
+      "height": 17,
+      "bytes": 289,
+      "crop": [
+        152,
+        111,
+        17,
+        17
+      ],
+      "origin": [
+        8,
+        9
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:6, rot:1.0471975511965979, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 6,
+      "rot": 1.0471975511965979
+    },
+    {
+      "id": "pstar_6_0",
+      "format": "A8",
+      "width": 16,
+      "height": 18,
+      "bytes": 288,
+      "crop": [
+        152,
+        111,
+        16,
+        18
+      ],
+      "origin": [
+        8,
+        9
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:6.5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 6.5,
+      "rot": 0
+    },
+    {
+      "id": "pstar_6_1",
+      "format": "A8",
+      "width": 17,
+      "height": 18,
+      "bytes": 306,
+      "crop": [
+        152,
+        111,
+        17,
+        18
+      ],
+      "origin": [
+        8,
+        9
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:6.5, rot:0.20943951023931953, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 6.5,
+      "rot": 0.20943951023931953
+    },
+    {
+      "id": "pstar_6_2",
+      "format": "A8",
+      "width": 17,
+      "height": 18,
+      "bytes": 306,
+      "crop": [
+        151,
+        111,
+        17,
+        18
+      ],
+      "origin": [
+        9,
+        9
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:6.5, rot:0.41887902047863906, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 6.5,
+      "rot": 0.41887902047863906
+    },
+    {
+      "id": "pstar_6_3",
+      "format": "A8",
+      "width": 16,
+      "height": 18,
+      "bytes": 288,
+      "crop": [
+        152,
+        111,
+        16,
+        18
+      ],
+      "origin": [
+        8,
+        9
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:6.5, rot:0.6283185307179586, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 6.5,
+      "rot": 0.6283185307179586
+    },
+    {
+      "id": "pstar_6_4",
+      "format": "A8",
+      "width": 17,
+      "height": 18,
+      "bytes": 306,
+      "crop": [
+        151,
+        111,
+        17,
+        18
+      ],
+      "origin": [
+        9,
+        9
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:6.5, rot:0.8377580409572781, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 6.5,
+      "rot": 0.8377580409572781
+    },
+    {
+      "id": "pstar_6_5",
+      "format": "A8",
+      "width": 17,
+      "height": 18,
+      "bytes": 306,
+      "crop": [
+        152,
+        111,
+        17,
+        18
+      ],
+      "origin": [
+        8,
+        9
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'star', size:6.5, rot:1.0471975511965979, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() sparkle star",
+      "size": 6.5,
+      "rot": 1.0471975511965979
+    },
+    {
+      "id": "prect_0_0",
+      "format": "A8",
+      "width": 10,
+      "height": 8,
+      "bytes": 80,
+      "crop": [
+        155,
+        116,
+        10,
+        8
+      ],
+      "origin": [
+        5,
+        4
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:4.5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 4.5,
+      "rot": 0
+    },
+    {
+      "id": "prect_0_1",
+      "format": "A8",
+      "width": 10,
+      "height": 8,
+      "bytes": 80,
+      "crop": [
+        155,
+        116,
+        10,
+        8
+      ],
+      "origin": [
+        5,
+        4
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:4.5, rot:0.2617993877991494, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 4.5,
+      "rot": 0.2617993877991494
+    },
+    {
+      "id": "prect_0_2",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:4.5, rot:0.5235987755982988, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 4.5,
+      "rot": 0.5235987755982988
+    },
+    {
+      "id": "prect_0_3",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:4.5, rot:0.7853981633974483, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 4.5,
+      "rot": 0.7853981633974483
+    },
+    {
+      "id": "prect_0_4",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:4.5, rot:1.0471975511965976, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 4.5,
+      "rot": 1.0471975511965976
+    },
+    {
+      "id": "prect_0_5",
+      "format": "A8",
+      "width": 8,
+      "height": 10,
+      "bytes": 80,
+      "crop": [
+        156,
+        115,
+        8,
+        10
+      ],
+      "origin": [
+        4,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:4.5, rot:1.3089969389957472, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 4.5,
+      "rot": 1.3089969389957472
+    },
+    {
+      "id": "prect_0_6",
+      "format": "A8",
+      "width": 8,
+      "height": 10,
+      "bytes": 80,
+      "crop": [
+        156,
+        115,
+        8,
+        10
+      ],
+      "origin": [
+        4,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:4.5, rot:1.5707963267948966, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 4.5,
+      "rot": 1.5707963267948966
+    },
+    {
+      "id": "prect_0_7",
+      "format": "A8",
+      "width": 8,
+      "height": 10,
+      "bytes": 80,
+      "crop": [
+        156,
+        115,
+        8,
+        10
+      ],
+      "origin": [
+        4,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:4.5, rot:1.8325957145940461, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 4.5,
+      "rot": 1.8325957145940461
+    },
+    {
+      "id": "prect_0_8",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:4.5, rot:2.0943951023931953, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 4.5,
+      "rot": 2.0943951023931953
+    },
+    {
+      "id": "prect_0_9",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:4.5, rot:2.356194490192345, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 4.5,
+      "rot": 2.356194490192345
+    },
+    {
+      "id": "prect_0_10",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:4.5, rot:2.6179938779914944, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 4.5,
+      "rot": 2.6179938779914944
+    },
+    {
+      "id": "prect_0_11",
+      "format": "A8",
+      "width": 10,
+      "height": 8,
+      "bytes": 80,
+      "crop": [
+        155,
+        116,
+        10,
+        8
+      ],
+      "origin": [
+        5,
+        4
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:4.5, rot:2.8797932657906435, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 4.5,
+      "rot": 2.8797932657906435
+    },
+    {
+      "id": "prect_1_0",
+      "format": "A8",
+      "width": 10,
+      "height": 8,
+      "bytes": 80,
+      "crop": [
+        155,
+        116,
+        10,
+        8
+      ],
+      "origin": [
+        5,
+        4
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:5.5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 5.5,
+      "rot": 0
+    },
+    {
+      "id": "prect_1_1",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:5.5, rot:0.2617993877991494, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 5.5,
+      "rot": 0.2617993877991494
+    },
+    {
+      "id": "prect_1_2",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:5.5, rot:0.5235987755982988, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 5.5,
+      "rot": 0.5235987755982988
+    },
+    {
+      "id": "prect_1_3",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:5.5, rot:0.7853981633974483, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 5.5,
+      "rot": 0.7853981633974483
+    },
+    {
+      "id": "prect_1_4",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:5.5, rot:1.0471975511965976, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 5.5,
+      "rot": 1.0471975511965976
+    },
+    {
+      "id": "prect_1_5",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:5.5, rot:1.3089969389957472, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 5.5,
+      "rot": 1.3089969389957472
+    },
+    {
+      "id": "prect_1_6",
+      "format": "A8",
+      "width": 8,
+      "height": 10,
+      "bytes": 80,
+      "crop": [
+        156,
+        115,
+        8,
+        10
+      ],
+      "origin": [
+        4,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:5.5, rot:1.5707963267948966, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 5.5,
+      "rot": 1.5707963267948966
+    },
+    {
+      "id": "prect_1_7",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:5.5, rot:1.8325957145940461, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 5.5,
+      "rot": 1.8325957145940461
+    },
+    {
+      "id": "prect_1_8",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:5.5, rot:2.0943951023931953, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 5.5,
+      "rot": 2.0943951023931953
+    },
+    {
+      "id": "prect_1_9",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:5.5, rot:2.356194490192345, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 5.5,
+      "rot": 2.356194490192345
+    },
+    {
+      "id": "prect_1_10",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:5.5, rot:2.6179938779914944, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 5.5,
+      "rot": 2.6179938779914944
+    },
+    {
+      "id": "prect_1_11",
+      "format": "A8",
+      "width": 10,
+      "height": 10,
+      "bytes": 100,
+      "crop": [
+        155,
+        115,
+        10,
+        10
+      ],
+      "origin": [
+        5,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:5.5, rot:2.8797932657906435, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 5.5,
+      "rot": 2.8797932657906435
+    },
+    {
+      "id": "prect_2_0",
+      "format": "A8",
+      "width": 12,
+      "height": 8,
+      "bytes": 96,
+      "crop": [
+        154,
+        116,
+        12,
+        8
+      ],
+      "origin": [
+        6,
+        4
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:6.5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 6.5,
+      "rot": 0
+    },
+    {
+      "id": "prect_2_1",
+      "format": "A8",
+      "width": 12,
+      "height": 10,
+      "bytes": 120,
+      "crop": [
+        154,
+        115,
+        12,
+        10
+      ],
+      "origin": [
+        6,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:6.5, rot:0.2617993877991494, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 6.5,
+      "rot": 0.2617993877991494
+    },
+    {
+      "id": "prect_2_2",
+      "format": "A8",
+      "width": 12,
+      "height": 10,
+      "bytes": 120,
+      "crop": [
+        154,
+        115,
+        12,
+        10
+      ],
+      "origin": [
+        6,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:6.5, rot:0.5235987755982988, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 6.5,
+      "rot": 0.5235987755982988
+    },
+    {
+      "id": "prect_2_3",
+      "format": "A8",
+      "width": 12,
+      "height": 12,
+      "bytes": 144,
+      "crop": [
+        154,
+        114,
+        12,
+        12
+      ],
+      "origin": [
+        6,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:6.5, rot:0.7853981633974483, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 6.5,
+      "rot": 0.7853981633974483
+    },
+    {
+      "id": "prect_2_4",
+      "format": "A8",
+      "width": 10,
+      "height": 12,
+      "bytes": 120,
+      "crop": [
+        155,
+        114,
+        10,
+        12
+      ],
+      "origin": [
+        5,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:6.5, rot:1.0471975511965976, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 6.5,
+      "rot": 1.0471975511965976
+    },
+    {
+      "id": "prect_2_5",
+      "format": "A8",
+      "width": 10,
+      "height": 12,
+      "bytes": 120,
+      "crop": [
+        155,
+        114,
+        10,
+        12
+      ],
+      "origin": [
+        5,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:6.5, rot:1.3089969389957472, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 6.5,
+      "rot": 1.3089969389957472
+    },
+    {
+      "id": "prect_2_6",
+      "format": "A8",
+      "width": 8,
+      "height": 12,
+      "bytes": 96,
+      "crop": [
+        156,
+        114,
+        8,
+        12
+      ],
+      "origin": [
+        4,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:6.5, rot:1.5707963267948966, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 6.5,
+      "rot": 1.5707963267948966
+    },
+    {
+      "id": "prect_2_7",
+      "format": "A8",
+      "width": 10,
+      "height": 12,
+      "bytes": 120,
+      "crop": [
+        155,
+        114,
+        10,
+        12
+      ],
+      "origin": [
+        5,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:6.5, rot:1.8325957145940461, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 6.5,
+      "rot": 1.8325957145940461
+    },
+    {
+      "id": "prect_2_8",
+      "format": "A8",
+      "width": 10,
+      "height": 12,
+      "bytes": 120,
+      "crop": [
+        155,
+        114,
+        10,
+        12
+      ],
+      "origin": [
+        5,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:6.5, rot:2.0943951023931953, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 6.5,
+      "rot": 2.0943951023931953
+    },
+    {
+      "id": "prect_2_9",
+      "format": "A8",
+      "width": 12,
+      "height": 12,
+      "bytes": 144,
+      "crop": [
+        154,
+        114,
+        12,
+        12
+      ],
+      "origin": [
+        6,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:6.5, rot:2.356194490192345, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 6.5,
+      "rot": 2.356194490192345
+    },
+    {
+      "id": "prect_2_10",
+      "format": "A8",
+      "width": 12,
+      "height": 10,
+      "bytes": 120,
+      "crop": [
+        154,
+        115,
+        12,
+        10
+      ],
+      "origin": [
+        6,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:6.5, rot:2.6179938779914944, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 6.5,
+      "rot": 2.6179938779914944
+    },
+    {
+      "id": "prect_2_11",
+      "format": "A8",
+      "width": 12,
+      "height": 10,
+      "bytes": 120,
+      "crop": [
+        154,
+        115,
+        12,
+        10
+      ],
+      "origin": [
+        6,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:6.5, rot:2.8797932657906435, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 6.5,
+      "rot": 2.8797932657906435
+    },
+    {
+      "id": "prect_3_0",
+      "format": "A8",
+      "width": 12,
+      "height": 8,
+      "bytes": 96,
+      "crop": [
+        154,
+        116,
+        12,
+        8
+      ],
+      "origin": [
+        6,
+        4
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:7.5, rot:0, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 7.5,
+      "rot": 0
+    },
+    {
+      "id": "prect_3_1",
+      "format": "A8",
+      "width": 14,
+      "height": 10,
+      "bytes": 140,
+      "crop": [
+        153,
+        115,
+        14,
+        10
+      ],
+      "origin": [
+        7,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:7.5, rot:0.2617993877991494, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 7.5,
+      "rot": 0.2617993877991494
+    },
+    {
+      "id": "prect_3_2",
+      "format": "A8",
+      "width": 14,
+      "height": 12,
+      "bytes": 168,
+      "crop": [
+        153,
+        114,
+        14,
+        12
+      ],
+      "origin": [
+        7,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:7.5, rot:0.5235987755982988, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 7.5,
+      "rot": 0.5235987755982988
+    },
+    {
+      "id": "prect_3_3",
+      "format": "A8",
+      "width": 14,
+      "height": 14,
+      "bytes": 196,
+      "crop": [
+        153,
+        113,
+        14,
+        14
+      ],
+      "origin": [
+        7,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:7.5, rot:0.7853981633974483, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 7.5,
+      "rot": 0.7853981633974483
+    },
+    {
+      "id": "prect_3_4",
+      "format": "A8",
+      "width": 12,
+      "height": 14,
+      "bytes": 168,
+      "crop": [
+        154,
+        113,
+        12,
+        14
+      ],
+      "origin": [
+        6,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:7.5, rot:1.0471975511965976, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 7.5,
+      "rot": 1.0471975511965976
+    },
+    {
+      "id": "prect_3_5",
+      "format": "A8",
+      "width": 10,
+      "height": 14,
+      "bytes": 140,
+      "crop": [
+        155,
+        113,
+        10,
+        14
+      ],
+      "origin": [
+        5,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:7.5, rot:1.3089969389957472, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 7.5,
+      "rot": 1.3089969389957472
+    },
+    {
+      "id": "prect_3_6",
+      "format": "A8",
+      "width": 8,
+      "height": 12,
+      "bytes": 96,
+      "crop": [
+        156,
+        114,
+        8,
+        12
+      ],
+      "origin": [
+        4,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:7.5, rot:1.5707963267948966, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 7.5,
+      "rot": 1.5707963267948966
+    },
+    {
+      "id": "prect_3_7",
+      "format": "A8",
+      "width": 10,
+      "height": 14,
+      "bytes": 140,
+      "crop": [
+        155,
+        113,
+        10,
+        14
+      ],
+      "origin": [
+        5,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:7.5, rot:1.8325957145940461, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 7.5,
+      "rot": 1.8325957145940461
+    },
+    {
+      "id": "prect_3_8",
+      "format": "A8",
+      "width": 12,
+      "height": 14,
+      "bytes": 168,
+      "crop": [
+        154,
+        113,
+        12,
+        14
+      ],
+      "origin": [
+        6,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:7.5, rot:2.0943951023931953, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 7.5,
+      "rot": 2.0943951023931953
+    },
+    {
+      "id": "prect_3_9",
+      "format": "A8",
+      "width": 14,
+      "height": 14,
+      "bytes": 196,
+      "crop": [
+        153,
+        113,
+        14,
+        14
+      ],
+      "origin": [
+        7,
+        7
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:7.5, rot:2.356194490192345, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 7.5,
+      "rot": 2.356194490192345
+    },
+    {
+      "id": "prect_3_10",
+      "format": "A8",
+      "width": 14,
+      "height": 12,
+      "bytes": 168,
+      "crop": [
+        153,
+        114,
+        14,
+        12
+      ],
+      "origin": [
+        7,
+        6
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:7.5, rot:2.6179938779914944, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 7.5,
+      "rot": 2.6179938779914944
+    },
+    {
+      "id": "prect_3_11",
+      "format": "A8",
+      "width": 14,
+      "height": 10,
+      "bytes": 140,
+      "crop": [
+        153,
+        115,
+        14,
+        10
+      ],
+      "origin": [
+        7,
+        5
+      ],
+      "call": "decor = []; rings = []; parts = [{x:160, y:120, shape:'rect', size:7.5, rot:2.8797932657906435, life:1, max:1, color:'#FFFFFF', add:false}]; drawFx()",
+      "layer_filter": null,
+      "source": "drawFx() confetti rect",
+      "size": 7.5,
+      "rot": 2.8797932657906435
+    }
+  ]
+}

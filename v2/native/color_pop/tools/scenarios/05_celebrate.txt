@@ -1,0 +1,6 @@
+# Pop the target: sparkles, confetti, rings, happy badge
+step 8
+tap 160 120
+step 150
+target
+step 14

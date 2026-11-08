@@ -1,0 +1,5 @@
+# Tap to start, intro, first round fully risen
+step 8
+tap 160 120
+step 80
+step 70

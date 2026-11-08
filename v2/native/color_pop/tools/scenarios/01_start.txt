@@ -1,0 +1,2 @@
+# Start screen: idle crab, waves, play button
+step 40

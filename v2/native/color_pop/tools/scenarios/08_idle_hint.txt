@@ -1,0 +1,5 @@
+# No input for 7 s: idle visual hint
+step 8
+tap 160 120
+step 80
+step 450

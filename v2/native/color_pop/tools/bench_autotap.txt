@@ -1,0 +1,173 @@
+# Device-bench equivalent: start, then tap a floating target every ~0.7 s for 60 s.
+step 96
+tap 160 120
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?
+step 45
+target?

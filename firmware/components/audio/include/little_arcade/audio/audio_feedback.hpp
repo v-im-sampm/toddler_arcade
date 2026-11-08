@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "little_arcade/audio/external_score.hpp"
 #include "little_arcade/audio/hatch_a_pet_score.hpp"
 #include "little_arcade/audio/sampler.hpp"
 #include "little_arcade/audio/synth.hpp"
@@ -39,6 +40,10 @@ class AudioFeedback final : public IFeedback {
   // Optional Sound Jar sampler, mixed before the limiter. Attach before the
   // audio task starts; it is then owned by the audio task.
   void attach_sampler(Sampler* sampler) { sampler_ = sampler; }
+  // Optional game-owned score (e.g. a native v2 game), mixed before the
+  // limiter. Attach before the audio task starts. Null (the default) changes
+  // nothing for existing games.
+  void attach_score(ExternalScore* score) { score_ = score; }
 
   // ---- audio task ----
   // Fills out[0..n) with limited mono PCM at kSampleRateHz.
@@ -80,6 +85,7 @@ class AudioFeedback final : public IFeedback {
   Synth synth_;
   HatchAPetScore hatch_;     // Hatch-a-Pet's reference score (Web Audio port)
   Sampler* sampler_ = nullptr;
+  ExternalScore* score_ = nullptr;
   VolumeLimiter limiter_;
   int32_t mix_[kChunk];
   int16_t sampler_out_[kChunk];

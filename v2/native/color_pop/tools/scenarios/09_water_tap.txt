@@ -1,0 +1,6 @@
+# Tap empty water: ripple + decor, never a penalty
+step 8
+tap 160 120
+step 150
+tap 300 225
+step 10

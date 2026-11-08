@@ -32,3 +32,4 @@ target_compile_definitions(lvgl PUBLIC SDL_MAIN_HANDLED)
 
 enable_testing()
 add_subdirectory(bubble_aquarium)
+add_subdirectory(color_pop)

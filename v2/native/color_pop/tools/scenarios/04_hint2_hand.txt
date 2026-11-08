@@ -1,0 +1,8 @@
+# Two wrong taps: auto-help, enlarged target, helper hand
+step 8
+tap 160 120
+step 150
+wrong
+step 120
+wrong
+step 50

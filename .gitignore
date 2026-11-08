@@ -13,6 +13,13 @@ v2/native/bubble_aquarium/device/build/
 v2/native/bubble_aquarium/device/managed_components/
 v2/native/bubble_aquarium/device/sdkconfig
 v2/native/bubble_aquarium/device/sdkconfig.old
+v2/native/color_pop/assets/generated/
+v2/native/color_pop/device/build/
+v2/native/color_pop/device/build-bench/
+v2/native/color_pop/device/managed_components/
+v2/native/color_pop/device/sdkconfig
+v2/native/color_pop/device/sdkconfig.old
+v2/native/color_pop/device/main/pack_signature.hpp
 .venv/
 tools/quality_bar_golden/node_modules/
 tools/quality_bar_golden/out/

@@ -1,0 +1,7 @@
+# Reduced motion: fewer particles, no rising decor
+reduced 1
+step 8
+tap 160 120
+step 150
+target
+step 14
