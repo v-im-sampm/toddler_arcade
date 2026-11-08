@@ -72,19 +72,11 @@ Slot positions are jittered by ±6 units per round (seeded) so the layout feels 
 Device: bubbles are baked sprites (base + highlight overlay). Squash and float are runtime scale and
 translate. Pinch is a baked sprite sheet at 12–15 fps. The background is a static cached layer.
 
-**As built (owner direction, 2026):** the game logic is an exact port of
-[`quality_bar.html`](../reference/quality_bar.html), with the same timings, motion and seeded randomness.
-Drawing and sound run on the vendored PixelRoot32 engine, and pixel parity with the reference was
-dropped in that move:
-- runtime: `firmware/components/games/color_pop/pr32/`. The engine owns the frame loop, drawing
-  (baked 4bpp sprites from `tools/gen_color_pop_sprites.py` plus engine primitives), touch events
-  and audio;
-- score: `pr32/color_pop_audio.cpp`, the reference's cue table played on the PixelRoot32 APU;
-- engine: `firmware/components/pixelroot32/` (see `VENDORED.md`);
-- verification: the `color_pop_test` (logic) and `color_pop_pr32_test` (render, touch, APU) host tests;
-- device evidence: `firmware/README.md`.
-
-Where this section and the reference disagree on game behaviour, the reference wins.
+The former v1 implementation used a separate pixel engine and its code has
+been removed. This v2 design and [`quality_bar.html`](../reference/quality_bar.html)
+define the target experience; the v2 runtime, renderer, and audio stack remain
+open pending the approved platform decisions. Where this section and the
+reference disagree on game behavior, the reference wins.
 
 ## 5. Audio
 - Identity: C major pentatonic, 104 BPM. Marimba + bubble plinks + shaker. Bed = waves. Layers rise

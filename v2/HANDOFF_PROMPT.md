@@ -7,18 +7,21 @@ short, joyful games for a ~3-year-old. It ships from **one codebase** to:
 2. the web as an installable offline PWA,
 3. phones (Android and iOS).
 
-v1 is a working proof-of-concept in this repository: ESP-IDF 5.5 + LVGL 9.5, twelve games, host
-tests, and an SDL simulator. v2 must be **dramatically higher quality** in audio, visuals and
-animation. It must also be a **platform** where a new game takes days, not weeks.
+The v1 implementation has been removed; its measured device evidence and lessons are summarized in
+`v2/docs/01_v1_baseline.md`. The repository retains shared board, audio, settings, and core support
+used by the current v2 Bubble Aquarium device build. v2 must be **dramatically higher quality** in
+audio, visuals and animation, and must become a **platform** where a new game takes days, not weeks.
 
 ## Your inputs
-- `v2/` is your brief. Read `v2/README.md`, then every file in the reading order it lists.
-- The v1 repo root is a reference implementation. Pay most attention to `config/board_pins.json`
-  (hardware truth), `firmware/components/*` (proven logic and DSP), `docs/prd/*.md` and
-  `firmware/components/games/*/README.md` (behaviour details).
+- `v2/` is the active brief. Read `v2/README.md`, then every file in the reading order it lists.
+- `config/board_pins.json` is the hardware source of truth. Use `v2/docs/01_v1_baseline.md` for
+  historical measurements and lessons, and `v2/games/*.md` for game behavior and acceptance.
+- The isolated Bubble Aquarium host/device port is under `v2/native/bubble_aquarium/`; it is not a
+  mandate to reuse its renderer or settle the v2 platform architecture.
 
 ## Your process (do not skip or reorder)
-**Phase 0, decide with evidence.** Execute `v2/docs/03_market_survey_brief.md`:
+**Phase 0, decide with evidence.** Execute `v2/docs/03_market_survey_brief.md` before expanding
+shared engine code beyond the isolated Bubble Aquarium port:
 - Survey current options for the runtime/language, renderer, animation toolchain, audio engine,
   offline voice per platform, scripting/extensibility, and phone/web packaging.
 - Cite primary sources (official docs, repos, licences, release notes) with access dates. Prefer the
@@ -46,8 +49,8 @@ animation. It must also be a **platform** where a new game takes days, not weeks
   recognition text.
 - Every claim of "works on device" needs device evidence: logs, measurements, and a photo or video
   from the owner.
-- Build containers with WSL containers (`wslc`), never Docker. Respect the existing
-  `tools/idf_wslc_build.ps1` approach or its documented v2 successor.
+- Build containers with WSL containers (`wslc`), never Docker. The current v2 device build entry
+  point is `v2/native/bubble_aquarium/device/build.ps1`.
 
 ## Definition of success
 - On device, a toddler-visible animation is smooth: ≥ 30 FPS for the animated region, with p95

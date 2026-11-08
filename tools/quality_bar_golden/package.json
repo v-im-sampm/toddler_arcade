@@ -1,1 +1,1 @@
-{"name":"quality-bar-golden","private":true,"type":"module","description":"Renders v2/reference/quality_bar.html deterministically in Edge and diffs it against the C++ port.","devDependencies":{"playwright-core":"^1.65.0"}}
+{"name":"quality-bar-golden","private":true,"type":"module","description":"Checks v2 reference sketches deterministically in Edge.","devDependencies":{"playwright-core":"^1.65.0"}}

@@ -1,4 +1,5 @@
 {
+  "_comment": "Archived v1 asset manifest; implementation source paths are historical. V2 game asset manifests follow v2/schemas/game.manifest.schema.json.",
   "version": 1,
   "assets": [
     {

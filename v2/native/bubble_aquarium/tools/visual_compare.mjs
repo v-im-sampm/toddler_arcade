@@ -8,9 +8,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..', '..', '..', '..');
 const require = createRequire(path.join(root, 'tools', 'quality_bar_golden', 'package.json'));
 const { chromium } = require('playwright-core');
-const exe = process.argv[2] || path.join(root, 'build-sim', 'bubble_aquarium_native', 'Release',
+const exe = process.argv[2] || path.join(root, 'build-v2-native', 'bubble_aquarium', 'Release',
                                         'bubble_aquarium_native.exe');
-const out = process.argv[3] || path.join(root, 'build-sim', 'bubble_aquarium_native', 'comparison');
+const out = process.argv[3] || path.join(root, 'build-v2-native', 'bubble_aquarium', 'comparison');
 fs.mkdirSync(out, { recursive: true });
 const nativeFile = path.join(out, 'native.bmp');
 console.log(execFileSync(exe, ['--check', '--seed', '1234', '--screenshot', nativeFile], { encoding: 'utf8' }).trim());

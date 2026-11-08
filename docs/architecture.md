@@ -1,4 +1,8 @@
-# Architecture and interfaces
+# Historical v1 architecture and interfaces
+
+This document describes the former v1 implementation, which has been removed.
+The active v2 architecture and contracts are in
+[`v2/docs/05_architecture.md`](../v2/docs/05_architecture.md).
 ## Stack
 ESP-IDF (version chosen in compatibility spike), C++17, LVGL (compatible version), ST7789 SPI display driver, NS2009 touch driver, ESP-IDF I2S standard driver, ESP-SR WakeNet/MultiNet if validated. FreeRTOS queues. Prefer ESP-IDF component manager with lockfile. No Arduino-only assumption.
 
@@ -9,11 +13,7 @@ ESP-IDF (version chosen in compatibility spike), C++17, LVGL (compatible version
 - `speech`: I2S RX, optional AFE/VAD, WakeNet/MultiNet, grammar, command events, confidence handling
 - `game_core`: game registry, scene lifecycle, deterministic RNG, event bus, idle timers
 - `games/*`: individual scenes, asset IDs and game logic
-- `pixelroot32`: vendored PixelRoot32 2D engine and APU (MIT, see its `VENDORED.md`).
-  - Used only by Color Pop, and only on the UI task.
-  - Draws into an RGB565 frame that LVGL displays as one image.
-  - Its APU is pulled by `audio` through the `ISceneAudio` hook.
-  - Game logic still uses `IGame` and intents.
+- The former Color Pop PixelRoot32 renderer/APU was removed with the v1 implementation.
 - `assets`: compressed images and speech/audio manifests; integrity checks
 - `settings`: parent gate, capped volume, speech on/off, calibration, no cloud
 

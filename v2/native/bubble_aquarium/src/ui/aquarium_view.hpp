@@ -1,6 +1,6 @@
 #pragma once
 #include "game/aquarium.hpp"
-#include "little_arcade/ui/argb_image.hpp"
+#include "ui/argb_image.hpp"
 #include "lvgl.h"
 #include <array>
 #include <memory>
@@ -14,7 +14,7 @@ public:
   void sync(const Game& game);
 private:
   struct Sprite {
-    std::shared_ptr<little_arcade::ui::ArgbImage> image;
+    std::shared_ptr<ArgbImage> image;
     int w, h;
   };
   void load(const std::string& name, int w, int h);

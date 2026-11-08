@@ -8,8 +8,8 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
   la_generate_animal_clips(${CMAKE_CURRENT_LIST_DIR}/../../../assets/audio/animal_sounds ${LA_ANIMAL_CLIPS_CPP})
 endif()
 
-# Volume limiter, synth, sound bank and AudioFeedback are platform-free and
-# host-tested; i2s_audio.cpp is the ESP-IDF I2S backend.
+# Volume limiter, synth, sound bank and AudioFeedback are platform-free;
+# i2s_audio.cpp is the ESP-IDF I2S backend.
 if(ESP_PLATFORM)
   idf_component_register(
     SRCS ${LA_AUDIO_SRCS} ${LA_ANIMAL_CLIPS_CPP} i2s_audio.cpp

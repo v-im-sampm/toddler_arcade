@@ -69,15 +69,15 @@ Templates map to v1 archetypes:
 | Budget | Asset pack sizes vs manifest budgets; code size per game (device build) | CI device build |
 | Device bench | Same replays on the board via a serial/USB command; logs FPS, frame-time histogram, particle count, heap/PSRAM minima, audio CPU | owner-run, evidence tier `esp32-device` |
 
-For the current ESP-IDF firmware, render every scene with the shared kit in
-`firmware/components/ui/include/little_arcade/ui/`. Capture and inspect scenes with
-the simulator:
+The only current native host/device game is the isolated Bubble Aquarium port. Its host build and
+offscreen LVGL check are documented in
+[`../native/bubble_aquarium/README.md`](../native/bubble_aquarium/README.md). This target is not a
+general v2 simulator, and its results do not validate other games or device performance:
 ```powershell
-build-sim\Release\little_arcade_sim.exe --snap --game <game_id> --shots build-sim\snapshots --seconds 3 --reenter
+cmake -S v2\native -B build-v2-native -G "Visual Studio 17 2022" -A x64
+cmake --build build-v2-native --config Release --target bubble_aquarium_native aquarium_game_test
+ctest --test-dir build-v2-native -C Release --output-on-failure
 ```
-The simulator emits a menu frame and timed game frames; add `--taps` and
-`--at` to capture a representative touch, hint or celebration. This is host-desktop evidence, not
-proof of panel color, frame rate or device memory.
 
 ## 5. Definition of done for a game
 - [ ] Manifest validates; capabilities minimal

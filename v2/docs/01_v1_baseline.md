@@ -1,24 +1,26 @@
 # 01: v1 baseline (what exists, what we learned)
 
-v1 is a **proof-of-concept that runs on the physical board**. Treat everything here as input, not
-as a constraint on v2's design, except the hardware facts in §3.
+v1 was a **proof-of-concept that ran on the physical board**. Its game, launcher, simulator, and
+PixelRoot32 source code have been removed; only shared device-support components still required by
+the isolated v2 Bubble Aquarium build remain. Treat everything here as historical input, not as a
+constraint on v2's design, except the hardware facts in §3.
 
 ## 1. Inventory
 | Area | v1 implementation | Location |
 |---|---|---|
 | Toolchain | ESP-IDF v5.5.6, C++17, LVGL 9.5.0, esp_lvgl_port 2.9.0, esp-sr 2.6.1 (resolved, **not called**) | `../firmware/README.md`, `../firmware/dependencies.lock` |
-| Build | ESP-IDF in a cached WSL container image (`wslc`); flash with pinned esptool from Windows | `../tools/idf_wslc_build.ps1`, `../tools/flash_firmware.ps1` |
-| Core contract | `IGame { enter, update(dt), handle(InputEvent), exit, active_contexts, on_pause/resume }`, `GameContext { rng, feedback, audio_enabled, voice_enabled }` | `../firmware/components/core/include/little_arcade/game.hpp` |
-| Shell | `SceneManager`: launcher with 4 tiles/page, Home/BACK, pause, 80 ms debounce, 10 min sleep, voice context filter | `.../core/scene_manager.hpp` |
-| Input | `InputEvent { source, intent, x, y, timestamp }`. Touch is **press-edge only**: no move/release phases, so drag is impossible | `.../core/input.hpp` |
+| Build | Historical v1 image used ESP-IDF in a cached WSL container image (`wslc`) and pinned esptool; the launcher build scripts were removed | Current isolated v2 build: `../native/bubble_aquarium/device/` |
+| Core contract | Historical `IGame`/`GameContext` contract; source removed | Former v1 core component |
+| Shell | Historical `SceneManager`: launcher with 4 tiles/page, Home/BACK, pause, 80 ms debounce, 10 min sleep, voice context filter; source removed | Former v1 core component |
+| Input | Historical `InputEvent { source, intent, x, y, timestamp }`; touch was **press-edge only**, so drag was impossible; source removed | Former v1 core component |
 | Audio | 16 kHz mono; a 4-voice procedural `Synth` (sine/triangle/pulse/noise, glides, envelopes, PCM clips); per-game `sound_bank`; a 2-voice `Sampler` (pitch, reverse, echo, ring-mod, vibrato); a `VolumeLimiter` (muted start, levels 0–6 at 4 dB steps, look-ahead limiter, amp-safe ceiling from board JSON) | `../firmware/components/audio/` |
-| Visuals | LVGL objects + procedural "paint" into ARGB8888/A8 rasters, header-only art per game; one LVGL layer per scene; 128 KB LVGL pool | `../firmware/components/ui/`, `.../games/*/view/` |
-| Voice | Policy only: `PushToTalkSession` (4 s silence / 8 s max) and `VoiceIntentFilter` (confidence, context, 750 ms dedupe, playback cooldown). ESP-SR is not integrated; the `srmodels.bin` is empty | `../firmware/components/speech/`, `../docs/voice.md` |
+| Visuals | Historical LVGL views and procedural raster art; source removed | Former v1 UI and game view components |
+| Voice | Historical policy-only `PushToTalkSession` and `VoiceIntentFilter`; ESP-SR was not integrated; source removed | Former v1 speech component; see `../../docs/voice.md` for the retained v1 policy notes |
 | Intents | `config/commands.json` (28 intents, aliases, contexts) → generated `intent.hpp` | `../config/commands.json`, `../tools/gen_firmware_headers.py` |
 | Settings | Hidden parent gate (hold Mic corner 5 s + sum challenge), volume 0–6, mic toggle, persisted in NVS | `../firmware/components/settings/` |
-| Simulator | SDL2 desktop sim using the real game logic and LVGL views; PC audio and mic; keyboard → intents; `--bench` headless deterministic runs with screenshots | `../firmware/sim/` |
-| Tests | Host CTest suites per component and game (≈17 suites), MSVC + container GCC | `../firmware/host_test/`, `.../games/*/test/` |
-| Mockups | Static + clickable HTML canvas mockups per game | `../docs/mockups/*.html` |
+| Simulator | Historical SDL2 desktop sim; source removed | Former v1 simulator |
+| Tests | Historical v1 component/game test suites; source removed. Current Bubble Aquarium host tests live with its v2 source | `../native/bubble_aquarium/test/` |
+| Mockups | Historical root mockups removed; the v2 sketches remain available | `../reference/` |
 | Hardware | Yellow carry-handle OpenSCAD enclosure, STEP exports, fit-check PDF | `../hardware/enclosures/` |
 
 ### Games (12 designed, 9 in the shell)
@@ -47,7 +49,7 @@ Detailed per-game facts are in each v2 game doc (`../games/*.md`, "v1 baseline" 
 | PSRAM free | 8,385,768 B | Before game content. PSRAM was essentially unused by v1 |
 | UI task stack | 11.7 KB free | |
 | Color Pop render + flush | avg 17.3 ms, max 42.1 ms, ≈ 4.9 K px per redraw | 10 s session, partial redraws |
-| SPI | 27 MHz in v1; 40 MHz validated on one board for v2 Color Pop (see `firmware/README.md`), BGR, inverted, landscape via swap+mirror | |
+| SPI | 27 MHz in v1; 40 MHz used by the v2 Bubble Aquarium device build (see `../native/bubble_aquarium/device/README.md`); BGR, inverted, landscape via swap+mirror | |
 | Audio | Full-duplex I2S0 at 16 kHz; game cue peak ≈ −18.6 dBFS at level 4; no brownout | Owner confirms audible. SPL, current and pop are **unmeasured** |
 
 **Derived constraint (important for v2):** a full 320×240 RGB565 frame is 153,600 B. At 27 MHz SPI

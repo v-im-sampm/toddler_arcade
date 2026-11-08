@@ -1,10 +1,9 @@
 # Bubble Aquarium native desktop (LVGL 9 + SDL2)
 
 This is a **Windows desktop application**, not firmware, web rendering, or
-hardware validation. It uses the repository's existing [firmware/sim CMake
-project](../../../firmware/sim/README.md) with pinned LVGL **v9.5.0** and
-SDL2 **2.32.10** (CMake download hashes are specified there). It reuses the
-shared LVGL image rasterizer, while all v2 gameplay lives in
+hardware validation. It builds from the v2 native CMake project with pinned
+LVGL **v9.5.0** and SDL2 **2.32.10** (CMake download hashes are specified in
+[`../CMakeLists.txt`](../CMakeLists.txt)). All v2 gameplay lives in
 `src/game/` without SDL, LVGL, or ESP-IDF dependencies. `src/ui/` loads
 the original Canvas artwork exported as PNG plus native BGRA8888 image data
 and presents it with LVGL 9 image objects and frame selection;
@@ -15,9 +14,9 @@ From the repository root in **PowerShell** with Visual Studio 2022 C++ tools:
 
 ```powershell
 npm ci --prefix tools\quality_bar_golden
-cmake -S firmware\sim -B build-sim -G "Visual Studio 17 2022" -A x64
-cmake --build build-sim --config Release --target bubble_aquarium_native aquarium_game_test
-.\build-sim\bubble_aquarium_native\Release\bubble_aquarium_native.exe --zoom 2
+cmake -S v2\native -B build-v2-native -G "Visual Studio 17 2022" -A x64
+cmake --build build-v2-native --config Release --target bubble_aquarium_native aquarium_game_test
+.\build-v2-native\bubble_aquarium\Release\bubble_aquarium_native.exe --zoom 2
 ```
 
 Node.js and Microsoft Edge are required **at build time only** to export the
@@ -36,8 +35,8 @@ disabled as in the browser sketch.
 Host tests and an offscreen LVGL screenshot (no display necessary):
 
 ```powershell
-.\build-sim\bubble_aquarium_native\Release\aquarium_game_test.exe
-.\build-sim\bubble_aquarium_native\Release\bubble_aquarium_native.exe --check --screenshot .\build-sim\bubble_aquarium_native\aquarium_lvgl.bmp
+.\build-v2-native\bubble_aquarium\Release\aquarium_game_test.exe
+.\build-v2-native\bubble_aquarium\Release\bubble_aquarium_native.exe --check --screenshot .\build-v2-native\bubble_aquarium\aquarium_lvgl.bmp
 ```
 
 The second command verifies an intro, touch-fed meal, bubble burst and bedtime
@@ -67,7 +66,7 @@ node v2\native\bubble_aquarium\tools\visual_compare.mjs
 
 The visual script drives an equivalent seeded intro/feed/bubbles/bedtime
 scenario in the browser and the LVGL exe, writes side-by-side previews and a
-JSON diff to `build-sim\bubble_aquarium_native\comparison\`, and fails above
+JSON diff to `build-v2-native\bubble_aquarium\comparison\`, and fails above
 14 mean RGB absolute error or 18% pixels differing by more than 32. The
 current host result is 9.9 / 11.78% after RGB565 quantization. The original
 procedural fish geometry, gradients, facial expressions and coral are
@@ -84,5 +83,5 @@ from flash, not preload all frames into PSRAM.
 
 Acceptance evidence: host assertions cover seeded replay, food/bubble caps,
 three-meal visitor, bedtime, reset; the offscreen check covers LVGL rendering.
-Rollback is removing the `add_subdirectory` line in `firmware/sim/CMakeLists.txt`
-and this isolated directory; no existing firmware game logic was changed.
+Rollback is removing the Bubble Aquarium subdirectory from
+[`../CMakeLists.txt`](../CMakeLists.txt) and this isolated directory.

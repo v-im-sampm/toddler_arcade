@@ -1,7 +1,8 @@
 # Little Arcade v2: handoff package
 
-This folder is a self-contained brief for an LLM (or a team) building **Little Arcade v2**. v2 is an
-offline toddler arcade with high-quality audio, visuals and animation. It runs from one codebase on:
+This folder is the active specification and native-game workspace for **Little Arcade v2**. v2 is an
+offline toddler arcade with high-quality audio, visuals and animation. It is intended to run from one
+codebase on:
 
 | Target | Role |
 |---|---|
@@ -9,16 +10,18 @@ offline toddler arcade with high-quality audio, visuals and animation. It runs f
 | **Web** (offline-capable PWA) | Fastest authoring loop, demos, and a parent "try it" target. |
 | **Phone** (Android + iOS) | Installed kids app, built from the web or native build. |
 
-The v1 proof-of-concept is in the parent repository (`../firmware`, `../docs`, `../games`). Read
-it as a **reference**. Its behaviour, safety rules and measured hardware facts carry forward. Its code
-structure does not have to.
+The former v1 implementation has been removed. Historical behavior, safety lessons, and measured
+hardware facts that carry forward are summarized in [`docs/01_v1_baseline.md`](docs/01_v1_baseline.md);
+the underlying hardware configuration and evidence remain in the repository's `config/` and
+`docs/hardware.md`. Shared board, audio, settings, and core components remain only where the current
+v2 device build depends on them.
 
 ## How to use this package
-1. Give the LLM **this whole `v2/` folder plus read access to the v1 repo**.
+1. Give the LLM this whole `v2/` folder and the repository's `config/` directory.
 2. Paste [`HANDOFF_PROMPT.md`](HANDOFF_PROMPT.md) as the first instruction.
-3. The LLM must complete **Phase 0, the market survey** ([`docs/03_market_survey_brief.md`](docs/03_market_survey_brief.md)).
-   Its output is Architecture Decision Records in [`decisions/`](decisions/). The survey runs before
-   any engine code is written, and it includes on-device spikes.
+3. Complete **Phase 0, the market survey** ([`docs/03_market_survey_brief.md`](docs/03_market_survey_brief.md)).
+   Its output is Architecture Decision Records in [`decisions/`](decisions/). Approve the survey and
+   on-device spikes before expanding shared engine code beyond the isolated Bubble Aquarium port.
 4. After you approve the ADRs, implementation follows [`docs/12_roadmap_backlog.md`](docs/12_roadmap_backlog.md).
 
 ## Reading order
@@ -58,6 +61,8 @@ structure does not have to.
 - Child safety and privacy rules from v1 still apply in full, and they now extend to web and phone.
 
 ## Status of this package
-These are documents and assets only. No v2 code exists yet. Every external fact about third-party
-libraries in these docs is a **lead to verify**, not a verified claim. The survey must confirm
-current versions, licences and performance with citations.
+The native Bubble Aquarium implementation under [`native/bubble_aquarium/`](native/bubble_aquarium/)
+is an isolated game port and host/device spike, not a selected general-purpose v2 engine or
+cross-platform runtime. The other v2 games remain specifications. Every external fact about
+third-party libraries in these docs is a **lead to verify**, not a verified claim. The survey must
+confirm current versions, licences and performance with citations.

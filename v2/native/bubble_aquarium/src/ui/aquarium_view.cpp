@@ -63,7 +63,7 @@ void View::load(const std::string& name, int w, int h) {
 #else
       name;
 #endif
-  auto img = std::make_shared<little_arcade::ui::ArgbImage>();
+  auto img = std::make_shared<ArgbImage>();
   if (!img->allocate(w, h)) fail("Cannot allocate sprite " + name);
 #ifdef ESP_PLATFORM
   if (heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) < static_cast<size_t>(w) * h * 4)
@@ -74,16 +74,15 @@ void View::load(const std::string& name, int w, int h) {
   if (!entry || entry->width != w || entry->height != h ||
       entry->offset + static_cast<uint32_t>(w * h * 4) > sprite_partition->size)
     fail("Invalid device sprite entry: " + canonical);
-  if (esp_partition_read(sprite_partition, entry->offset, img->canvas().px,
+  if (esp_partition_read(sprite_partition, entry->offset, img->pixels(),
                          static_cast<size_t>(w) * h * 4) != ESP_OK)
     fail("Device sprite read failed: " + canonical);
 #else
   const std::string file = directory_ + "/" + name + ".bgra";
   FILE* f = std::fopen(file.c_str(), "rb");
   if (!f) fail("Cannot open sprite " + file);
-  auto canvas = img->canvas();
   const std::size_t count = static_cast<std::size_t>(w) * h * 4;
-  const bool valid = std::fread(canvas.px, 1, count, f) == count && std::fgetc(f) == EOF;
+  const bool valid = std::fread(img->pixels(), 1, count, f) == count && std::fgetc(f) == EOF;
   std::fclose(f);
   if (!valid) fail("Sprite length mismatch: " + file);
 #endif

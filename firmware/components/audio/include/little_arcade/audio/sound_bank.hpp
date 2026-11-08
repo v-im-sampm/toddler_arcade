@@ -17,7 +17,7 @@ namespace little_arcade::audio {
 // palette use the shared defaults. An empty() Sound means silence.
 Sound sound_for(uint8_t scene, Cue cue, uint8_t variant);
 
-// Played when the SceneManager moves between the launcher and a game.
+// Played when the active scene changes.
 Sound scene_change_sound(uint8_t from_scene, uint8_t to_scene);
 
 // Longest sound the bank may return; used by tests and the mixer budget.

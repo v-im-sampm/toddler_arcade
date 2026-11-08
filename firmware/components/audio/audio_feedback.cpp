@@ -1,7 +1,7 @@
 #include "little_arcade/audio/audio_feedback.hpp"
 
 #include "little_arcade/audio/sound_bank.hpp"
-#include "little_arcade/scene_manager.hpp"
+#include "little_arcade/game_id.hpp"
 
 namespace little_arcade::audio {
 namespace {
@@ -37,7 +37,6 @@ void AudioFeedback::set_scene(uint8_t scene) {
 void AudioFeedback::apply(const Event& e) {
   Sound sound;
   if (e.kind == kKindScene) {
-    if (scene_audio_ && e.b != scene_audio_id_) scene_audio_->stop();
     if (e.b != kHatch) hatch_.stop();
     sound = scene_change_sound(e.a, e.b);
   } else {
@@ -48,10 +47,6 @@ void AudioFeedback::apply(const Event& e) {
     }
     last_ = e;
     last_at_ = samples_;
-    if (scene_audio_ && e.scene == scene_audio_id_ && scene_audio_->cue(static_cast<Cue>(e.a), e.b)) {
-      played_.fetch_add(1, std::memory_order_relaxed);
-      return;
-    }
     if (e.scene == kHatch && hatch_.cue(static_cast<Cue>(e.a), e.b)) {
       played_.fetch_add(1, std::memory_order_relaxed);
       return;
@@ -88,7 +83,6 @@ void AudioFeedback::render(int16_t* out, std::size_t n) {
   while (done < n) {
     const std::size_t m = n - done < kChunk ? n - done : kChunk;
     synth_.render_mix(mix_, m);
-    if (scene_audio_) scene_audio_->render_add(mix_, m);
     hatch_.render_add(mix_, m);
     if (sampler_) {
       // The sampler adds into int16 and silences the block while recording.

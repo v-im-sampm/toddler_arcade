@@ -1,5 +1,5 @@
 {
-  "$comment": "Example tuning.json for Color Pop. Every gameplay number lives here (hot-reloadable in the web dev server), not in code. Values start from v1 behaviour (firmware/components/games/color_pop/README.md).",
+  "$comment": "Example tuning.json for Color Pop. Every gameplay number lives here (hot-reloadable in the web dev server), not in code. Values follow the v2 game design.",
   "intro_ms": 1200,
   "bubbles_start": 2,
   "bubbles_max": 4,

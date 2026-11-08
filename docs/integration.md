@@ -1,4 +1,9 @@
-# Integration, build and agent orchestration
+# Historical v1 integration notes
+
+The v1 launcher, simulator, and flash script described below have been removed.
+For the current isolated v2 Bubble Aquarium host/device build, see
+[`v2/native/bubble_aquarium/README.md`](../v2/native/bubble_aquarium/README.md)
+and [`v2/native/bubble_aquarium/device/README.md`](../v2/native/bubble_aquarium/device/README.md)., build and agent orchestration
 ## Sequence
 1. Hardware agent verifies board schematic, pins, display/touch, I2S and power.
 2. Platform agent pins ESP-IDF/LVGL versions, creates real `firmware/` ESP-IDF project, driver abstraction, launcher, assets and test harness.

@@ -3,7 +3,7 @@
 #include "esp_log.h"
 #include "nvs.h"
 #include "nvs_flash.h"
-#include "little_arcade/settings/parent_gate.hpp"
+#include "little_arcade/volume.hpp"
 
 namespace little_arcade::settings {
 namespace {
@@ -32,7 +32,7 @@ uint8_t load_volume_level() {
   uint8_t level = 0;
   if (nvs_get_u8(h, kVolumeKey, &level) != ESP_OK) level = 0;
   nvs_close(h);
-  return level > ParentGate::kMaxLevel ? ParentGate::kMaxLevel : level;
+  return level > VolumeLimiter::kMaxLevel ? VolumeLimiter::kMaxLevel : level;
 }
 
 bool save_volume_level(uint8_t level) {

@@ -5,7 +5,6 @@
 
 #include "little_arcade/audio/hatch_a_pet_score.hpp"
 #include "little_arcade/audio/sampler.hpp"
-#include "little_arcade/audio/scene_audio.hpp"
 #include "little_arcade/audio/synth.hpp"
 #include "little_arcade/feedback.hpp"
 #include "little_arcade/volume.hpp"
@@ -40,13 +39,6 @@ class AudioFeedback final : public IFeedback {
   // Optional Sound Jar sampler, mixed before the limiter. Attach before the
   // audio task starts; it is then owned by the audio task.
   void attach_sampler(Sampler* sampler) { sampler_ = sampler; }
-  // Optional scene-owned sound engine: cues of `scene` go to it first, and
-  // it is stopped when that scene is left. Attach before the audio task
-  // starts; it is then driven by the audio task. One scene at most.
-  void attach_scene_audio(uint8_t scene, ISceneAudio* audio) {
-    scene_audio_id_ = scene;
-    scene_audio_ = audio;
-  }
 
   // ---- audio task ----
   // Fills out[0..n) with limited mono PCM at kSampleRateHz.
@@ -87,8 +79,6 @@ class AudioFeedback final : public IFeedback {
   static constexpr std::size_t kChunk = VolumeLimiter::kChunk;
   Synth synth_;
   HatchAPetScore hatch_;     // Hatch-a-Pet's reference score (Web Audio port)
-  ISceneAudio* scene_audio_ = nullptr;  // e.g. Color Pop's PixelRoot32 APU score
-  uint8_t scene_audio_id_ = kSceneMenu;
   Sampler* sampler_ = nullptr;
   VolumeLimiter limiter_;
   int32_t mix_[kChunk];

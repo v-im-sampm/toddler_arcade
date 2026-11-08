@@ -5,7 +5,7 @@
 3. Keep `config/commands.json` the single source of truth for intents. Generate C++ mapping from it; don't duplicate string literals.
 4. Games must be touch-complete without voice, noncompetitive, forgiving, no punitive failure, no text reading required.
 5. No network dependencies at runtime; avoid telemetry, child voice storage, camera, cloud APIs, and persistent identifiers.
-6. Shared APIs defined in `docs/architecture.md`; each game owns its own source folder. No cross-game edits without review.
+6. Shared v2 APIs are defined in `v2/docs/05_architecture.md`; each game owns its own source folder. No cross-game edits without review.
 7. Every PR supplies build/test evidence, heap/PSRAM deltas where relevant, and rollback instructions.
 8. Never claim hardware validation from a desktop simulation. Tests must distinguish host, emulator, and physical device.
 9. Protect speaker output: conservative default gain, volume cap, no unexpected loud startup sounds.

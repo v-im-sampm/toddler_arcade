@@ -3,7 +3,7 @@
 
 namespace little_arcade {
 
-// Semantic sound/prompt requests from game logic. The audio layer (P03) maps
+// Semantic sound/prompt requests from game logic. The audio layer maps
 // (game, cue, variant) to a manifest asset. Every cue must also have a visual
 // counterpart in the scene, because audio may be disabled.
 enum class Cue : uint8_t {
@@ -24,9 +24,8 @@ class IFeedback {
 
   virtual ~IFeedback() = default;
   virtual void play(Cue cue, uint8_t variant) = 0;
-  // Which scene subsequent cues belong to (a GameId value or kSceneMenu), so
-  // the audio layer can pick that game's sound palette. Called by the
-  // SceneManager before a game's enter() and after its exit().
+  // Which scene subsequent cues belong to, so the audio layer can pick
+  // that scene's sound palette.
   virtual void set_scene(uint8_t scene) { (void)scene; }
 };
 

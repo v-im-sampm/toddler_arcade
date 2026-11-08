@@ -11,12 +11,11 @@
 **As built (owner direction, 2026):** the shipped Hatch-a-Pet is an exact port of
 [`hatch_a_pet.html`](../reference/hatch_a_pet.html). Its scene, egg, creatures, motion and Web Audio score are
 reproduced line by line, just like Color Pop:
-- model: `firmware/components/games/hatch_a_pet/hatch_a_pet.cpp`;
-- painter: `firmware/components/games/hatch_a_pet/view/hatch_a_pet_paint.cpp`, drawn with `ui/ctx2d`;
+- model and painter: historical v1 implementation sources, removed from the repository;
 - score: `firmware/components/audio/hatch_a_pet_score.cpp`;
-- verification: host behaviour/score tests and device perf/audio measurements. The golden harness
-  (`node golden.mjs hatch_a_pet`) passed 33/33 frames at port time. At the owner's request, frame-by-frame /
-  pixel-diff golden analysis is no longer a required check; the harness is kept as an optional tool.
+- verification: historical host behavior/score tests and device perf/audio measurements. The v1
+  golden-render harness was removed with the v1 implementation; v2 acceptance follows the criteria
+  in this document and the approved target-runtime reference comparison.
 
 Notable differences from the design below:
 - The shelf has 6 slots instead of 8, because the nest occupies the middle. When it is full, the oldest friend leaves.

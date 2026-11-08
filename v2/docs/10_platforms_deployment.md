@@ -5,11 +5,14 @@ each pipeline.
 
 ## 1. ESP32-S3 device
 - **Toolchain:** ESP-IDF (pin the newest stable release that the chosen stack and ESP-SR support;
-  v1 used v5.5.6) inside a **WSL container (`wslc`) image**, never Docker. Evolve
-  `tools/idf_wslc_build.ps1` (prepare/build/clean/rebuild, size reports, host tests).
-- **Flashing:** a Windows-host script with pinned esptool (v1 `tools/flash_firmware.ps1`). It writes
+  v1 used v5.5.6) inside a **WSL container (`wslc`) image**, never Docker. The current isolated
+  Bubble Aquarium build is `v2/native/bubble_aquarium/device/build.ps1`; evolve this entry point as
+  the v2 platform is selected. `tools/idf_wslc_build.ps1` prepares the image and invokes that build.
+- **Flashing:** a Windows-host script with pinned esptool (`v2/native/bubble_aquarium/device/flash.ps1`,
+  installed by `tools/install_flash_tools.ps1`). It writes
   the bootloader, partition table, app, model and asset partitions, and verifies hashes.
-- **Partitions (ADR-011):** start from v1 (4 MB factory app, 6 MB model, ≈ 5.9 MB assets). Re-size
+- **Partitions (ADR-011):** start from the retained device layout (4 MB factory app, 6 MB model,
+  ≈ 5.9 MB assets). Re-size
   from measured app, model and asset totals plus ≥ 10 % headroom.
   - OTA over Wi-Fi is **out of scope** (no network).
   - Optional updates come by USB flashing or a parent-provided SD card containing a signed asset/app

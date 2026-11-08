@@ -2,7 +2,7 @@
 
 #include "little_arcade/audio/animal_clips.hpp"
 
-#include "little_arcade/scene_manager.hpp"
+#include "little_arcade/game_id.hpp"
 
 namespace little_arcade::audio {
 namespace {

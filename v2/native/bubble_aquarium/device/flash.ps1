@@ -17,7 +17,10 @@ foreach ($file in $files) {
 }
 if ((Get-Item $files[2]).Length -gt 0x400000) { throw 'Firmware exceeds factory app partition' }
 if ((Get-Item $files[3]).Length -gt 0x5F0000) { throw 'Sprites exceed assets partition' }
-if (-not (Test-Path $Python)) { throw 'Project .venv missing; run tools/flash_firmware.ps1 to install pinned esptool' }
+if (-not (Test-Path $Python)) {
+  & pwsh "$Repo/tools/install_flash_tools.ps1"
+  if ($LASTEXITCODE -ne 0) { throw 'Failed to install pinned esptool' }
+}
 & $Python -m esptool --chip esp32s3 -p $Port -b $Baud --before default-reset --after hard-reset `
   write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m `
   0x0 $files[0] 0x8000 $files[1] 0x10000 $files[2] 0xA10000 $files[3]

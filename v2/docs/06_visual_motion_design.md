@@ -142,13 +142,11 @@ Each game documents its worst-case concurrent emitters and uses a hard cap; reac
 degrade gracefully (for example, skip the oldest cosmetic emission), never allocate in the frame
 path or delay input.
 
-### 4.5 Shared firmware visual kit
-For ESP-IDF/LVGL games, use the shared renderer primitives in
-`firmware/components/ui/include/little_arcade/ui/`: `tokens.hpp` for palette and motion values,
-`shade.hpp` for shaded original art, `motion.hpp` for bounded transforms, `particles.hpp` and
-`fx.hpp` for pooled effects, and `scene_art.hpp` for the shared world backdrops. A game may add
-game-specific art and reactions, but must not replace these with flat placeholder circles or a
-single solid-color screen.
+### 4.5 Shared visual kit
+The old v1 firmware visual helpers were removed. The v2 implementation must generate its shared
+renderer primitives from [`../design/tokens.json`](../design/tokens.json), then expose them through
+the Game SDK. Games may add game-specific art and reactions, but must not replace the shared kit
+with flat placeholder circles or a single solid-color screen.
 
 Every rendered scene must have a recognizable setting with at least two tonal layers, a focal
 character or object with a darker colored outline, highlight and shadow, and the same cream/ink
@@ -182,8 +180,8 @@ port replaced with a painted background cache.) Workflow (proven on Color Pop):
    envelopes, filters, compressor and master gain.
 4. **Optional golden diff:** `tools/quality_bar_golden` can compare scripted browser-reference and
    host-render frames when useful. It is a diagnostic aid, not a required frame-by-frame analysis
-   or ship gate. Open `out/report.html` for side-by-side inspection. Color Pop
-   no longer has a golden mode: it moved to PixelRoot32 sprites, which dropped pixel parity.
+   or ship gate. Open `out/report.html` for side-by-side inspection. Color Pop's v1 comparison was
+   discontinued; the v2 implementation should be compared against its approved reference sketch.
 5. **Owner review on the panel.** The owner reviews the game on real hardware and signs off the
    look, motion and sound; host screenshots and automated comparisons do not replace device review.
 

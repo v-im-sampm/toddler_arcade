@@ -5,7 +5,7 @@
 namespace little_arcade {
 
 // UI-task view of the one-slot sound sampler used by Sound Jar
-// (games/sound_jar.md). The implementation lives in the audio component and
+// (v2/games/sound_jar.md). The implementation lives in the audio component and
 // runs its DSP on the audio task; every call here only queues a command or
 // reads an atomic, so it never blocks.
 //

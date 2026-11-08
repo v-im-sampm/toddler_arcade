@@ -18,7 +18,7 @@ namespace little_arcade {
 // so the values are provisional digital ceilings, not acoustic guarantees.
 class VolumeLimiter {
  public:
-  // Same 0..6 scale as the parent menu (ParentGate::kMaxLevel).
+  // Parent-selected volume scale: 0 = mute, kMaxLevel = unity.
   static constexpr uint8_t kMaxLevel = 6;
   static constexpr uint8_t kDefaultParentCap = kMaxLevel;
   static constexpr int32_t kUnityQ15 = 32768;

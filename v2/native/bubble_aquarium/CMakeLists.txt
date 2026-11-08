@@ -2,6 +2,11 @@ add_library(aquarium_game STATIC src/game/aquarium.cpp)
 target_include_directories(aquarium_game PUBLIC ${CMAKE_CURRENT_LIST_DIR}/src)
 target_compile_features(aquarium_game PUBLIC cxx_std_17)
 
+add_library(aquarium_image STATIC src/ui/argb_image.cpp)
+target_include_directories(aquarium_image PUBLIC ${CMAKE_CURRENT_LIST_DIR}/src)
+target_link_libraries(aquarium_image PUBLIC lvgl)
+target_compile_features(aquarium_image PUBLIC cxx_std_17)
+
 find_program(AQUARIUM_NODE node REQUIRED)
 set(AQUARIUM_ASSETS ${CMAKE_CURRENT_LIST_DIR}/assets/generated)
 add_custom_command(OUTPUT ${AQUARIUM_ASSETS}/manifest.json
@@ -14,7 +19,7 @@ add_custom_target(aquarium_assets DEPENDS ${AQUARIUM_ASSETS}/manifest.json)
 
 add_executable(bubble_aquarium_native src/platform/desktop/main.cpp src/ui/aquarium_view.cpp)
 target_include_directories(bubble_aquarium_native PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src)
-target_link_libraries(bubble_aquarium_native PRIVATE aquarium_game little_arcade_ui SDL2::SDL2-static)
+target_link_libraries(bubble_aquarium_native PRIVATE aquarium_game aquarium_image SDL2::SDL2-static)
 add_dependencies(bubble_aquarium_native aquarium_assets)
 add_custom_command(TARGET bubble_aquarium_native POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${AQUARIUM_ASSETS} $<TARGET_FILE_DIR:bubble_aquarium_native>/assets)

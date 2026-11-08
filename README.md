@@ -1,30 +1,42 @@
-# Little Arcade — Copilot Agent Handoff
+# Little Arcade v2
 
-**Status: prototype firmware runs on the physical board.** Display/touch playthrough is confirmed; the owner has wired the external I2S mic and speaker and confirmed audible audio (H03 functional validation). H02 calibration/board details and quantitative audio power/acoustic measurements remain open. Target: Makerfabs MaTouch Lite ESP32-S3 2.4-inch ST7789 320×240 / NS2009 resistive touch, 16 MB flash, 8 MB PSRAM. Twelve offline toddler games plus **predefined offline voice commands**.
+The active product specification and game designs are in [`v2/README.md`](v2/README.md).
+Start with [`AGENTS.md`](AGENTS.md), then follow the reading order in the v2 README.
 
-## Start here
-1. Read `AGENTS.md`, `docs/architecture.md`, `docs/hardware.md`, `docs/voice.md`, `docs/acceptance.md`.
-2. Run hardware discovery **before assigning pins or soldering**. Record validated GPIOs in `config/board_pins.example.json` and produce a checked-in board config.
-3. In GitHub Copilot coding agent, assign issues from `backlog/issues.md` in dependency order; copy the prompts from `.github/agents/` for specialist agents.
-4. Follow `docs/integration.md` to build and flash once actual board drivers are implemented.
+## Current code
 
-## Boundaries
-- Never invent display, touch, mic or amplifier pins. Makerfabs examples/schematic are authoritative and must be inspected.
-- Audio hardware is **not included** in the board specification. The owner-wired external INMP441/MAX98357A mic and speaker are functionally confirmed audible on the prototype; wiring pins remain owner-reported, and calibrated SPL, power-on pop, current and regulator thermal measurements are not recorded. See `docs/hardware.md`.
-- Espressif ESP-SR WakeNet/MultiNet is the intended offline stack. Verify **current model language support, model sizes, licensing, ESP-IDF compatibility and toddler voice accuracy** before choosing a model. Some commands may need constrained phrasing or custom models; fallback to touch is mandatory.
-- No microphone streaming, account, ads, analytics, or Wi-Fi needed in release 1. No child speech is persisted or transmitted. Sound Jar and Beat Sharks may each hold one ≤ 3 s clip in RAM while open (parent Mic toggle, default on; see `docs/prd/sound_jar.md` §7 and `docs/prd/beat_sharks.md` §7).
-- All source assets must be original, permissively licensed, or generated in-project with recorded provenance.
+- [`v2/native/`](v2/native/) contains the experimental native Bubble Aquarium host and ESP32-S3
+  implementation.
+- [`firmware/components/`](firmware/components/) retains only shared ESP32-S3 support used by the
+  v2 device build: board I/O, audio, settings, and their core contracts.
+- The previous v1 launcher, game implementations, simulator, host-test harness, and PixelRoot32
+  engine have been removed. The twelve v2 game specifications remain in [`v2/games/`](v2/games/).
+- Root-level `docs/`, `games/`, and `backlog/` files that remain are historical v1 references; use
+  their v2 counterparts as the active specifications.
+- Historical v1 measurements and lessons are summarized in
+  [`v2/docs/01_v1_baseline.md`](v2/docs/01_v1_baseline.md). Hardware evidence and configuration
+  remain in [`config/`](config/) and [`docs/hardware.md`](docs/hardware.md).
 
-## Contents
-- `.github/copilot-instructions.md`: repository-wide Copilot guardrails
-- `.github/agents/*.agent.md`: hardware, platform, speech, games, QA agents
-- `docs/`: specifications, contracts, milestones, QA, child safety, asset pipeline
-- `games/*.md`: 12 individual game specifications
-- `config/commands.json`: canonical voice intent map
-- `config/board_pins.example.json`: unresolved hardware wiring template
-- `backlog/issues.md`: sequential and parallelizable tickets
-- `firmware/`: ESP-IDF prototype firmware, host-testable game/settings logic, and desktop simulator
-- `tools/validate_specs.py`: validates command manifest and all twelve game specs
+## Host build and tests
 
-## Definition of done
-One ESP-IDF image boots, calibrates touch, plays audio, recognizes supported offline commands in quiet conditions, runs all twelve games without network access, recovers from errors, and passes on-device memory/latency/child-safety checks. See `docs/acceptance.md`.
+With CMake, a C++17 compiler, Node.js, and Microsoft Edge installed:
+
+```powershell
+cmake -S v2/native -B build-v2-native -G "Visual Studio 17 2022" -A x64
+cmake --build build-v2-native --config Release --target bubble_aquarium_native aquarium_game_test
+ctest --test-dir build-v2-native -C Release --output-on-failure
+```
+
+The CMake project downloads pinned LVGL and SDL2 for development. The game executable does not use
+Node.js or a browser at runtime.
+
+## ESP32-S3 build
+
+Build the standalone Bubble Aquarium device image using WSL containers (`wslc`):
+
+```powershell
+pwsh v2\native\bubble_aquarium\device\build.ps1
+```
+
+See [`v2/native/bubble_aquarium/device/README.md`](v2/native/bubble_aquarium/device/README.md) for
+device scope, flashing instructions, and the limits of the recorded hardware evidence.
