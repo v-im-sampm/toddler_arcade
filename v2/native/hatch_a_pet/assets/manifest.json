@@ -1,0 +1,1985 @@
+{
+  "reference": "v2/reference/hatch_a_pet.html",
+  "source_sha256": "d8d9014bbd22fbf9c7ab5af42d789fef4954a5cd0aa4c41aa3be6302ad296614",
+  "exporter": "tools/export_assets.mjs",
+  "browser": "156.0.4314.58",
+  "pack_format": "CPOP v1 (flash mapped LVGL RGB565 / RGB565A8 / A8)",
+  "packed_bytes": 1208368,
+  "psram_bytes": 0,
+  "assets": [
+    {
+      "id": "background",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawBackground()",
+      "crop": [
+        0,
+        0,
+        320,
+        240
+      ],
+      "origin": [
+        0,
+        0
+      ],
+      "width": 320,
+      "height": 240,
+      "format": "RGB565",
+      "frame_timing": null,
+      "bytes": 153600,
+      "filter": "(m,c) => c.fillStyle !== 'rgba(255, 255, 255, 0.85)'"
+    },
+    {
+      "id": "cloud",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=10; drawBackground()",
+      "crop": [
+        29,
+        5,
+        44,
+        28
+      ],
+      "origin": [
+        11,
+        17
+      ],
+      "width": 44,
+      "height": 28,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 1232,
+      "filter": "(m,c) => c.fillStyle === 'rgba(255, 255, 255, 0.85)'"
+    },
+    {
+      "id": "nest_back",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "drawNestBack()",
+      "crop": [
+        94,
+        180,
+        132,
+        36
+      ],
+      "origin": [
+        66,
+        18
+      ],
+      "width": 132,
+      "height": 36,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 14256,
+      "filter": null
+    },
+    {
+      "id": "nest_front",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "drawNestFront()",
+      "crop": [
+        91,
+        196,
+        138,
+        29
+      ],
+      "origin": [
+        69,
+        2
+      ],
+      "width": 138,
+      "height": 29,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 12006,
+      "filter": null
+    },
+    {
+      "id": "egg_shell",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); shellFill('whole'); shellShine()",
+      "crop": [
+        106,
+        71,
+        108,
+        134
+      ],
+      "origin": [
+        54,
+        67
+      ],
+      "width": 108,
+      "height": 134,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 43416,
+      "filter": null
+    },
+    {
+      "id": "egg_glow",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='EGG'; st.hint=1; egg.x=160; egg.yOff=0; egg.q=0; egg.ang=0; egg.roll=0; time=0; drawEgg()",
+      "crop": [
+        98,
+        63,
+        124,
+        150
+      ],
+      "origin": [
+        62,
+        75
+      ],
+      "width": 124,
+      "height": 150,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 18600,
+      "filter": "(m,c)=>m===\"stroke\"&&c.lineWidth===6"
+    },
+    {
+      "id": "egg_decal_0",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); drawDecals(PATTERNS[0], '#FFFFFF', 'whole')",
+      "crop": [
+        123,
+        78,
+        73,
+        120
+      ],
+      "origin": [
+        37,
+        60
+      ],
+      "width": 73,
+      "height": 120,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 8760,
+      "filter": null
+    },
+    {
+      "id": "shell_top_decal_0",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); drawDecals(PATTERNS[0], '#FFFFFF', 'top')",
+      "crop": [
+        131,
+        78,
+        58,
+        37
+      ],
+      "origin": [
+        29,
+        60
+      ],
+      "width": 58,
+      "height": 37,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 2146,
+      "filter": null
+    },
+    {
+      "id": "shell_bot_decal_0",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); drawDecals(PATTERNS[0], '#FFFFFF', 'bot')",
+      "crop": [
+        123,
+        134,
+        73,
+        64
+      ],
+      "origin": [
+        37,
+        4
+      ],
+      "width": 73,
+      "height": 64,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 4672,
+      "filter": null
+    },
+    {
+      "id": "egg_decal_1",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); drawDecals(PATTERNS[1], '#FFFFFF', 'whole')",
+      "crop": [
+        111,
+        92,
+        98,
+        88
+      ],
+      "origin": [
+        49,
+        46
+      ],
+      "width": 98,
+      "height": 88,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 8624,
+      "filter": null
+    },
+    {
+      "id": "shell_top_decal_1",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); drawDecals(PATTERNS[1], '#FFFFFF', 'top')",
+      "crop": [
+        123,
+        92,
+        74,
+        16
+      ],
+      "origin": [
+        37,
+        46
+      ],
+      "width": 74,
+      "height": 16,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 1184,
+      "filter": null
+    },
+    {
+      "id": "shell_bot_decal_1",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); drawDecals(PATTERNS[1], '#FFFFFF', 'bot')",
+      "crop": [
+        111,
+        136,
+        98,
+        44
+      ],
+      "origin": [
+        49,
+        2
+      ],
+      "width": 98,
+      "height": 44,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 4312,
+      "filter": null
+    },
+    {
+      "id": "egg_decal_2",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); drawDecals(PATTERNS[2], '#FFFFFF', 'whole')",
+      "crop": [
+        115,
+        89,
+        90,
+        80
+      ],
+      "origin": [
+        45,
+        49
+      ],
+      "width": 90,
+      "height": 80,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 7200,
+      "filter": null
+    },
+    {
+      "id": "shell_top_decal_2",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); drawDecals(PATTERNS[2], '#FFFFFF', 'top')",
+      "crop": [
+        127,
+        89,
+        66,
+        18
+      ],
+      "origin": [
+        33,
+        49
+      ],
+      "width": 66,
+      "height": 18,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 1188,
+      "filter": null
+    },
+    {
+      "id": "shell_bot_decal_2",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); drawDecals(PATTERNS[2], '#FFFFFF', 'bot')",
+      "crop": [
+        115,
+        151,
+        90,
+        18
+      ],
+      "origin": [
+        45,
+        -13
+      ],
+      "width": 90,
+      "height": 18,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 1620,
+      "filter": null
+    },
+    {
+      "id": "egg_decal_3",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); drawDecals(PATTERNS[3], '#FFFFFF', 'whole')",
+      "crop": [
+        127,
+        85,
+        66,
+        101
+      ],
+      "origin": [
+        33,
+        53
+      ],
+      "width": 66,
+      "height": 101,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 6666,
+      "filter": null
+    },
+    {
+      "id": "shell_top_decal_3",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); drawDecals(PATTERNS[3], '#FFFFFF', 'top')",
+      "crop": [
+        136,
+        85,
+        48,
+        30
+      ],
+      "origin": [
+        24,
+        53
+      ],
+      "width": 48,
+      "height": 30,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 1440,
+      "filter": null
+    },
+    {
+      "id": "shell_bot_decal_3",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); drawDecals(PATTERNS[3], '#FFFFFF', 'bot')",
+      "crop": [
+        127,
+        135,
+        66,
+        51
+      ],
+      "origin": [
+        33,
+        3
+      ],
+      "width": 66,
+      "height": 51,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 3366,
+      "filter": null
+    },
+    {
+      "id": "shell_top",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); shellFill('top'); shellShine();",
+      "crop": [
+        109,
+        71,
+        102,
+        62
+      ],
+      "origin": [
+        51,
+        67
+      ],
+      "width": 102,
+      "height": 62,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 18972,
+      "filter": null
+    },
+    {
+      "id": "shell_bot",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); shellFill('bot'); ",
+      "crop": [
+        106,
+        114,
+        108,
+        91
+      ],
+      "origin": [
+        54,
+        24
+      ],
+      "width": 108,
+      "height": 91,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 29484,
+      "filter": null
+    },
+    {
+      "id": "crack_1",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); egg.cracks=1; egg.need=5; egg.blink=1; egg.look=[0,1]; drawCrack(1/5, false)",
+      "crop": [
+        147,
+        114,
+        26,
+        20
+      ],
+      "origin": [
+        13,
+        24
+      ],
+      "width": 26,
+      "height": 20,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 1560,
+      "filter": null
+    },
+    {
+      "id": "crack_2",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); egg.cracks=2; egg.need=5; egg.blink=1; egg.look=[0,1]; drawCrack(2/5, false)",
+      "crop": [
+        136,
+        114,
+        47,
+        20
+      ],
+      "origin": [
+        24,
+        24
+      ],
+      "width": 47,
+      "height": 20,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 2820,
+      "filter": null
+    },
+    {
+      "id": "crack_3",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); egg.cracks=3; egg.need=5; egg.blink=1; egg.look=[0,1]; drawCrack(3/5, false)",
+      "crop": [
+        126,
+        114,
+        67,
+        21
+      ],
+      "origin": [
+        34,
+        24
+      ],
+      "width": 67,
+      "height": 21,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 4221,
+      "filter": null
+    },
+    {
+      "id": "crack_4",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); egg.cracks=4; egg.need=5; egg.blink=1; egg.look=[0,1]; drawCrack(4/5, false)",
+      "crop": [
+        116,
+        114,
+        87,
+        21
+      ],
+      "origin": [
+        44,
+        24
+      ],
+      "width": 87,
+      "height": 21,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 5481,
+      "filter": null
+    },
+    {
+      "id": "crack_5",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "ctx.translate(160,138); egg.cracks=5; egg.need=5; egg.blink=1; egg.look=[0,1]; drawCrack(5/5, false)",
+      "crop": [
+        109,
+        114,
+        102,
+        21
+      ],
+      "origin": [
+        51,
+        24
+      ],
+      "width": 102,
+      "height": 21,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 6426,
+      "filter": null
+    },
+    {
+      "id": "pet_0_idle",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(0,160,150,1,0,0,'idle',[0,1],1,1)",
+      "crop": [
+        121,
+        94,
+        78,
+        98
+      ],
+      "origin": [
+        39,
+        56
+      ],
+      "width": 78,
+      "height": 98,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 22932,
+      "filter": null
+    },
+    {
+      "id": "pet_0_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(0,160,150,1,0,0,'happy',[0,1],1,1)",
+      "crop": [
+        121,
+        94,
+        78,
+        98
+      ],
+      "origin": [
+        39,
+        56
+      ],
+      "width": 78,
+      "height": 98,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 22932,
+      "filter": null
+    },
+    {
+      "id": "pet_0_open",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(0,160,150,1,0,0,'open',[0,1],1,1)",
+      "crop": [
+        121,
+        94,
+        78,
+        98
+      ],
+      "origin": [
+        39,
+        56
+      ],
+      "width": 78,
+      "height": 98,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 22932,
+      "filter": null
+    },
+    {
+      "id": "pet_0_squint",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(0,160,150,1,0,0,'squint',[0,1],1,1)",
+      "crop": [
+        121,
+        94,
+        78,
+        98
+      ],
+      "origin": [
+        39,
+        56
+      ],
+      "width": 78,
+      "height": 98,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 22932,
+      "filter": null
+    },
+    {
+      "id": "pet_1_idle",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(1,160,150,1,0,0,'idle',[0,1],1,1)",
+      "crop": [
+        109,
+        109,
+        102,
+        83
+      ],
+      "origin": [
+        51,
+        41
+      ],
+      "width": 102,
+      "height": 83,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 25398,
+      "filter": null
+    },
+    {
+      "id": "pet_1_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(1,160,150,1,0,0,'happy',[0,1],1,1)",
+      "crop": [
+        109,
+        109,
+        102,
+        83
+      ],
+      "origin": [
+        51,
+        41
+      ],
+      "width": 102,
+      "height": 83,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 25398,
+      "filter": null
+    },
+    {
+      "id": "pet_1_open",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(1,160,150,1,0,0,'open',[0,1],1,1)",
+      "crop": [
+        109,
+        109,
+        102,
+        83
+      ],
+      "origin": [
+        51,
+        41
+      ],
+      "width": 102,
+      "height": 83,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 25398,
+      "filter": null
+    },
+    {
+      "id": "pet_1_squint",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(1,160,150,1,0,0,'squint',[0,1],1,1)",
+      "crop": [
+        109,
+        109,
+        102,
+        83
+      ],
+      "origin": [
+        51,
+        41
+      ],
+      "width": 102,
+      "height": 83,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 25398,
+      "filter": null
+    },
+    {
+      "id": "pet_2_idle",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(2,160,150,1,0,0,'idle',[0,1],1,1)",
+      "crop": [
+        129,
+        93,
+        62,
+        99
+      ],
+      "origin": [
+        31,
+        57
+      ],
+      "width": 62,
+      "height": 99,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 18414,
+      "filter": null
+    },
+    {
+      "id": "pet_2_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(2,160,150,1,0,0,'happy',[0,1],1,1)",
+      "crop": [
+        129,
+        93,
+        62,
+        99
+      ],
+      "origin": [
+        31,
+        57
+      ],
+      "width": 62,
+      "height": 99,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 18414,
+      "filter": null
+    },
+    {
+      "id": "pet_2_open",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(2,160,150,1,0,0,'open',[0,1],1,1)",
+      "crop": [
+        129,
+        93,
+        62,
+        99
+      ],
+      "origin": [
+        31,
+        57
+      ],
+      "width": 62,
+      "height": 99,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 18414,
+      "filter": null
+    },
+    {
+      "id": "pet_2_squint",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(2,160,150,1,0,0,'squint',[0,1],1,1)",
+      "crop": [
+        129,
+        93,
+        62,
+        99
+      ],
+      "origin": [
+        31,
+        57
+      ],
+      "width": 62,
+      "height": 99,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 18414,
+      "filter": null
+    },
+    {
+      "id": "pet_3_idle",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(3,160,150,1,0,0,'idle',[0,1],1,1)",
+      "crop": [
+        123,
+        112,
+        101,
+        80
+      ],
+      "origin": [
+        37,
+        38
+      ],
+      "width": 101,
+      "height": 80,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 24240,
+      "filter": null
+    },
+    {
+      "id": "pet_3_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(3,160,150,1,0,0,'happy',[0,1],1,1)",
+      "crop": [
+        123,
+        112,
+        101,
+        80
+      ],
+      "origin": [
+        37,
+        38
+      ],
+      "width": 101,
+      "height": 80,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 24240,
+      "filter": null
+    },
+    {
+      "id": "pet_3_open",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(3,160,150,1,0,0,'open',[0,1],1,1)",
+      "crop": [
+        123,
+        112,
+        101,
+        80
+      ],
+      "origin": [
+        37,
+        38
+      ],
+      "width": 101,
+      "height": 80,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 24240,
+      "filter": null
+    },
+    {
+      "id": "pet_3_squint",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(3,160,150,1,0,0,'squint',[0,1],1,1)",
+      "crop": [
+        123,
+        112,
+        101,
+        80
+      ],
+      "origin": [
+        37,
+        38
+      ],
+      "width": 101,
+      "height": 80,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 24240,
+      "filter": null
+    },
+    {
+      "id": "pet_4_idle",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(4,160,150,1,0,0,'idle',[0,1],1,1)",
+      "crop": [
+        121,
+        109,
+        78,
+        86
+      ],
+      "origin": [
+        39,
+        41
+      ],
+      "width": 78,
+      "height": 86,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 20124,
+      "filter": null
+    },
+    {
+      "id": "pet_4_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(4,160,150,1,0,0,'happy',[0,1],1,1)",
+      "crop": [
+        121,
+        109,
+        78,
+        86
+      ],
+      "origin": [
+        39,
+        41
+      ],
+      "width": 78,
+      "height": 86,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 20124,
+      "filter": null
+    },
+    {
+      "id": "pet_4_open",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(4,160,150,1,0,0,'open',[0,1],1,1)",
+      "crop": [
+        121,
+        109,
+        78,
+        86
+      ],
+      "origin": [
+        39,
+        41
+      ],
+      "width": 78,
+      "height": 86,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 20124,
+      "filter": null
+    },
+    {
+      "id": "pet_4_squint",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(4,160,150,1,0,0,'squint',[0,1],1,1)",
+      "crop": [
+        121,
+        109,
+        78,
+        86
+      ],
+      "origin": [
+        39,
+        41
+      ],
+      "width": 78,
+      "height": 86,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 20124,
+      "filter": null
+    },
+    {
+      "id": "pet_5_idle",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(5,160,150,1,0,0,'idle',[0,1],1,1)",
+      "crop": [
+        121,
+        99,
+        78,
+        93
+      ],
+      "origin": [
+        39,
+        51
+      ],
+      "width": 78,
+      "height": 93,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 21762,
+      "filter": null
+    },
+    {
+      "id": "pet_5_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(5,160,150,1,0,0,'happy',[0,1],1,1)",
+      "crop": [
+        121,
+        99,
+        78,
+        93
+      ],
+      "origin": [
+        39,
+        51
+      ],
+      "width": 78,
+      "height": 93,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 21762,
+      "filter": null
+    },
+    {
+      "id": "pet_5_open",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(5,160,150,1,0,0,'open',[0,1],1,1)",
+      "crop": [
+        121,
+        99,
+        78,
+        93
+      ],
+      "origin": [
+        39,
+        51
+      ],
+      "width": 78,
+      "height": 93,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 21762,
+      "filter": null
+    },
+    {
+      "id": "pet_5_squint",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(5,160,150,1,0,0,'squint',[0,1],1,1)",
+      "crop": [
+        121,
+        99,
+        78,
+        93
+      ],
+      "origin": [
+        39,
+        51
+      ],
+      "width": 78,
+      "height": 93,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 21762,
+      "filter": null
+    },
+    {
+      "id": "pet_6_idle",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(6,160,150,1,0,0,'idle',[0,1],1,1)",
+      "crop": [
+        123,
+        113,
+        74,
+        79
+      ],
+      "origin": [
+        37,
+        37
+      ],
+      "width": 74,
+      "height": 79,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 17538,
+      "filter": null
+    },
+    {
+      "id": "pet_6_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(6,160,150,1,0,0,'happy',[0,1],1,1)",
+      "crop": [
+        123,
+        113,
+        74,
+        79
+      ],
+      "origin": [
+        37,
+        37
+      ],
+      "width": 74,
+      "height": 79,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 17538,
+      "filter": null
+    },
+    {
+      "id": "pet_6_open",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(6,160,150,1,0,0,'open',[0,1],1,1)",
+      "crop": [
+        123,
+        113,
+        74,
+        79
+      ],
+      "origin": [
+        37,
+        37
+      ],
+      "width": 74,
+      "height": 79,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 17538,
+      "filter": null
+    },
+    {
+      "id": "pet_6_squint",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(6,160,150,1,0,0,'squint',[0,1],1,1)",
+      "crop": [
+        123,
+        113,
+        74,
+        79
+      ],
+      "origin": [
+        37,
+        37
+      ],
+      "width": 74,
+      "height": 79,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 17538,
+      "filter": null
+    },
+    {
+      "id": "pet_7_idle",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(7,160,150,1,0,0,'idle',[0,1],1,1)",
+      "crop": [
+        125,
+        114,
+        74,
+        78
+      ],
+      "origin": [
+        35,
+        36
+      ],
+      "width": 74,
+      "height": 78,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 17316,
+      "filter": null
+    },
+    {
+      "id": "pet_7_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(7,160,150,1,0,0,'happy',[0,1],1,1)",
+      "crop": [
+        125,
+        114,
+        74,
+        78
+      ],
+      "origin": [
+        35,
+        36
+      ],
+      "width": 74,
+      "height": 78,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 17316,
+      "filter": null
+    },
+    {
+      "id": "pet_7_open",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(7,160,150,1,0,0,'open',[0,1],1,1)",
+      "crop": [
+        125,
+        114,
+        74,
+        78
+      ],
+      "origin": [
+        35,
+        36
+      ],
+      "width": 74,
+      "height": 78,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 17316,
+      "filter": null
+    },
+    {
+      "id": "pet_7_squint",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawCreature(7,160,150,1,0,0,'squint',[0,1],1,1)",
+      "crop": [
+        125,
+        114,
+        74,
+        78
+      ],
+      "origin": [
+        35,
+        36
+      ],
+      "width": 74,
+      "height": 78,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 17316,
+      "filter": null
+    },
+    {
+      "id": "choice_no",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "choices.show=true; choices.t=0.5; choices.idle=0; time=0; const originalChoice=choiceBubble; choiceBubble=(...a)=>{if(a[0]===48) originalChoice(...a)}; drawChoices()",
+      "crop": [
+        17,
+        137,
+        62,
+        71
+      ],
+      "origin": [
+        31,
+        31
+      ],
+      "width": 62,
+      "height": 71,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 13206,
+      "filter": null
+    },
+    {
+      "id": "choice_yes",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "choices.show=true; choices.t=0.5; choices.idle=0; time=0; const originalChoice=choiceBubble; choiceBubble=(...a)=>{if(a[0]===272) originalChoice(...a)}; drawChoices()",
+      "crop": [
+        241,
+        138,
+        62,
+        72
+      ],
+      "origin": [
+        31,
+        30
+      ],
+      "width": 62,
+      "height": 72,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 13392,
+      "filter": null
+    },
+    {
+      "id": "badge_base",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='EGG'; egg.creature=0; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        131,
+        3,
+        58,
+        58
+      ],
+      "origin": [
+        29,
+        29
+      ],
+      "width": 58,
+      "height": 58,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 10092,
+      "filter": "(m,c,i)=>i<=1"
+    },
+    {
+      "id": "badge_glow",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='EGG'; st.hint=1; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        127,
+        0,
+        66,
+        65
+      ],
+      "origin": [
+        33,
+        32
+      ],
+      "width": 66,
+      "height": 65,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 4290,
+      "filter": "(m,c)=>m===\"stroke\"&&c.lineWidth===4"
+    },
+    {
+      "id": "choice_glow",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "choices.show=true; choices.t=0.5; choices.idle=7; time=0; const old=choiceBubble; choiceBubble=(...a)=>{if(a[0]===48)old(...a)};drawChoices()",
+      "crop": [
+        9,
+        129,
+        78,
+        78
+      ],
+      "origin": [
+        39,
+        39
+      ],
+      "width": 78,
+      "height": 78,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 6084,
+      "filter": "(m,c)=>m===\"stroke\"&&c.lineWidth===6"
+    },
+    {
+      "id": "badge_0_egg",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='EGG'; egg.creature=0; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        144,
+        13,
+        32,
+        40
+      ],
+      "origin": [
+        16,
+        19
+      ],
+      "width": 32,
+      "height": 40,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 3840,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_0_heart",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=0; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        150,
+        24,
+        20,
+        20
+      ],
+      "origin": [
+        10,
+        8
+      ],
+      "width": 20,
+      "height": 20,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 1200,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_0_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=0; st.hint=0; badge.happy=1; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        138,
+        10,
+        44,
+        44
+      ],
+      "origin": [
+        22,
+        22
+      ],
+      "width": 44,
+      "height": 44,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 5808,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_1_egg",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='EGG'; egg.creature=1; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        144,
+        13,
+        32,
+        40
+      ],
+      "origin": [
+        16,
+        19
+      ],
+      "width": 32,
+      "height": 40,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 3840,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_1_heart",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=1; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        150,
+        24,
+        20,
+        20
+      ],
+      "origin": [
+        10,
+        8
+      ],
+      "width": 20,
+      "height": 20,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 1200,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_1_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=1; st.hint=0; badge.happy=1; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        138,
+        10,
+        44,
+        44
+      ],
+      "origin": [
+        22,
+        22
+      ],
+      "width": 44,
+      "height": 44,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 5808,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_2_egg",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='EGG'; egg.creature=2; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        144,
+        13,
+        32,
+        40
+      ],
+      "origin": [
+        16,
+        19
+      ],
+      "width": 32,
+      "height": 40,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 3840,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_2_heart",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=2; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        150,
+        24,
+        20,
+        20
+      ],
+      "origin": [
+        10,
+        8
+      ],
+      "width": 20,
+      "height": 20,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 1200,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_2_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=2; st.hint=0; badge.happy=1; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        138,
+        10,
+        44,
+        44
+      ],
+      "origin": [
+        22,
+        22
+      ],
+      "width": 44,
+      "height": 44,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 5808,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_3_egg",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='EGG'; egg.creature=3; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        144,
+        13,
+        32,
+        40
+      ],
+      "origin": [
+        16,
+        19
+      ],
+      "width": 32,
+      "height": 40,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 3840,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_3_heart",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=3; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        150,
+        24,
+        20,
+        20
+      ],
+      "origin": [
+        10,
+        8
+      ],
+      "width": 20,
+      "height": 20,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 1200,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_3_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=3; st.hint=0; badge.happy=1; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        138,
+        10,
+        44,
+        44
+      ],
+      "origin": [
+        22,
+        22
+      ],
+      "width": 44,
+      "height": 44,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 5808,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_4_egg",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='EGG'; egg.creature=4; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        144,
+        13,
+        32,
+        40
+      ],
+      "origin": [
+        16,
+        19
+      ],
+      "width": 32,
+      "height": 40,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 3840,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_4_heart",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=4; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        150,
+        24,
+        20,
+        20
+      ],
+      "origin": [
+        10,
+        8
+      ],
+      "width": 20,
+      "height": 20,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 1200,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_4_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=4; st.hint=0; badge.happy=1; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        138,
+        10,
+        44,
+        44
+      ],
+      "origin": [
+        22,
+        22
+      ],
+      "width": 44,
+      "height": 44,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 5808,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_5_egg",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='EGG'; egg.creature=5; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        144,
+        13,
+        32,
+        40
+      ],
+      "origin": [
+        16,
+        19
+      ],
+      "width": 32,
+      "height": 40,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 3840,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_5_heart",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=5; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        150,
+        24,
+        20,
+        20
+      ],
+      "origin": [
+        10,
+        8
+      ],
+      "width": 20,
+      "height": 20,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 1200,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_5_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=5; st.hint=0; badge.happy=1; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        138,
+        10,
+        44,
+        44
+      ],
+      "origin": [
+        22,
+        22
+      ],
+      "width": 44,
+      "height": 44,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 5808,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_6_egg",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='EGG'; egg.creature=6; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        144,
+        13,
+        32,
+        40
+      ],
+      "origin": [
+        16,
+        19
+      ],
+      "width": 32,
+      "height": 40,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 3840,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_6_heart",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=6; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        150,
+        24,
+        20,
+        20
+      ],
+      "origin": [
+        10,
+        8
+      ],
+      "width": 20,
+      "height": 20,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 1200,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_6_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=6; st.hint=0; badge.happy=1; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        138,
+        10,
+        44,
+        44
+      ],
+      "origin": [
+        22,
+        22
+      ],
+      "width": 44,
+      "height": 44,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 5808,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_7_egg",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='EGG'; egg.creature=7; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        144,
+        13,
+        32,
+        40
+      ],
+      "origin": [
+        16,
+        19
+      ],
+      "width": 32,
+      "height": 40,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 3840,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_7_heart",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=7; st.hint=0; badge.happy=0; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        150,
+        24,
+        20,
+        20
+      ],
+      "origin": [
+        10,
+        8
+      ],
+      "width": 20,
+      "height": 20,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 1200,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "badge_7_happy",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='PET'; egg.creature=7; st.hint=0; badge.happy=1; badge.sv=0; time=0; drawBadge()",
+      "crop": [
+        138,
+        10,
+        44,
+        44
+      ],
+      "origin": [
+        22,
+        22
+      ],
+      "width": 44,
+      "height": 44,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 5808,
+      "filter": "(m,c,i)=>i>1"
+    },
+    {
+      "id": "home",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "drawChrome()",
+      "crop": [
+        3,
+        3,
+        50,
+        50
+      ],
+      "origin": [
+        1,
+        1
+      ],
+      "width": 50,
+      "height": 50,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 7500,
+      "filter": "(m,c,i) => i < 3"
+    },
+    {
+      "id": "mic",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "drawChrome()",
+      "crop": [
+        268,
+        4,
+        48,
+        48
+      ],
+      "origin": [
+        0,
+        0
+      ],
+      "width": 48,
+      "height": 48,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 6912,
+      "filter": "(m,c,i) => i >= 3"
+    },
+    {
+      "id": "start",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "time=0; drawStart()",
+      "crop": [
+        122,
+        82,
+        76,
+        76
+      ],
+      "origin": [
+        38,
+        38
+      ],
+      "width": 76,
+      "height": 76,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 17328,
+      "filter": "(m,c,i) => i !== 0"
+    },
+    {
+      "id": "hint_hand",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "st.phase='EGG'; st.hint=2; time=0; drawHelperHand()",
+      "crop": [
+        177,
+        144,
+        28,
+        35
+      ],
+      "origin": [
+        13,
+        18
+      ],
+      "width": 28,
+      "height": 35,
+      "format": "RGB565A8",
+      "frame_timing": null,
+      "bytes": 2940,
+      "filter": null
+    },
+    {
+      "id": "particle_star",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "parts=[{x:160,y:120,vx:0,vy:0,g:0,life:1,max:1,rot:0,vr:0,add:false,shape:'star',size:6,color:'#FFFFFF'}];drawFx()",
+      "crop": [
+        153,
+        112,
+        15,
+        16
+      ],
+      "origin": [
+        7,
+        8
+      ],
+      "width": 15,
+      "height": 16,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 240,
+      "filter": null
+    },
+    {
+      "id": "particle_circle",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "parts=[{x:160,y:120,vx:0,vy:0,g:0,life:1,max:1,rot:0,vr:0,add:false,shape:'circle',size:6,color:'#FFFFFF'}];drawFx()",
+      "crop": [
+        152,
+        112,
+        16,
+        16
+      ],
+      "origin": [
+        8,
+        8
+      ],
+      "width": 16,
+      "height": 16,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 256,
+      "filter": null
+    },
+    {
+      "id": "particle_rect",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "parts=[{x:160,y:120,vx:0,vy:0,g:0,life:1,max:1,rot:0,vr:0,add:false,shape:'rect',size:6,color:'#FFFFFF'}];drawFx()",
+      "crop": [
+        155,
+        116,
+        10,
+        8
+      ],
+      "origin": [
+        5,
+        4
+      ],
+      "width": 10,
+      "height": 8,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 80,
+      "filter": null
+    },
+    {
+      "id": "particle_heart",
+      "source": "v2/reference/hatch_a_pet.html",
+      "call": "parts=[{x:160,y:120,vx:0,vy:0,g:0,life:1,max:1,rot:0,vr:0,add:false,shape:'heart',size:6,color:'#FFFFFF'}];drawFx()",
+      "crop": [
+        154,
+        114,
+        12,
+        12
+      ],
+      "origin": [
+        6,
+        6
+      ],
+      "width": 12,
+      "height": 12,
+      "format": "A8",
+      "frame_timing": null,
+      "bytes": 144,
+      "filter": null
+    }
+  ]
+}

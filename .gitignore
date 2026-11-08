@@ -31,6 +31,12 @@ v2/native/launcher/device/build/
 v2/native/launcher/device/managed_components/
 v2/native/launcher/device/sdkconfig
 v2/native/launcher/device/sdkconfig.old
+v2/native/hatch_a_pet/assets/generated/
+v2/native/hatch_a_pet/device/build/
+v2/native/hatch_a_pet/device/managed_components/
+v2/native/hatch_a_pet/device/sdkconfig
+v2/native/hatch_a_pet/device/sdkconfig.old
+v2/native/hatch_a_pet/device/main/pack_signature.hpp
 .venv/
 tools/quality_bar_golden/node_modules/
 tools/quality_bar_golden/out/
