@@ -20,6 +20,10 @@ v2/native/color_pop/device/managed_components/
 v2/native/color_pop/device/sdkconfig
 v2/native/color_pop/device/sdkconfig.old
 v2/native/color_pop/device/main/pack_signature.hpp
+v2/native/launcher/device/build/
+v2/native/launcher/device/managed_components/
+v2/native/launcher/device/sdkconfig
+v2/native/launcher/device/sdkconfig.old
 .venv/
 tools/quality_bar_golden/node_modules/
 tools/quality_bar_golden/out/
