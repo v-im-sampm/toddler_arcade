@@ -413,7 +413,7 @@ void View::sync(const Game& g) {
     const bool recording = phase == Phase::Recording;
     const RecButton& rb = g.rec();
     for (int i = 0; i < 3; ++i) {
-      if (phase == Phase::Countdown || recording) {
+      if ((phase == Phase::Countdown || recording) && !g.recording_live()) {  // live takes have no countdown
         const double lit = recording ? 1 : clampd((g.phase_time() - i * 0.45) / 0.2, 0, 1);
         const double s = lit > 0 ? ease_out_back(lit) : 1;
         place(rec_dots_[i], lit > 0 ? rec_dot_lit_ : rec_dot_dim_, kRecX - 14 + 14 * i, 86, 0, s, s);
@@ -633,7 +633,8 @@ void View::mark(Tiles& t, double x1, double y1, double x2, double y2) const {
 
 void View::dirty_tiles(const Game& g, Tiles& tiles) {
   const double m = g.reduced() ? 0.3 : 1;
-  if (g.phase() == Phase::Recording) mark(tiles, 150, 40, 262, 122);
+  // The ribbon (wire) belongs to the reference's staged recording; a live take has none.
+  if (g.phase() == Phase::Recording && !g.recording_live()) mark(tiles, 150, 40, 262, 122);
   for (int i = 0; i < 5; ++i) {
     if (!g.pad_looping(i)) continue;
     const double r = kPadR * kPads[i].s, e = r + 11;
@@ -785,7 +786,7 @@ void View::draw(lv_layer_t* layer, Pass pass) {
 
   if (pass == Pass::Ribbon) {
     // drawRibbon(): only while RECORDING.
-    if (g.phase() != Phase::Recording || g.take() < 0) return;
+    if (g.phase() != Phase::Recording || g.take() < 0 || g.recording_live()) return;
     const Hue& hue = kTakes[g.take()].hue;
     const double lv = clampd(g.input_level() / 0.12, 0, 1);
     for (int i = 0; i <= 24; ++i) {

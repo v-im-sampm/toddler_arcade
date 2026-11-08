@@ -1,5 +1,6 @@
 #include "audio/sound_jar_score.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 #include "little_arcade/audio/score_dsp.hpp"
@@ -233,7 +234,17 @@ void SoundJarScore::apply(const Command& c) {
       wob_to_ = (c.flags & 4) ? 150.f : 0.f;
       return;
     case Op::VoiceStart: {
-      if (!running_ || c.arg >= kTakeCount) return;
+      if (!running_ || c.arg > kTakeCount) return;
+      const int16_t* pcm;
+      int n;
+      uint32_t gen = 0;
+      if (c.arg == kLiveTake) {
+        if (!live_ || !live_->ready()) return;
+        pcm = live_->pcm(); n = live_->samples(); gen = live_->generation();
+      } else {
+        pcm = kTakeData[c.arg].pcm; n = kTakeData[c.arg].samples;
+      }
+      if (n <= 0) return;
       SamplerVoice* v = nullptr;
       for (SamplerVoice& s : sampler_)
         if (!s.active) { v = &s; break; }
@@ -243,12 +254,11 @@ void SoundJarScore::apply(const Command& c) {
           if (s.rel && (!v->rel || s.gain < v->gain)) v = &s;
       }
       *v = SamplerVoice{};
-      v->active = true; v->id = c.id; v->take = c.arg;
+      v->active = true; v->id = c.id; v->take = c.arg; v->pcm = pcm; v->n = n; v->gen = gen;
       v->rev = (c.flags & 1) != 0; v->loop = (c.flags & 2) != 0;
       v->rate = c.a; v->gain = kFloor; v->target = 0.9f;
       v->attack_left = samples(0.005f);
-      const TakeData& tk = kTakeData[c.arg];
-      duck_at(static_cast<float>(tk.dur) / c.a + 0.2f);
+      duck_at(static_cast<float>(n) / kSr / c.a + 0.2f);
       return;
     }
     case Op::VoiceRelease: {
@@ -356,6 +366,7 @@ void SoundJarScore::render_add(int32_t* out, std::size_t count) {
     for (std::size_t k = 0; k < kMaxSampler; ++k) {
       SamplerVoice& v = sampler_[k];
       if (!v.active) continue;
+      if (v.take == kLiveTake && (!live_ || live_->generation() != v.gen)) { v.active = false; continue; }
       v.bend_cents += (v.bend_target - v.bend_cents) * bend_block;
       step[k] = v.rate * std::pow(2.f, (v.bend_cents + wob_cents) / 1200.f);
     }
@@ -372,13 +383,13 @@ void SoundJarScore::render_add(int32_t* out, std::size_t count) {
       for (std::size_t k = 0; k < kMaxSampler; ++k) {
         SamplerVoice& v = sampler_[k];
         if (!v.active) continue;
-        const TakeData& tk = kTakeData[v.take];
-        const int n = tk.samples;
+        const int16_t* pcm = v.pcm;
+        const int n = v.n;
         const int i = static_cast<int>(v.pos);
         const float frac = static_cast<float>(v.pos - i);
         auto at = [&](int idx) -> float {
           if (idx >= n) { if (!v.loop) return 0.f; idx -= n; }
-          return static_cast<float>(tk.pcm[v.rev ? n - 1 - idx : idx]) * (1.f / 32768.f);
+          return static_cast<float>(pcm[v.rev ? n - 1 - idx : idx]) * (1.f / 32768.f);
         };
         const float s = at(i) + (at(i + 1) - at(i)) * frac;
         if (v.attack_left > 0) {
@@ -430,9 +441,12 @@ void SoundJarScore::render_add(int32_t* out, std::size_t count) {
     env_db_ += (want - env_db_) * (want < env_db_ ? att : rel);
     const float target = std::pow(10.f, (env_db_ + makeup) / 20.f);
     const float gstep = (target - comp_gain_) / static_cast<float>(len);
+    const bool silent = live_ && live_->capturing();
     for (std::size_t j = 0; j < len; ++j) {
       comp_gain_ += gstep;
-      out[i0 + j] += static_cast<int32_t>(buf[j] * comp_gain_ * 32767.f * kOutputTrim);
+      // 5 ms ramp into / out of the capture silence (no click)
+      mute_gain_ = silent ? std::max(0.f, mute_gain_ - 1.f / 80.f) : std::min(1.f, mute_gain_ + 1.f / 80.f);
+      out[i0 + j] += static_cast<int32_t>(buf[j] * comp_gain_ * mute_gain_ * 32767.f * kOutputTrim);
     }
   }
 }

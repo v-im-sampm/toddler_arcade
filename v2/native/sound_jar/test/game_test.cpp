@@ -453,7 +453,27 @@ static void test_ambience_drips_schedule() {
   CHECK(s.drips == 6);  // six drips per 14 s loop
 }
 
+// A slow renderer's frame advances game time by the wall clock, in reference-sized (<= 50 ms) ticks.
+static void test_advance_keeps_wall_clock_pace() {
+  Log sa, sb;
+  Game a(sa, 9), b(sb, 9);
+  tap(a, 160, 120);
+  tap(b, 160, 120);
+  for (int i = 0; i < 40; ++i) {
+    a.advance(0.1);  // ~10 fps device frame
+    b.tick(0.05);
+    b.tick(0.05);
+  }
+  CHECK(std::abs(a.time() - 4.0) < 1e-9);
+  CHECK(a.time() == b.time() && a.phase() == b.phase() && a.jar().level == b.jar().level);
+  a.advance(0.13);  // a remainder step
+  CHECK(std::abs(a.time() - 4.13) < 1e-9);
+  a.advance(3.0);  // a stall is cut, never replayed at once
+  CHECK(std::abs(a.time() - 4.38) < 1e-9);
+}
+
 int main() {
+  test_advance_keeps_wall_clock_pace();
   test_start_is_silent_and_waits();
   test_intro_wakes_pads_then_empty();
   test_intro_tap_skips();

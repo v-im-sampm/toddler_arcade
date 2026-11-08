@@ -190,6 +190,50 @@ static void test_limiter_bounds_output() {
   CHECK(peak < 32767);
 }
 
+// Microphone take through the score: plays once finalized, stops on wipe, and nothing sounds while capturing.
+static void test_live_take_voice_wipe_and_capture_silence() {
+  std::vector<int16_t> clip(LiveTake::kMaxSamples);
+  LiveTake mic(clip.data());
+  mic.set_hardware(true);
+  SoundJarScore s;
+  s.set_live(&mic);
+  s.start();
+  render(s, 0.3);
+  s.voice_start(1, kLiveTake, 1.0, false, false);  // nothing recorded yet: refused
+  render(s, 0.01);
+  CHECK(s.sampler_voices() == 0);
+
+  std::vector<int16_t> tone(256);
+  auto feed = [&](double seconds, int amp) {
+    for (int k = 0; k < static_cast<int>(seconds * kSr / 256); ++k) {
+      for (int i = 0; i < 256; ++i) tone[i] = static_cast<int16_t>(amp * std::sin(i * 2 * 3.14159265 * 440 / kSr));
+      mic.capture(tone.data(), tone.size());
+    }
+  };
+  s.cue(Cue::Tada, 0);
+  render(s, 0.05);
+  mic.arm();
+  mic.capture(nullptr, 0);
+  CHECK(mic.capturing());
+  render(s, 0.01);                      // 5 ms ramp down
+  const Stats during = render(s, 0.3);  // the Tada tail would still sound; capture silences all output
+  CHECK(during.peak == 0);
+  feed(0.6, 4000);
+  feed(0.6, 0);
+  mic.stop();
+  mic.capture(nullptr, 0);
+  CHECK(!mic.capturing());
+  CHECK(mic.finalize());
+  s.voice_start(2, kLiveTake, 1.0, false, true);
+  render(s, 0.01);
+  CHECK(s.sampler_voices() == 1);
+  CHECK(render(s, 0.3).peak > 100);
+  mic.wipe();
+  mic.capture(nullptr, 0);  // the audio thread applies the wipe: the live voice stops
+  render(s, 0.01);
+  CHECK(s.sampler_voices() == 0);
+}
+
 int main() {
   test_silent_until_start();
   test_start_is_not_loud();
@@ -202,6 +246,7 @@ int main() {
   test_music_and_duck();
   test_queue_overflow_counts();
   test_limiter_bounds_output();
+  test_live_take_voice_wipe_and_capture_silence();
   if (g_failures) { std::printf("%d failure(s)\n", g_failures); return 1; }
   std::puts("sound_jar_score_test: all passed");
   return 0;

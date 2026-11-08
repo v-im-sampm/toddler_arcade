@@ -3,12 +3,16 @@
 // tools/export_assets.mjs is flashed to the `assets` partition, verified against this build's signature and
 // copied once into PSRAM (measured: drawing straight from the flash mapping was ~7 fps); every lv_image_dsc_t
 // points into that copy. The built-in takes (PCM) live in app rodata.
-// There is no microphone path: recordings replay the reference's built-in voices (see GAME_SPEC.md).
+// The INMP441 microphone (owner-reported wiring, config/board_pins.json) records the child's take when the parent
+// mic switch (settings_store, default on) allows it: one <= 3 s clip in PSRAM, never stored, logged or sent, and
+// wiped on Home, the bin, too-quiet and every new recording. Without a mic the built-in voices play (SJ-5).
 #include <algorithm>
 #include <atomic>
 #include <cinttypes>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <new>
 #include <string>
 
 #include "audio/sound_jar_score.hpp"
@@ -21,9 +25,11 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "game/live_take.hpp"
 #include "game/sound_jar.hpp"
 #include "little_arcade/audio/audio_feedback.hpp"
 #include "little_arcade/audio/i2s_audio.hpp"
+#include "little_arcade/audio/mic_sink.hpp"
 #include "little_arcade/board_io.hpp"
 #include "little_arcade/board_pins.hpp"
 #include "little_arcade/settings/settings_store.hpp"
@@ -141,6 +147,32 @@ class TimedScore final : public little_arcade::audio::ExternalScore {
   little_arcade::audio::ExternalScore& inner_;
   std::atomic<uint32_t> us_{0}, samples_{0}, max_us_{0};
 };
+
+// Hands INMP441 blocks from the shared I2S driver to the game's LiveTake and times them (audio task share).
+class MicAdapter final : public little_arcade::audio::MicSink {
+ public:
+  explicit MicAdapter(sound_jar::LiveTake& take) : take_(take) {}
+  void set_mic_hardware(bool present) override { take_.set_hardware(present); }
+  void capture(const int16_t* samples, std::size_t n) override {
+    const int64_t t0 = esp_timer_get_time();
+    take_.capture(samples, n);
+    const uint32_t us = static_cast<uint32_t>(esp_timer_get_time() - t0);
+    us_.fetch_add(us, std::memory_order_relaxed);
+    blocks_.fetch_add(1, std::memory_order_relaxed);
+    uint32_t prev = max_us_.load(std::memory_order_relaxed);
+    while (us > prev && !max_us_.compare_exchange_weak(prev, us, std::memory_order_relaxed)) {}
+  }
+  void take(uint32_t* total_us, uint32_t* max_us, uint32_t* blocks) {
+    *total_us = us_.exchange(0);
+    *max_us = max_us_.exchange(0);
+    *blocks = blocks_.exchange(0);
+  }
+
+ private:
+  sound_jar::LiveTake& take_;
+  std::atomic<uint32_t> us_{0}, max_us_{0}, blocks_{0};
+};
+uint64_t clock_us() { return static_cast<uint64_t>(esp_timer_get_time()); }
 
 // Per-window frame statistics: render time (lv_refr_now incl. waiting for SPI DMA) and the interval between
 // rendered frames, both p95, plus the dirty fraction.
@@ -285,6 +317,24 @@ void run(void*) {
   static little_arcade::audio::AudioFeedback feedback(speaker_config());
   feedback.attach_score(&timed);
   static sound_jar::Game game(score, 1234);  // reference default (?seed absent)
+  // Microphone take: a 96 KB clip buffer in PSRAM (zeroed here and on every wipe).
+  static sound_jar::LiveTake* mic = nullptr;
+  static MicAdapter* mic_adapter = nullptr;
+  if (auto* clip = static_cast<int16_t*>(
+          heap_caps_malloc(sizeof(int16_t) * sound_jar::LiveTake::kMaxSamples, MALLOC_CAP_SPIRAM))) {
+    mic = new (std::nothrow) sound_jar::LiveTake(clip, clock_us);
+    // INMP441: -26 dBFS at 94 dB SPL, so speech at 30-50 cm is near -58 dBFS. x16 (+24 dB) lifts it past the
+    // reference's LOUD (-36 dBFS, tuned on browser AGC input); the mic noise floor (-87 dBFS) stays well below ACTIVE.
+    if (mic) mic->set_input_gain(16.f);
+    if (mic) mic_adapter = new (std::nothrow) MicAdapter(*mic);
+  }
+  if (!mic || !mic_adapter) ESP_LOGE(tag, "no PSRAM for the mic clip; built-in voices only");
+#ifndef SOUND_JAR_BENCH  // the bench keeps the deterministic built-in takes so frame windows stay comparable
+  if (mic && mic_adapter) {
+    game.set_mic(mic);
+    score.set_live(mic);
+  }
+#endif
   memory_log("before_view");
   static sound_jar::View view;
   const char* missing = nullptr;
@@ -302,10 +352,18 @@ void run(void*) {
   const uint8_t volume = little_arcade::settings::load_volume_level();
   feedback.set_level(volume);
   little_arcade::audio::I2sAudioOptions options;
-  options.mic_level_probe = false;  // no microphone use: recordings replay built-in voices; the mic icon is disabled
+  options.mic_level_probe = false;  // the top-right voice-command mic stays disabled; this is the record mic only
+  const bool mic_enabled = little_arcade::settings::load_mic_enabled();
+  if (mic) mic->set_allowed(mic_enabled);
+#ifndef SOUND_JAR_BENCH
+  if (mic_adapter && mic_enabled) options.mic_sink = mic_adapter;
+#endif
   if (!little_arcade::audio::start_i2s_audio(feedback, options))
     ESP_LOGE(tag, "audio unavailable; the game stays fully playable by touch with visual cues");
-  ESP_LOGI(tag, "saved parent volume=%u (0 = muted); ready", volume);
+  ESP_LOGI(tag, "saved parent volume=%u (0 = muted); mic switch=%s hardware=%s -> recordings use %s; ready", volume,
+           mic_enabled ? "on" : "off", mic && mic->hardware() ? "yes" : "no",
+           game.mic_live() ? "the microphone" : "built-in voices");
+  memory_log("audio_started");
 
   static FrameStats stats;
   bool pressed = false;
@@ -340,9 +398,10 @@ void run(void*) {
     // Tick, sync and render once per frame; touch is polled every iteration in between.
     if (now - last_frame < refresh_ms) { vTaskDelay(pdMS_TO_TICKS(1)); continue; }
     last_frame = now;
-    const double dt = std::min(0.05, (now - last) / 1000.0);  // reference frame(): dt capped at 50 ms
+    // Game time follows the wall clock: at ~10 fps a single 50 ms-capped tick ran every animation at half speed.
+    const double elapsed = (now - last) / 1000.0;
     last = now;
-    if (dt > 0) game.tick(dt);
+    if (elapsed > 0) game.advance(elapsed);
     const int64_t tick_t1 = esp_timer_get_time();
     view.sync(game);
     const uint64_t before = frame_pixels, block_before = flush_block_us;
@@ -360,6 +419,19 @@ void run(void*) {
     }
     if (now - report >= 10000) {
       stats.report(game, score, timed);
+      if (mic_adapter && mic) {
+        uint32_t mic_us = 0, mic_max = 0, mic_blocks = 0;
+        mic_adapter->take(&mic_us, &mic_max, &mic_blocks);
+        // Aggregate diagnostics only (one loudest-frame level per recording, for gain calibration); no samples.
+        const double peak = mic->peak_level(), floor = mic->floor_level();
+        auto dbfs = [](double v) { return v > 0 ? static_cast<int>(std::lround(20 * std::log10(v))) : -120; };
+        ESP_LOGI(tag, "[mic] live=%d state=%u takes=%u jar_live=%d start_latency=%u us last_peak=%d last_floor=%d dBFS | capture blocks=%u avg=%u max=%u us",
+                 game.mic_live() ? 1 : 0, static_cast<unsigned>(mic->state()), static_cast<unsigned>(mic->takes()),
+                 game.live_clip() ? 1 : 0, static_cast<unsigned>(mic->start_latency_us()),
+                 dbfs(peak), dbfs(floor),
+                 static_cast<unsigned>(mic_blocks), static_cast<unsigned>(mic_blocks ? mic_us / mic_blocks : 0),
+                 static_cast<unsigned>(mic_max));
+      }
       memory_log("playing");
 #ifdef SOUND_JAR_BENCH
       // Once, mid-play: full-screen render cost attributed to each visible layer (stalls ~15 s; the next

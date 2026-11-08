@@ -110,7 +110,7 @@ Voice* Game::find_voice(uint32_t id) {
 }
 
 uint32_t Game::start_voice(int pad, bool loop) {
-  const int take = jar_.sound;
+  const int take = jar_live_ && jar_.sound != kFrog ? kLiveTake : jar_.sound;
   int live = 0;
   for (const Voice& w : voices_) live += w.rel ? 0 : 1;
   if (live >= kMaxLiveVoices) {  // steal the oldest live voice
@@ -119,7 +119,7 @@ uint32_t Game::start_voice(int pad, bool loop) {
   }
   Voice v{};
   v.id = next_voice_id_++;
-  v.pad = pad; v.take = take; v.pos = 0; v.dur = kTakeData[take].dur; v.loop = loop;
+  v.pad = pad; v.take = take; v.pos = 0; v.dur = take_data(take).dur; v.loop = loop;
   v.rate = std::pow(2.0, (pad >= 0 ? kPads[pad].semitones : 0) / 12.0);
   v.bend = 0; v.rel = false; v.fade = 1; v.rev = fx_on(kBack);
   voices_.push_back(v);
@@ -149,7 +149,7 @@ void Game::apply_fx() {
 }
 
 double Game::voice_level(const Voice& v) const {
-  const TakeData& tk = kTakeData[v.take];
+  const TakeData& tk = take_data(v.take);
   const double p = v.rev ? v.dur - v.pos : v.pos;
   const int f = static_cast<int>(std::floor(p / kLevelFrame));
   return (f >= 0 && f < tk.frames ? tk.play_lev[f] : 0) * v.fade;
@@ -184,23 +184,46 @@ void Game::pour_out(int mist, double level) {
   jar_.has_next = true; jar_.next_mist = mist; jar_.next_level = level;
 }
 
+void Game::wipe_mic() {
+  jar_live_ = false; live_pending_ = false;
+  if (mic_) mic_->wipe();
+}
+
 void Game::start_recording() {
   stop_all_voices(); has_hold_ = false; has_pending_ = false;
+  wipe_mic();  // design §5: a new recording wipes the previous clip
+  rec_live_ = mic_live();
   take_ = next_take(); ++tries_;
   if (jar_.level > 0.04) {
     const uint32_t* c = kTakes[jar_.mist].hue.c;
     emit(kJarX, 78, 6, {8, 24, 0.6, 0.9, -30, Shape::Circle, 5, c, 2, 20, false});
   }
-  jar_.sound = kFrog; pour_out(take_, 0);
-  lid_.to = 1; cue(Cue::LidPop);
+  jar_.sound = kFrog; pour_out(take_, 0); hush_ = false;
+  lid_.to = 1;
   emit(kLidX, 62, 5, {40, 110, 0.35, 0.7, 60, Shape::Star, 5, kSparkleColors, 2, 0, true});
   ring(kRecX, kRecY, 14, 40, 0.45, kRed.c[0], 3);
-  phase_ = Phase::Countdown; t_ = 0; voiced_ = 0; last_act_ = -1; lev_ = 0; recb_.louder = 0;
+  voiced_ = 0; last_act_ = -1; lev_ = 0; recb_.louder = 0; t_ = 0;
+  if (rec_live_) {
+    // Native, user-requested: a live take records from the tap. No countdown, no ribbon, and no lid
+    // pop (capture mutes the speaker, which would chop it, and the microphone would hear it).
+    jar_.mist = jar_.next_mist; jar_.has_next = false;
+    phase_ = Phase::Recording;
+    mic_->arm();
+    return;
+  }
+  cue(Cue::LidPop);
+  phase_ = Phase::Countdown;
 }
 
 void Game::finish_recording() {
   t_ = 0; lev_ = 0; lid_.to = 0;
   if (jar_.has_next) { jar_.mist = jar_.next_mist; jar_.has_next = false; }
+  if (rec_live_) {
+    voiced_ = mic_->voiced();
+    mic_->stop();
+    if (voiced_ < 0.15) { wipe_mic(); too_quiet_live(); return; }
+    live_pending_ = true;  // finalized once the audio thread acknowledges the stop (see tick)
+  }
   if (voiced_ < 0.15) { too_quiet(); return; }
   phase_ = Phase::Processing; jar_.sound = take_; jar_.level_to = 0.62;
 }
@@ -208,6 +231,14 @@ void Game::finish_recording() {
 void Game::too_quiet() {
   phase_ = Phase::TooQuiet; jar_.wig = 0.7; jar_.hmm = 1.6; recb_.louder = 1.4;
   cue(Cue::Hmm); pour_out(kFrog, 0.38);
+}
+
+void Game::too_quiet_live() {
+  // Native, user-requested: after a silent live take the jar stays empty and quiet (no built-in frog)
+  // and the helper hand keeps pointing at the microphone button until the next recording.
+  phase_ = Phase::TooQuiet; t_ = 0; jar_.wig = 0.7; jar_.hmm = 1.6; recb_.louder = 1.4; lid_.to = 0;
+  cue(Cue::Hmm); jar_.sound = kFrog; pour_out(kFrog, 0);
+  hush_ = true; hint_ = 2; spoken_ = true; nudge_ = 0;
 }
 
 void Game::lid_closed() {
@@ -258,18 +289,20 @@ void Game::toggle_fx(int i) {
 void Game::bin_tap() {
   bin_.lid = 1; cue(Cue::Whoosh); ring(kBinX, 110, 8, 36, 0.45, kWhite, 2);
   stop_all_voices(); has_hold_ = false; has_pending_ = false;
+  wipe_mic();  // emptying the jar is the explicit wipe (also aborts a live recording)
   if (jar_.level > 0.04) fly_mist(10, kTakes[jar_.mist].hue.c);
   if (!can_play()) {  // abort a recording
     lid_.to = 0;
     if (jar_.has_next) { jar_.mist = jar_.next_mist; jar_.has_next = false; }
   }
-  jar_.sound = kFrog; pour_out(kFrog, 0.38); jar_.qv = -2;
+  jar_.sound = kFrog; pour_out(kFrog, 0.38); jar_.qv = -2; hush_ = false;
   phase_ = Phase::Empty; t_ = 0;
 }
 
 void Game::jar_tap() {
   ring(kJarX, kJarY, 16, 56, 0.45, kWhite, 2);
   if (!can_play()) return;
+  if (hush_) { jar_.wig = 0.5; return; }  // empty after a silent take: a wobble, no voice
   start_voice(-1, false);
   emit(kJarX, 80, 4, {40, 110, 0.35, 0.7, 60, Shape::Star, 5, kSparkleColors, 2, 0, true});
 }
@@ -280,7 +313,7 @@ void Game::pad_down(int i, double y, int pointer) {
   hold_ = Hold{i, pointer, y, 0, 0, 0, false};
   const PadDef& P = kPads[i];
   const double x = pad_x(i), py = pad_y(i);
-  if (!can_play()) { ring(x, py, 8, 30, 0.4, kWhite, 2); return; }
+  if (!can_play() || hush_) { ring(x, py, 8, 30, 0.4, kWhite, 2); return; }
   ++actions_;
   hold_.voice = start_voice(i, false);
   pads_[i].glow = 1;
@@ -296,7 +329,7 @@ void Game::release_hold() {
 }
 
 void Game::preview() {
-  if (!can_play() || has_hold_ || any_live_voice()) return;
+  if (!can_play() || hush_ || has_hold_ || any_live_voice()) return;
   start_voice(-1, false);
   jar_.qv = -1.5;
 }
@@ -372,6 +405,7 @@ void Game::intent(little_arcade::Intent in) {
 void Game::home() {
   if (music_on_) { sound_.stop_music(); music_on_ = false; }
   stop_all_voices(); voices_.clear();
+  wipe_mic(); rec_live_ = false; hush_ = false;  // Home = exit: wipe the clip
   has_hold_ = false; pressed_ = nullptr; has_pending_ = false; parts_.clear(); rings_.clear();
   phase_ = Phase::Start; t_ = 0; idle_ = 0; hint_ = 0; spoken_ = false; actions_ = 0; tries_ = 0;
   order_.clear(); take_ = -1; fx_.clear(); amb_ = 0; voiced_ = 0; last_act_ = -1; lev_ = 0;
@@ -416,6 +450,15 @@ void Game::music_tick() {
   }
 }
 
+void Game::advance(double elapsed) {
+  double left = std::min(elapsed, kMaxCatchUp);
+  while (left > 1e-9) {
+    const double step = std::min(kMaxStep, left);
+    tick(step);
+    left -= step;
+  }
+}
+
 void Game::tick(double dt) {
   time_ += dt; t_ += dt;
   const double m = reduced_ ? 0.3 : 1;
@@ -432,17 +475,31 @@ void Game::tick(double dt) {
     if (t_ >= 1.35) {
       phase_ = Phase::Recording; t_ = 0;
       if (jar_.has_next) { jar_.mist = jar_.next_mist; jar_.has_next = false; }
+      if (rec_live_) mic_->arm();
     }
   } else if (phase_ == Phase::Recording) {
-    const TakeData& tk = kTakeData[take_];
-    const int f = static_cast<int>(std::floor((t_ - 0.3) / kLevelFrame));
-    lev_ = f >= 0 && f < tk.frames ? tk.lev[f] : 0;  // the built-in take arrives as the input level
-    if (lev_ >= kActive) last_act_ = t_;
-    if (lev_ >= kLoud) voiced_ += dt;
-    jar_.level_to = std::min(0.66, 0.06 + voiced_ * 0.9);
-    if ((last_act_ >= 0 && t_ - last_act_ >= 0.5) || t_ >= 3) finish_recording();
+    if (rec_live_) {  // the microphone's level; its end rule runs in captured (wall-clock) time
+      lev_ = mic_->level();
+      voiced_ = mic_->voiced();
+      jar_.level_to = std::min(0.66, 0.06 + voiced_ * 0.9);
+      if (mic_->should_stop()) finish_recording();
+    } else {
+      const TakeData& tk = kTakeData[take_];
+      const int f = static_cast<int>(std::floor((t_ - 0.3) / kLevelFrame));
+      lev_ = f >= 0 && f < tk.frames ? tk.lev[f] : 0;  // the built-in take arrives as the input level
+      if (lev_ >= kActive) last_act_ = t_;
+      if (lev_ >= kLoud) voiced_ += dt;
+      jar_.level_to = std::min(0.66, 0.06 + voiced_ * 0.9);
+      if ((last_act_ >= 0 && t_ - last_act_ >= 0.5) || t_ >= 3) finish_recording();
+    }
   } else if (phase_ == Phase::Processing) {
-    if (t_ >= 0.5) celebrate();
+    if (live_pending_ && mic_->state() == LiveTake::State::Captured) {
+      jar_live_ = mic_->finalize();
+      live_pending_ = false;
+      if (!jar_live_) { too_quiet_live(); return; }  // nothing above the room's noise survived the trim
+    }
+    // A live take waits for the audio thread (one 16 ms block); should it never answer, the built-in take plays.
+    if (t_ >= 0.5 && (!live_pending_ || t_ >= 1.5)) { live_pending_ = false; celebrate(); }
   } else if (phase_ == Phase::TooQuiet) {
     if (t_ >= 1.4) { phase_ = Phase::Empty; t_ = 0; }
   }
@@ -453,6 +510,7 @@ void Game::tick(double dt) {
     if (idle_ > kIdleVisual && hint_ < 1) { hint_ = 1; nudge_ = 0; }
     if (idle_ > kIdleSpoken && !spoken_) { spoken_ = true; hint_ = 2; cue(Cue::Hint); jar_.hum = 0.9; jar_.qv = -2.2; }
   }
+  if (hush_ && can_play()) { hint_ = 2; spoken_ = true; }  // keep pointing at the microphone
   if (hint_ >= 1 && (nudge_ -= dt) <= 0) {
     nudge_ = 1.6;
     const Suggestion s = suggest();

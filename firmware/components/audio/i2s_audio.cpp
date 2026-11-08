@@ -63,6 +63,7 @@ void audio_task(void*) {
         ++mic_count;
       }
       if (g_options.sampler && frames > 0) g_options.sampler->capture(g_mic, frames);
+      if (g_options.mic_sink) g_options.mic_sink->capture(g_mic, frames);  // n may be 0: services requests
     }
 
     const int64_t now = esp_timer_get_time();
@@ -104,7 +105,8 @@ bool start_i2s_audio(AudioFeedback& feedback, const I2sAudioOptions& options) {
   g_feedback = &feedback;
   g_options = options;
   // The Sound Jar mic is optional: an unknown pin just means built-in sounds.
-  const bool want_rx = options.mic_level_probe || (options.sampler && pins::kMicDataIn != board::kPinTbd);
+  const bool want_rx = options.mic_level_probe ||
+                       ((options.sampler || options.mic_sink) && pins::kMicDataIn != board::kPinTbd);
 
   i2s_chan_config_t chan = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
   chan.dma_desc_num = 4;
@@ -146,6 +148,7 @@ bool start_i2s_audio(AudioFeedback& feedback, const I2sAudioOptions& options) {
     return false;
   }
   if (options.sampler) options.sampler->set_mic_hardware(g_rx != nullptr);
+  if (options.mic_sink) options.mic_sink->set_mic_hardware(g_rx != nullptr);
   ESP_LOGI(kTag, "I2S0 %" PRIu32 " Hz bclk=%d ws=%d dout=%d din=%d (wiring: %s, bench verified: %s)", kSampleRateHz,
            pins::kBclk, pins::kWs, pins::kAmpDataOut, want_rx ? pins::kMicDataIn : -1,
            pins::kWiringSource, pins::kWiringBenchVerified ? "yes" : "no");

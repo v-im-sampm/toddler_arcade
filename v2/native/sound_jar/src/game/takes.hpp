@@ -9,6 +9,7 @@
 namespace sound_jar {
 
 inline constexpr int kTakeCount = 5;
+inline constexpr int kLiveTake = kTakeCount;  // sampler slot for the microphone take (game/live_take.hpp)
 inline constexpr int kTakeSampleRate = 16000;
 inline constexpr double kLevelFrame = 0.02;  // reference FRAME
 

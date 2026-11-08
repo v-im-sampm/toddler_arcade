@@ -2,6 +2,7 @@
 #include <cstdint>
 
 #include "little_arcade/audio/audio_feedback.hpp"
+#include "little_arcade/audio/mic_sink.hpp"
 
 namespace little_arcade::audio {
 
@@ -14,6 +15,8 @@ struct I2sAudioOptions {
   // block and handed to sampler->capture(); the sampler keeps at most one
   // short clip in RAM and only while the child is recording.
   Sampler* sampler = nullptr;
+  // v2 Sound Jar: the same mic blocks, handed to a game-owned recorder instead of the v1 Sampler.
+  MicSink* mic_sink = nullptr;
 };
 
 // Starts I2S0 (TX to the MAX98357A, optional RX from the INMP441 on the same

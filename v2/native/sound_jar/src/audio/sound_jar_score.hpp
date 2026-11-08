@@ -48,6 +48,10 @@ class SoundJarScore final : public Sound, public little_arcade::audio::ExternalS
   // ---- audio thread ----
   void render_add(int32_t* out, std::size_t n) override;
 
+  // Optional microphone take (set before audio starts). Its voices stop when the clip is wiped or re-armed, and
+  // nothing is output while it captures: the amp has no mute pin, so this avoids feedback (design §4, SJ-6).
+  void set_live(const LiveTake* live) { live_ = live; }
+
   // Diagnostics / tests (audio thread or after it stopped).
   bool running() const { return running_; }
   std::size_t notes() const;
@@ -74,6 +78,9 @@ class SoundJarScore final : public Sound, public little_arcade::audio::ExternalS
     bool active, loop, rev, rel;
     uint32_t id;
     int take;
+    const int16_t* pcm;
+    int n;
+    uint32_t gen;  // live take generation at start
     double pos;  // sample index into the (possibly reversed) clip
     float rate, gain, target, coef;
     uint32_t attack_left, stop_left;
@@ -107,6 +114,7 @@ class SoundJarScore final : public Sound, public little_arcade::audio::ExternalS
 
   Command ring_[kQueue]{};
   std::atomic<uint32_t> head_{0}, tail_{0}, dropped_{0};
+  const LiveTake* live_ = nullptr;
 
   Note notes_[kMaxNotes]{};
   SamplerVoice sampler_[kMaxSampler]{};
@@ -135,6 +143,7 @@ class SoundJarScore final : public Sound, public little_arcade::audio::ExternalS
   float delay_[kPreDelay]{};
   std::size_t delay_pos_ = 0;
   float env_db_ = 0, comp_gain_ = 1;
+  float mute_gain_ = 1;  // 0 while the microphone captures
 };
 
 }  // namespace sound_jar

@@ -13,7 +13,7 @@ add_custom_command(OUTPUT ${SOUND_JAR_ASSETS}/sound_jar.pack ${SOUND_JAR_ASSETS}
   COMMENT "Exporting original Sound Jar Canvas artwork and takes")
 add_custom_target(sound_jar_assets DEPENDS ${SOUND_JAR_ASSETS}/sound_jar.pack ${SOUND_JAR_ASSETS}/takes_data.cpp)
 
-add_library(sound_jar_game STATIC src/game/sound_jar.cpp ${SOUND_JAR_ASSETS}/takes_data.cpp)
+add_library(sound_jar_game STATIC src/game/sound_jar.cpp src/game/live_take.cpp ${SOUND_JAR_ASSETS}/takes_data.cpp)
 target_include_directories(sound_jar_game PUBLIC ${CMAKE_CURRENT_LIST_DIR}/src ${SOUND_JAR_FW}/core/include)
 target_compile_features(sound_jar_game PUBLIC cxx_std_17)
 add_dependencies(sound_jar_game sound_jar_assets)
@@ -40,6 +40,10 @@ endif()
 add_executable(sound_jar_game_test test/game_test.cpp)
 target_link_libraries(sound_jar_game_test PRIVATE sound_jar_game)
 add_test(NAME sound_jar_game_test COMMAND sound_jar_game_test)
+
+add_executable(sound_jar_live_test test/live_take_test.cpp)
+target_link_libraries(sound_jar_live_test PRIVATE sound_jar_game)
+add_test(NAME sound_jar_live_test COMMAND sound_jar_live_test)
 
 add_executable(sound_jar_score_test test/score_test.cpp)
 target_link_libraries(sound_jar_score_test PRIVATE sound_jar_score)

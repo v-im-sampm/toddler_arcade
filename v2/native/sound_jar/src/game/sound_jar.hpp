@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "game/live_take.hpp"
 #include "game/takes.hpp"
 #include "little_arcade/intent.hpp"
 
@@ -145,10 +146,21 @@ class Game {
   void move(double x, double y, int pointer = 0);
   void up(int pointer = 0);
   void tick(double dt);  // reference update(dt) + musicTick(); callers clamp dt to 0.05
+  // Wall-clock frame time for a renderer slower than the reference's 20 fps clamp: ticks in steps of at most
+  // 0.05 s (the reference's per-update cap) so game time keeps pace with real time; a stall is cut to kMaxCatchUp.
+  static constexpr double kMaxStep = 0.05, kMaxCatchUp = 0.25;
+  void advance(double elapsed);
   void intent(little_arcade::Intent intent);
   void home();
   void set_reduced(bool reduced) { reduced_ = reduced; }
   bool reduced() const { return reduced_; }
+  // Optional microphone (device only). Without one, or while it is unavailable (no hardware / parent switch
+  // off), a recording replays the reference's built-in takes. Set before play.
+  void set_mic(LiveTake* mic) { mic_ = mic; }
+  bool mic_live() const { return mic_ && mic_->available(); }
+  bool recording_live() const { return rec_live_; }  // the current / last recording uses the microphone
+  bool live_clip() const { return jar_live_; }       // the jar holds the microphone take
+  bool hushed() const { return hush_; }              // empty and silent after a too-quiet live take
 
   Phase phase() const { return phase_; }
   bool can_play() const { return phase_ == Phase::Empty || phase_ == Phase::Full || phase_ == Phase::TooQuiet; }
@@ -220,6 +232,9 @@ class Game {
   void stop_all_voices();
   void bend_voice(Voice& v, double semis);
   void apply_fx();
+  const TakeData& take_data(int take) const { return take == kLiveTake && mic_ ? mic_->data() : kTakeData[take]; }
+  void wipe_mic();
+  void too_quiet_live();
   double voice_level(const Voice& v) const;
   void emit(double x, double y, int n, const EmitSpec& o);
   void fly_mist(int n, const uint32_t* colors);
@@ -254,6 +269,8 @@ class Game {
   std::vector<Ring> rings_;
   bool music_on_ = false;
   int music_i_ = 0, music_loop_ = 0;
+  LiveTake* mic_ = nullptr;
+  bool rec_live_ = false, jar_live_ = false, live_pending_ = false, hush_ = false;
 };
 
 }  // namespace sound_jar
