@@ -20,6 +20,13 @@ v2/native/color_pop/device/managed_components/
 v2/native/color_pop/device/sdkconfig
 v2/native/color_pop/device/sdkconfig.old
 v2/native/color_pop/device/main/pack_signature.hpp
+v2/native/sound_jar/assets/generated/
+v2/native/sound_jar/device/build/
+v2/native/sound_jar/device/build-bench/
+v2/native/sound_jar/device/managed_components/
+v2/native/sound_jar/device/sdkconfig
+v2/native/sound_jar/device/sdkconfig.old
+v2/native/sound_jar/device/main/pack_signature.hpp
 v2/native/launcher/device/build/
 v2/native/launcher/device/managed_components/
 v2/native/launcher/device/sdkconfig

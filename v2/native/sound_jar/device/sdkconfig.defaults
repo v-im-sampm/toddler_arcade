@@ -1,0 +1,5 @@
+# Sound Jar-only overrides, applied after firmware/sdkconfig.defaults. Rendering ~65 layered alpha sprites is
+# CPU-bound on the S3 (measured: identical frame time with the pack in flash or PSRAM), so render with one software
+# draw unit per core. (LV_ATTRIBUTE_FAST_MEM_USE_IRAM was tried: dram0_0_seg overflowed by 36,696 B.)
+CONFIG_LV_OS_FREERTOS=y
+CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=2

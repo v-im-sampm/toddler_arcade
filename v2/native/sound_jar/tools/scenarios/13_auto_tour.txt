@@ -1,0 +1,13 @@
+tap 160 120
+step 100
+auto
+step 360
+auto
+step 40
+auto
+step 40
+auto
+step 40
+auto
+step 20
+

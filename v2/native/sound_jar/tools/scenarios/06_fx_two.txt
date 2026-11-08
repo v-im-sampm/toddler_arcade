@@ -1,0 +1,9 @@
+tap 160 120
+step 100
+tap 268 128
+step 400
+tap 134 30
+step 10
+tap 238 30
+step 6
+
